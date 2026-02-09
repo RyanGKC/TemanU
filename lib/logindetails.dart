@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:temanu/button.dart';
-import 'package:temanu/homepage.dart';
+import 'package:temanu/mainscreen.dart';
 import 'package:temanu/registerdetails.dart';
 import 'package:temanu/textbox.dart';
 
@@ -92,7 +92,7 @@ class _LoginDetailsState extends State<LoginDetails> {
                       onPressed: () {
                         Navigator.pushReplacement(
                           context, 
-                          MaterialPageRoute(builder: (context) => const HomePage())
+                          MaterialPageRoute(builder: (context) => const Mainscreen())
                         );
                       },
                     ),
