@@ -42,7 +42,11 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: ([
-          
+            
+            //add health card here
+
+
+            //medication log
             Padding(
               padding: const EdgeInsets.all(30.0),
               child: MedicationLog(),
