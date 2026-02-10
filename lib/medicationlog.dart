@@ -49,6 +49,15 @@ class _MedicationLogState extends State<MedicationLog> {
           ),
           MedicationLogEntry(text:'Metformin\n1pill'),
           MedicationLogEntry(text:'Sulfonylureas\n1pill'),
+
+          IconButton(
+            icon: Icon(Icons.edit_square),
+            iconSize: 30.0,
+            color: Colors.white,
+            onPressed: () {
+              //to be implemented
+            },
+          ),
         ]
       )
     );
