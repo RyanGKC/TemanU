@@ -1,15 +1,15 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+class MainPage extends StatefulWidget {
+  const MainPage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<MainPage> createState() => _MainPageState();
 }
 
-class _HomePageState extends State<HomePage> {
-    // This keeps track of which tab (Home, Search, or Profile) is selected 
+class _MainPageState extends State<MainPage> {
+  // This keeps track of which tab (Home, Search, or Profile) is selected 
   int _selectedIndex = 0;
 
   // This is a list of the different screens for each tab 
@@ -19,26 +19,29 @@ class _HomePageState extends State<HomePage> {
     const Center(child: Text('Profile Page', style: TextStyle(color: Colors.white))),
   ];
 
+  // This function updates the screen when a tab is clicked 
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xff040F31),
-      extendBodyBehindAppBar: true,
+      backgroundColor: const Color(0xff040F31), // Main dark background 
+      
+      // THE TOP BAR: Includes "Hi, James" and the Notification Bell 
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
-        title: Text(
+        title: const Text(
           'Hi, James',
           style: TextStyle(
             fontSize: 25,
             fontWeight: FontWeight.w600,
-            color: Color(0xff00E5FF),
+            color: Color(0xff00E5FF), // Bright blue text
           )
         ),
         actions: [
@@ -52,15 +55,9 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ],
-        flexibleSpace: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40), // Controls blur intensity
-            child: Container(
-              color: Colors.white.withValues(alpha: 0.25),
-            )
-          ),
-        ),
       ),
+
+      // THE BODY: Layers the content and the bottom corner buttons 
       body: Stack(
         children: [
           _pages[_selectedIndex], // Shows the current tab's content 
@@ -87,6 +84,7 @@ class _HomePageState extends State<HomePage> {
             ),
         ],
       ),
+
       // THE NAVIGATION TABS: Home, Search, Profile 
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xff040F31),
