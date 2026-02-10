@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:temanu/medicationlog.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -12,7 +13,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
+      extendBodyBehindAppBar: false,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -34,15 +35,23 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
-      body: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Color(0xff040F31)
+
+      backgroundColor: Color(0xff040F31),
+
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: ([
+          
+            Padding(
+              padding: const EdgeInsets.all(30.0),
+              child: MedicationLog(),
             )
-          )
-        ]
+          
+          ])
+        ),
       )
     );
   }
 }
+
