@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:temanu/medicationlog.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -9,26 +10,10 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-    // This keeps track of which tab (Home, Search, or Profile) is selected 
-  int _selectedIndex = 0;
-
-  // This is a list of the different screens for each tab 
-  final List<Widget> _pages = [
-    const HealthDashboardContent(), // Our main dashboard with cards
-    const Center(child: Text('Search Page', style: TextStyle(color: Colors.white))),
-    const Center(child: Text('Profile Page', style: TextStyle(color: Colors.white))),
-  ];
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xff040F31),
-      extendBodyBehindAppBar: true,
+      extendBodyBehindAppBar: false,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -41,17 +26,6 @@ class _HomePageState extends State<HomePage> {
             color: Color(0xff00E5FF),
           )
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 15.0),
-            child: IconButton(
-              icon: const Icon(Icons.notifications_none, color: Color(0xff00E5FF)),
-              onPressed: () {
-                // Future: Add notification logic here 
-              },
-            ),
-          ),
-        ],
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40), // Controls blur intensity
@@ -61,45 +35,24 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
-      body: Stack(
-        children: [
-          _pages[_selectedIndex], // Shows the current tab's content 
 
-          // Only show Edit/Share buttons if we are on the Home tab (index 0)
-          if (_selectedIndex == 0)
-            Positioned(
-              bottom: 20,
-              left: 20,
-              right: 20,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit_note, color: Colors.white, size: 30),
-                    onPressed: () {}, // make sure to add edit logic 
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.ios_share, color: Colors.white, size: 28),
-                    onPressed: () {}, // make sure to add share logic 
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-      // THE NAVIGATION TABS: Home, Search, Profile 
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: const Color(0xff040F31),
-        selectedItemColor: const Color(0xff00E5FF),
-        unselectedItemColor: Colors.grey,
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
-      ),
+      backgroundColor: Color(0xff040F31),
+
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            //add health card here
+            HealthDashboardContent(),
+            //medication log
+            Padding(
+              padding: const EdgeInsets.all(30.0),
+              child: MedicationLog(),
+            )
+          
+          ]
+        ),
+      )
     );
   }
 }
@@ -113,8 +66,11 @@ class HealthDashboardContent extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20.0),
       child: ListView(
+        shrinkWrap: true, 
+        physics: const NeverScrollableScrollPhysics(), 
+        
         children: [
-          const SizedBox(height: 20), // Extra space below the AppBar
+          const SizedBox(height: 20), 
           healthCard(Icons.water_drop, "Blood Glucose Level", "110", "mg/dl"),
           healthCard(Icons.directions_run, "Activity", "8240", "steps"),
           healthCard(Icons.favorite, "Heart Rate", "68", "bpm"),
@@ -122,7 +78,19 @@ class HealthDashboardContent extends StatelessWidget {
           healthCard(Icons.monitor_heart, "Blood Pressure", "118/76", "mmHg"),
           healthCard(Icons.local_fire_department, "Calories", "1900", "kcal"),
           healthCard(Icons.monitor_weight, "Body Weight", "80.5", "kg"),
-          const SizedBox(height: 80), // Space so buttons don't cover last card
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween, // Pushes icons to edges
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit_note, color: Colors.white, size: 30),
+                onPressed: () {}, // make sure to add edit logic 
+              ),
+              IconButton(
+                icon: const Icon(Icons.ios_share, color: Colors.white, size: 28),
+                onPressed: () {}, // make sure to add share logic 
+              ),
+            ],
+          ),
         ],
       ),
     );
