@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:temanu/caloriesMain.dart';
 import 'package:temanu/medicationlog.dart';
 
 class HomePage extends StatefulWidget {
@@ -70,13 +71,12 @@ class HealthDashboardContent extends StatelessWidget {
         
         children: [
           const SizedBox(height: 20), 
-          healthCard(context, Icons.water_drop, "Blood Glucose Level", "110", "mg/dl", '/glucose'),
-          healthCard(context, Icons.directions_run, "Activity", "8240", "steps", '/activity'),
-          healthCard(context, Icons.favorite, "Heart Rate", "68", "bpm", '/heart_rate'),
-          healthCard(context, Icons.opacity, "Oxygen Saturation", "98", "%", '/oxygen'),
-          healthCard(context, Icons.monitor_heart, "Blood Pressure", "118/76", "mmHg", '/blood_pressure'),
-          healthCard(context, Icons.local_fire_department, "Calories", "1900", "kcal", '/calories'),
-          healthCard(context, Icons.monitor_weight, "Body Weight", "80.5", "kg", '/weight'),
+          healthCard(context, Icons.water_drop, "Blood Glucose Level", "110", "mg/dl", HomePage()),
+          healthCard(context, Icons.favorite, "Heart Rate", "68", "bpm", HomePage()),
+          healthCard(context, Icons.opacity, "Oxygen Saturation", "98", "%", HomePage()),
+          healthCard(context, Icons.monitor_heart, "Blood Pressure", "118/76", "mmHg", HomePage()),
+          healthCard(context, Icons.local_fire_department, "Calories", "1900", "kcal", CaloriesMain()),
+          healthCard(context, Icons.monitor_weight, "Body Weight", "80.5", "kg", HomePage()),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween, 
             children: [
@@ -96,11 +96,14 @@ class HealthDashboardContent extends StatelessWidget {
   }
 }
 
-Widget healthCard(BuildContext context, IconData icon, String title, String value, String unit, String routePath) {
+Widget healthCard(BuildContext context, IconData icon, String title, String value, String unit, Widget destinationPage) {
   return GestureDetector(
     onTap: () {
-      // Navigates to the path passed into the widget
-      Navigator.pushNamed(context, routePath);
+      // Navigates directly to the Widget passed into the parameter
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => destinationPage),
+      );
     },
     child: Container(
       margin: const EdgeInsets.only(bottom: 15),

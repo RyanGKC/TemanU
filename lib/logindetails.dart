@@ -92,7 +92,7 @@ class _LoginDetailsState extends State<LoginDetails> {
                       onPressed: () {
                         Navigator.pushReplacement(
                           context, 
-                          MaterialPageRoute(builder: (context) => Mainscreen())
+                          MaterialPageRoute(builder: (context) => MainScreen())
                         );
                       },
                     ),
