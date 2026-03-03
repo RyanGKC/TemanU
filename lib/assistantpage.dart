@@ -172,7 +172,7 @@ class _AssistantPageState extends State<AssistantPage> {
 
   Widget _buildMessageInput() {
     return Padding(
-      padding: const EdgeInsets.only(left: 15, right: 15, bottom: 20, top: 5), 
+      padding: const EdgeInsets.only(left: 15, right: 15, bottom: 10, top: 10), 
       child: ClipRRect(
         borderRadius: BorderRadius.circular(30),
         child: BackdropFilter(
@@ -191,7 +191,8 @@ class _AssistantPageState extends State<AssistantPage> {
               children: [
                 // THE PLUS BUTTON
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 6.0, left: 6.0),
+                  // FIXED: Changed bottom to 4.0 for perfect mathematical centering
+                  padding: const EdgeInsets.only(bottom: 4.0, left: 6.0),
                   child: IconButton(
                     icon: const Icon(Icons.add, color: Color(0xff00E5FF), size: 28),
                     padding: EdgeInsets.zero,
@@ -220,6 +221,7 @@ class _AssistantPageState extends State<AssistantPage> {
                       filled: true,
                       fillColor: Colors.transparent,
                       isDense: true,
+                      // The vertical: 14 here dictates the overall height (approx 48px)
                       contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 14),
                     ),
                   ),
@@ -227,17 +229,18 @@ class _AssistantPageState extends State<AssistantPage> {
                 
                 // THE SEND BUTTON
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 6.0, right: 6.0, left: 4.0),
+                  // FIXED: Changed bottom to 4.0 for perfect mathematical centering
+                  padding: const EdgeInsets.only(bottom: 4.0, right: 6.0, left: 4.0),
                   child: GestureDetector(
                     onTap: () => _handleSubmitted(_textController.text),
                     child: Container(
                       height: 40,
                       width: 40,
-                      decoration: const BoxDecoration(
-                        color: Color(0xff00E5FF),
-                        shape: BoxShape.circle,
+                      child: const Icon(
+                        Icons.send, 
+                        color: Color(0xff00E5FF), 
+                        size: 18
                       ),
-                      child: const Icon(Icons.send, color: Color(0xff040F31), size: 18),
                     ),
                   ),
                 ),
