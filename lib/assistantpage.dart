@@ -233,7 +233,7 @@ class _AssistantPageState extends State<AssistantPage> {
                   padding: const EdgeInsets.only(bottom: 4.0, right: 6.0, left: 4.0),
                   child: GestureDetector(
                     onTap: () => _handleSubmitted(_textController.text),
-                    child: Container(
+                    child: SizedBox(
                       height: 40,
                       width: 40,
                       child: const Icon(
