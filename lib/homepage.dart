@@ -19,7 +19,7 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
-        title: Text(
+        title: const Text(
           'Hi, James',
           style: TextStyle(
             fontSize: 25,
@@ -29,7 +29,7 @@ class _HomePageState extends State<HomePage> {
         ),
         flexibleSpace: ClipRect(
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40), // Controls blur intensity
+            filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40), 
             child: Container(
               color: Colors.white.withValues(alpha: 0.25),
             )
@@ -37,20 +37,20 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
 
-      backgroundColor: Color(0xff040F31),
+      backgroundColor: const Color(0xff040F31),
 
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            //add health card here
-            HealthDashboardContent(),
-            //medication log
-            Padding(
-              padding: const EdgeInsets.all(30.0),
+            const HealthDashboardContent(),
+            const Padding(
+              padding: EdgeInsets.only(left: 20.0, right: 20.0, top: 10.0),
               child: MedicationLog(),
-            )
-          
+            ),
+            
+            // 3. FIXED BOTTOM: Added a large spacer to push content above the floating nav bar
+            const SizedBox(height: 120), 
           ]
         ),
       )
@@ -66,6 +66,7 @@ class HealthDashboardContent extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20.0),
       child: ListView(
+        padding: EdgeInsets.zero,
         shrinkWrap: true, 
         physics: const NeverScrollableScrollPhysics(), 
         

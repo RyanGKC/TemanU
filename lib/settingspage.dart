@@ -8,7 +8,10 @@ class SettingsPage extends StatelessWidget {
     return Center(
       child: Text(
         "Settings Page",
-        style: TextStyle(fontSize: 32),
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 32
+        ),
       ),
     );
   }
