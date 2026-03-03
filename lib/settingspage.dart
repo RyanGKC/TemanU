@@ -125,26 +125,48 @@ class SettingsPage extends StatelessWidget {
                 child: Column(
                   children: [
                     _buildSettingsTile(
-                      icon: Icons.logout, 
-                      title: "Log Out", 
-                      textColor: Colors.redAccent,
-                      iconColor: Colors.redAccent,
-                      hideArrow: true,
-                      onTap: () {
-                        // Log out logic here
-                      }
-                    ),
-                    _buildDivider(),
-                    _buildSettingsTile(
-                      icon: Icons.delete_forever, 
-                      title: "Delete Account", 
-                      textColor: Colors.redAccent,
-                      iconColor: Colors.redAccent,
-                      hideArrow: true,
-                      onTap: () {
-                        // Delete account logic here
-                      }
-                    ),
+                        icon: Icons.logout, 
+                        title: "Log Out", 
+                        textColor: Colors.redAccent,
+                        iconColor: Colors.redAccent,
+                        hideArrow: true,
+                        onTap: () {
+                          // TRIGGERS THE LOG OUT DIALOG
+                          _showConfirmationDialog(
+                            context,
+                            title: "Log Out",
+                            content: "Are you sure you want to log out of your account? You will need to sign back in to view your health data.",
+                            actionText: "Log Out",
+                            actionColor: const Color.fromARGB(168, 0, 229, 255),
+                            onConfirm: () {
+                              print("User officially logged out!");
+                              // Add your actual logout navigation logic here
+                            },
+                          );
+                        }
+                      ),
+                      _buildDivider(),
+                      _buildSettingsTile(
+                        icon: Icons.delete_forever, 
+                        title: "Delete Account", 
+                        textColor: Colors.redAccent,
+                        iconColor: Colors.redAccent,
+                        hideArrow: true,
+                        onTap: () {
+                          // TRIGGERS THE DELETE ACCOUNT DIALOG
+                          _showConfirmationDialog(
+                            context,
+                            title: "Delete Account",
+                            content: "This action cannot be undone. All of your saved health data, medication logs, and settings will be permanently erased.",
+                            actionText: "Delete",
+                            actionColor: Colors.redAccent, // Red for destructive actions!
+                            onConfirm: () {
+                              print("User officially deleted account!");
+                              // Add your actual delete logic here
+                            },
+                          );
+                        }
+                      ),
                   ],
                 ),
               ),
@@ -208,3 +230,102 @@ class SettingsPage extends StatelessWidget {
     );
   }
 }
+
+// WIDGET: Sleek, Glassmorphism Confirmation Dialog
+  void _showConfirmationDialog(
+    BuildContext context, {
+    required String title,
+    required String content,
+    required String actionText,
+    required Color actionColor,
+    required VoidCallback onConfirm,
+  }) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.6), // Darkens the background smoothly
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent, // Makes the default white box invisible
+          elevation: 0,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(25),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                padding: const EdgeInsets.all(25),
+                decoration: BoxDecoration(
+                  color: const Color(0xff1A3F6B).withValues(alpha: 0.8), // Semi-transparent dark blue
+                  borderRadius: BorderRadius.circular(25),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5), // Glass edge
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min, // Shrinks the dialog to exactly fit the text
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: actionColor, size: 45),
+                    const SizedBox(height: 15),
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      content,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white70, fontSize: 15),
+                    ),
+                    const SizedBox(height: 30),
+                    Row(
+                      children: [
+                        // CANCEL BUTTON
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context), // Closes the dialog
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: BoxDecoration(
+                                color: Colors.transparent,
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(color: Colors.white38, width: 1.5),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Text(
+                                "Cancel",
+                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        // ACTION BUTTON (Log Out / Delete)
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.pop(context); // Close the dialog first
+                              onConfirm(); // Then run the actual action
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: BoxDecoration(
+                                color: actionColor,
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                actionText,
+                                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
