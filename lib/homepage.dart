@@ -57,7 +57,6 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// THE DASHBOARD CONTENT: The list of scrolling health cards
 class HealthDashboardContent extends StatelessWidget {
   const HealthDashboardContent({super.key});
 
@@ -71,23 +70,23 @@ class HealthDashboardContent extends StatelessWidget {
         
         children: [
           const SizedBox(height: 20), 
-          healthCard(Icons.water_drop, "Blood Glucose Level", "110", "mg/dl"),
-          healthCard(Icons.directions_run, "Activity", "8240", "steps"),
-          healthCard(Icons.favorite, "Heart Rate", "68", "bpm"),
-          healthCard(Icons.opacity, "Oxygen Saturation", "98", "%"),
-          healthCard(Icons.monitor_heart, "Blood Pressure", "118/76", "mmHg"),
-          healthCard(Icons.local_fire_department, "Calories", "1900", "kcal"),
-          healthCard(Icons.monitor_weight, "Body Weight", "80.5", "kg"),
+          healthCard(context, Icons.water_drop, "Blood Glucose Level", "110", "mg/dl", '/glucose'),
+          healthCard(context, Icons.directions_run, "Activity", "8240", "steps", '/activity'),
+          healthCard(context, Icons.favorite, "Heart Rate", "68", "bpm", '/heart_rate'),
+          healthCard(context, Icons.opacity, "Oxygen Saturation", "98", "%", '/oxygen'),
+          healthCard(context, Icons.monitor_heart, "Blood Pressure", "118/76", "mmHg", '/blood_pressure'),
+          healthCard(context, Icons.local_fire_department, "Calories", "1900", "kcal", '/calories'),
+          healthCard(context, Icons.monitor_weight, "Body Weight", "80.5", "kg", '/weight'),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween, // Pushes icons to edges
+            mainAxisAlignment: MainAxisAlignment.spaceBetween, 
             children: [
               IconButton(
                 icon: const Icon(Icons.edit_note, color: Colors.white, size: 30),
-                onPressed: () {}, // make sure to add edit logic 
+                onPressed: () {}, 
               ),
               IconButton(
                 icon: const Icon(Icons.ios_share, color: Colors.white, size: 28),
-                onPressed: () {}, // make sure to add share logic 
+                onPressed: () {},  
               ),
             ],
           ),
@@ -97,37 +96,42 @@ class HealthDashboardContent extends StatelessWidget {
   }
 }
 
-// REUSABLE HEALTH CARD: A template for all your health data 
-Widget healthCard(IconData icon, String title, String value, String unit) {
-  return Container(
-    margin: const EdgeInsets.only(bottom: 15),
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: const Color(0xff1A3F6B), // Darker blue card color
-      borderRadius: BorderRadius.circular(25),
-    ),
-    child: Row(
-      children: [
-        Icon(icon, color: Colors.white, size: 35),
-        const SizedBox(width: 20),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title, 
-              style: const TextStyle(color: Colors.white70, fontSize: 14)
-            ),
-            Text(
-              "$value $unit", 
-              style: const TextStyle(
-                color: Colors.white, 
-                fontSize: 20, 
-                fontWeight: FontWeight.bold
-              )
-            ),
-          ],
-        ),
-      ],
+Widget healthCard(BuildContext context, IconData icon, String title, String value, String unit, String routePath) {
+  return GestureDetector(
+    onTap: () {
+      // Navigates to the path passed into the widget
+      Navigator.pushNamed(context, routePath);
+    },
+    child: Container(
+      margin: const EdgeInsets.only(bottom: 15),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xff1A3F6B), 
+        borderRadius: BorderRadius.circular(25),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white, size: 35),
+          const SizedBox(width: 20),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title, 
+                style: const TextStyle(color: Colors.white70, fontSize: 14)
+              ),
+              Text(
+                "$value $unit", 
+                style: const TextStyle(
+                  color: Colors.white, 
+                  fontSize: 20, 
+                  fontWeight: FontWeight.bold
+                )
+              ),
+            ],
+          ),
+        ],
+      ),
     ),
   );
 }

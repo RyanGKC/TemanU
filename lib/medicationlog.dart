@@ -86,7 +86,7 @@ class _MedicationLogEntryState extends State<MedicationLogEntry> {
     _text = widget.text;
   }
   @override
-  Widget build (BuildContext contexr) {
+  Widget build (BuildContext context) {
     return Row(
       children:[
         Expanded(
