@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:temanu/changePassword.dart';
 import 'package:temanu/profileInformation.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -102,7 +103,13 @@ class SettingsPage extends StatelessWidget {
                       _buildSettingsTile(
                         icon: Icons.lock_outline, 
                         title: "Change Password", 
-                        onTap: () {}
+                        onTap: () {
+                          showDialog(
+                            context: context, 
+                            barrierColor: Colors.black.withValues(alpha: 0.6),
+                            builder: (context) => const ChangePasswordDialog(),
+                          );
+                        }
                       ),
                       _buildDivider(),
                       _buildSettingsTile(
