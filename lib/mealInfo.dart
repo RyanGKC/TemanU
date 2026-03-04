@@ -151,19 +151,21 @@ class _MealInfoState extends State<MealInfo> {
                                   child: TextFormField(
                                     controller: _nameController,
                                     style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                                    maxLines: null, // Allows the text to wrap if it gets long
+                                    minLines: 1,
+                                    maxLines: 2, 
                                     keyboardType: TextInputType.text,
                                     decoration: InputDecoration(
                                       isDense: true,
-                                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                                      contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
                                       hintText: "Enter meal name",
                                       hintStyle: const TextStyle(color: Colors.white38),
                                       // Shows a subtle line so users know it's an input field
-                                      enabledBorder: UnderlineInputBorder(
+                                      enabledBorder: OutlineInputBorder(
                                         borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                                        borderRadius: BorderRadius.circular(20)
                                       ),
                                       // Highlights cyan when typing
-                                      focusedBorder: const UnderlineInputBorder(
+                                      focusedBorder: const OutlineInputBorder(
                                         borderSide: BorderSide(color: Color(0xff00E5FF), width: 2),
                                       ),
                                     ),

@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:temanu/assistantpage.dart';
 import 'package:temanu/cameraCapture.dart';
 
 class CaloriesMain extends StatefulWidget {
@@ -84,6 +85,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     return Scaffold(
       backgroundColor: const Color(0xff040F31),
       extendBodyBehindAppBar: false,
+      extendBody: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -140,6 +142,49 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
               const SizedBox(height: 40), // Bottom padding for scrolling
             ],
           ),
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(left:20, right: 20, bottom: 30),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 100),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                    child: Container(
+                      width: double.infinity,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1), 
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5), 
+                      ),
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context, 
+                            MaterialPageRoute(builder: (context) => AssistantPage())
+                          );
+                        },
+                        child: Center(
+                          child: Icon(
+                            Icons.auto_awesome,
+                            size: 28,
+                            color: Colors.white70
+                          ),
+                        )
+                      )
+                    )
+                  )
+                )
+              ),
+            ]
+          )
         ),
       ),
     );
