@@ -139,7 +139,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
               const SizedBox(height: 15),
               _buildAddMealButton(),
               
-              const SizedBox(height: 40), // Bottom padding for scrolling
+              const SizedBox(height: 120), // Bottom padding for scrolling
             ],
           ),
         ),
