@@ -418,6 +418,5 @@ Widget _buildMainCalorieCard() {
       ),
     );
   }
-
 }
 
