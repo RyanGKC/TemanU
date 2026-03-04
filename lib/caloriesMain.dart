@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:temanu/cameraCapture.dart';
 
 class CaloriesMain extends StatefulWidget {
   const CaloriesMain({super.key});
@@ -389,8 +390,10 @@ Widget _buildMainCalorieCard() {
   Widget _buildAddMealButton() {
     return GestureDetector(
       onTap: () {
-        // Add your logic to open a 'Track Meal' page or modal here
-        print("Track New Meal Tapped");
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => TrackMealCameraPage())
+        );
       },
       child: Container(
         width: double.infinity,
