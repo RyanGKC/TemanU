@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:temanu/profileInformation.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -90,7 +91,12 @@ class SettingsPage extends StatelessWidget {
                       _buildSettingsTile(
                         icon: Icons.person_outline, 
                         title: "Profile Information", 
-                        onTap: () {}
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => ProfileInformationPage()),
+                          );
+                        }
                       ),
                       _buildDivider(),
                       _buildSettingsTile(
