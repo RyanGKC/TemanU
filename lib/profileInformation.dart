@@ -28,7 +28,7 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
     "Asthma", "Diabetes Type 1", "Diabetes Type 2", 
     "Hypertension", "High Cholesterol", "Anemia", "Thyroid Disorder"
   ];
-  List<String> _selectedConditions = ["Asthma", "Hypertension"];
+  final List<String> _selectedConditions = ["Asthma", "Hypertension"];
 
   @override
   void initState() {
