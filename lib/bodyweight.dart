@@ -8,109 +8,153 @@ class BodyWeightPage extends StatefulWidget {
 }
 
 class _BodyWeightPageState extends State<BodyWeightPage> {
-  final _weightController = TextEditingController();
-  final _heightController = TextEditingController();
 
-  String _result = '';
+  final weightController = TextEditingController();
+  final heightController = TextEditingController();
 
-  @override
-  void dispose() {
-    _weightController.dispose();
-    _heightController.dispose();
-    super.dispose();
-  }
+  double bmi = 0;
+  String bmiStatus = "";
 
-  void _calc() {
-    final weight = double.tryParse(_weightController.text.trim());
-    final heightCm = double.tryParse(_heightController.text.trim());
+  void calculateBMI() {
+    double weight = double.parse(weightController.text);
+    double height = double.parse(heightController.text) / 100;
 
-    if (weight == null || heightCm == null || heightCm <= 0) {
-      setState(() => _result = 'Please enter valid weight and height.');
-      return;
-    }
+    double result = weight / (height * height);
 
-    final heightM = heightCm / 100.0;
-    final bmi = weight / (heightM * heightM);
+    String status;
 
-    String category;
-    if (bmi < 18.5) {
-      category = 'Underweight';
-    } else if (bmi < 25) {
-      category = 'Normal';
-    } else if (bmi < 30) {
-      category = 'Overweight';
+    if (result < 18.5) {
+      status = "Underweight";
+    } else if (result < 25) {
+      status = "Normal";
+    } else if (result < 30) {
+      status = "Overweight";
     } else {
-      category = 'Obese';
+      status = "Obese";
     }
 
     setState(() {
-      _result =
-          'Weight: ${weight.toStringAsFixed(1)} kg\nHeight: ${heightCm.toStringAsFixed(1)} cm\nBMI: ${bmi.toStringAsFixed(1)} ($category)';
+      bmi = result;
+      bmiStatus = status;
     });
-  }
-
-  void _clear() {
-    _weightController.clear();
-    _heightController.clear();
-    setState(() => _result = '');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Body Weight')),
-      body: Padding(
+      backgroundColor: const Color(0xff06163A),
+
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text(
+          "Body Weight",
+          style: TextStyle(
+            color: Color(0xff6CE5FF),
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            TextField(
-              controller: _weightController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Weight (kg)',
-                hintText: 'e.g., 60',
-                border: OutlineInputBorder(),
+
+            // Input Card
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xff375B86),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                children: [
+
+                  TextField(
+                    controller: weightController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: "Weight (kg)",
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  TextField(
+                    controller: heightController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: "Height (cm)",
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  ElevatedButton(
+                    onPressed: calculateBMI,
+                    child: const Text("Calculate BMI"),
+                  ),
+
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _heightController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Height (cm)',
-                hintText: 'e.g., 170',
-                border: OutlineInputBorder(),
+
+            const SizedBox(height: 20),
+
+            // BMI Result
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xff4F7CA8),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                children: [
+
+                  const Text(
+                    "BMI Result",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  Text(
+                    bmi == 0 ? "-" : bmi.toStringAsFixed(2),
+                    style: const TextStyle(
+                      fontSize: 36,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  Text(
+                    bmiStatus,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                    ),
+                  ),
+
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _calc,
-                    child: const Text('Calculate BMI'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _clear,
-                    child: const Text('Clear'),
-                  ),
-                ),
+
+            const SizedBox(height: 40),
+
+            // Assistant
+            Column(
+              children: const [
+                Icon(Icons.search, size: 50, color: Colors.white70),
+                Text("Assistant", style: TextStyle(color: Colors.white70))
               ],
-            ),
-            const SizedBox(height: 16),
-            if (_result.isNotEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  border: Border.all(),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(_result),
-              ),
+            )
+
           ],
         ),
       ),

@@ -8,125 +8,225 @@ class BloodPressurePage extends StatefulWidget {
 }
 
 class _BloodPressurePageState extends State<BloodPressurePage> {
-  final _sysController = TextEditingController();
-  final _diaController = TextEditingController();
-  final _pulseController = TextEditingController();
+  final systolicCtrl = TextEditingController();
+  final diastolicCtrl = TextEditingController();
+  final pulseCtrl = TextEditingController();
 
-  String _result = '';
+  String currentText = "118 / 76 mmHg";
+  String statusText = "Status: Normal";
 
-  @override
-  void dispose() {
-    _sysController.dispose();
-    _diaController.dispose();
-    _pulseController.dispose();
-    super.dispose();
-  }
+  void saveData() {
+    final sStr = systolicCtrl.text.trim();
+    final dStr = diastolicCtrl.text.trim();
+    final pStr = pulseCtrl.text.trim();
 
-  void _save() {
-    final sys = int.tryParse(_sysController.text.trim());
-    final dia = int.tryParse(_diaController.text.trim());
-    final pulse = int.tryParse(_pulseController.text.trim());
+    final s = int.tryParse(sStr);
+    final d = int.tryParse(dStr);
 
-    if (sys == null || dia == null) {
-      setState(() => _result = 'Please enter valid SYS and DIA values.');
+    if (s == null || d == null) {
+      setState(() {
+        statusText = "Status: Please enter valid numbers";
+      });
       return;
     }
 
-    String category;
-    if (sys >= 180 || dia >= 120) {
-      category = 'Hypertensive Crisis (Seek medical help)';
-    } else if (sys >= 140 || dia >= 90) {
-      category = 'High Blood Pressure (Stage 2)';
-    } else if ((sys >= 130 && sys <= 139) || (dia >= 80 && dia <= 89)) {
-      category = 'High Blood Pressure (Stage 1)';
-    } else if (sys >= 120 && dia < 80) {
-      category = 'Elevated';
+    String status;
+    // 简单判断规则（作业够用）
+    if (s >= 140 || d >= 90) {
+      status = "High";
+    } else if (s < 90 || d < 60) {
+      status = "Low";
     } else {
-      category = 'Normal';
+      status = "Normal";
     }
 
     setState(() {
-      _result = 'SYS: $sys, DIA: $dia'
-          '${pulse == null ? '' : ', Pulse: $pulse'}\nCategory: $category';
+      currentText = "$s / $d mmHg";
+      if (pStr.isNotEmpty) {
+        currentText += "  |  Pulse: $pStr";
+      }
+      statusText = "Status: $status";
     });
   }
 
-  void _clear() {
-    _sysController.clear();
-    _diaController.clear();
-    _pulseController.clear();
-    setState(() => _result = '');
+  void clearData() {
+    systolicCtrl.clear();
+    diastolicCtrl.clear();
+    pulseCtrl.clear();
+
+    setState(() {
+      currentText = "— / — mmHg";
+      statusText = "Status: —";
+    });
+  }
+
+  @override
+  void dispose() {
+    systolicCtrl.dispose();
+    diastolicCtrl.dispose();
+    pulseCtrl.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Blood Pressure')),
-      body: Padding(
+      backgroundColor: const Color(0xff06163A),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text(
+          "Blood Pressure",
+          style: TextStyle(
+            color: Color(0xff6CE5FF),
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: const [Icon(Icons.share)],
+      ),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            TextField(
-              controller: _sysController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Systolic (SYS) mmHg',
-                hintText: 'e.g., 120',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _diaController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Diastolic (DIA) mmHg',
-                hintText: 'e.g., 80',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _pulseController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Pulse (optional) bpm',
-                hintText: 'e.g., 72',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
+            // Current BP
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _save,
-                    child: const Text('Save / Calculate'),
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Current", style: TextStyle(color: Colors.white70)),
+                    Text(
+                      currentText,
+                      style: const TextStyle(
+                        fontSize: 26,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      statusText,
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _clear,
-                    child: const Text('Clear'),
-                  ),
+                Row(
+                  children: const [
+                    Icon(Icons.add, color: Colors.white),
+                    SizedBox(width: 5),
+                    Text("Add data", style: TextStyle(color: Colors.white)),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            if (_result.isNotEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  border: Border.all(),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(_result),
+
+            const SizedBox(height: 20),
+
+            // Input Card
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xff375B86),
+                borderRadius: BorderRadius.circular(18),
               ),
+              child: Column(
+                children: [
+                  bpField("Systolic (mmHg)", systolicCtrl),
+                  const SizedBox(height: 12),
+                  bpField("Diastolic (mmHg)", diastolicCtrl),
+                  const SizedBox(height: 12),
+                  bpField("Pulse (optional)", pulseCtrl),
+
+                  const SizedBox(height: 16),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: saveData,
+                          child: const Text("Save / Calculate"),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: clearData,
+                          child: const Text("Clear"),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Chart placeholder
+            Container(
+              height: 220,
+              decoration: BoxDecoration(
+                color: const Color(0xff4F7CA8),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Center(
+                child: Text(
+                  "Blood Pressure Chart (later)",
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Time filter
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: const [
+                Text("Week", style: TextStyle(color: Colors.white)),
+                Text("Month", style: TextStyle(color: Colors.white70)),
+                Text("3 Months", style: TextStyle(color: Colors.white70)),
+                Text("6 Months", style: TextStyle(color: Colors.white70)),
+                Text("Year", style: TextStyle(color: Colors.white70)),
+              ],
+            ),
+
+            const SizedBox(height: 40),
+
+            // Assistant
+            Column(
+              children: const [
+                Icon(Icons.search, size: 50, color: Colors.white70),
+                Text("Assistant", style: TextStyle(color: Colors.white70)),
+              ],
+            )
           ],
         ),
       ),
     );
   }
+}
+
+Widget bpField(String label, TextEditingController controller) {
+  return TextField(
+    controller: controller,
+    keyboardType: TextInputType.number,
+    style: const TextStyle(color: Colors.white),
+    decoration: InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Colors.white70),
+      filled: true,
+      fillColor: const Color(0xff2B4B74),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+    ),
+  );
 }
