@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temanu/caloriesMain.dart';
 import 'package:temanu/medicationlog.dart';
 
@@ -97,6 +98,28 @@ class _HealthDashboardContentState extends State<HealthDashboardContent> {
     },
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      for (var metric in _metricsData) {
+        // Look up the saved boolean using the metric's title as the key.
+        // If it doesn't exist (e.g., first time opening the app), default to true.
+        metric['isVisible'] = prefs.getBool(metric['title']) ?? true;
+      }
+    });
+  }
+
+  Future<void> _savePreference(String key, bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, value);
+  }
+
   // 3. EDIT BOTTOM SHEET
   void _showEditMetricsBottomSheet() {
     showModalBottomSheet(
@@ -155,6 +178,8 @@ class _HealthDashboardContentState extends State<HealthDashboardContent> {
                             });
                             // Update the main page UI behind the bottom sheet
                             setState(() {}); 
+
+                            _savePreference(metric['title'], value);
                           },
                         );
                       },
