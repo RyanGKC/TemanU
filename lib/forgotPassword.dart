@@ -88,6 +88,8 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Container(
+            // ADDED THIS LINE: Constrains the maximum width
+            constraints: const BoxConstraints(maxWidth: 400), 
             padding: const EdgeInsets.all(25),
             decoration: BoxDecoration(
               color: const Color(0xff1A3F6B).withValues(alpha: 0.8), // Dark blue
@@ -95,7 +97,7 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
               border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
             ),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: MainAxisSize.min, // Shrinks vertically to fit content
               children: [
                 const Icon(Icons.lock_reset_rounded, color: Colors.white, size: 45),
                 const SizedBox(height: 15),
