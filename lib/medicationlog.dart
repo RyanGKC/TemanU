@@ -29,7 +29,7 @@ class _MedicationLogState extends State<MedicationLog> {
   bool _isEditing = false;
 
   // Initial mock data
-  List<Medication> _medications = [
+  final List<Medication> _medications = [
     Medication(id: '1', name: 'Metformin', amount: '1 pill', time: const TimeOfDay(hour: 10, minute: 0)),
     Medication(id: '2', name: 'Sulfonylureas', amount: '1 pill', time: const TimeOfDay(hour: 10, minute: 0)),
     Medication(id: '3', name: 'Metformin', amount: '1 pill', time: const TimeOfDay(hour: 22, minute: 0)),
@@ -71,114 +71,116 @@ class _MedicationLogState extends State<MedicationLog> {
                       borderRadius: BorderRadius.circular(25),
                       border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          existingMedication == null ? "Add Medication" : "Edit Medication",
-                          style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 20),
-                        
-                        // Name Input
-                        _buildDialogTextField("Medication Name", "e.g., Metformin", nameController),
-                        const SizedBox(height: 15),
-                        
-                        // Amount Input
-                        _buildDialogTextField("Amount", "e.g., 1 pill", amountController),
-                        const SizedBox(height: 15),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            existingMedication == null ? "Add Medication" : "Edit Medication",
+                            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 20),
+                          
+                          // Name Input
+                          _buildDialogTextField("Medication Name", "e.g., Metformin", nameController),
+                          const SizedBox(height: 15),
+                          
+                          // Amount Input
+                          _buildDialogTextField("Amount", "e.g., 1 pill", amountController),
+                          const SizedBox(height: 15),
 
-                        // Time Selector
-                        const Text("Schedule", style: TextStyle(color: Colors.white54, fontSize: 13)),
-                        const SizedBox(height: 5),
-                        GestureDetector(
-                          onTap: () async {
-                            final TimeOfDay? time = await showTimePicker(
-                              context: context,
-                              initialTime: selectedTime,
-                            );
-                            if (time != null) {
-                              setDialogState(() => selectedTime = time);
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 15),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xff00E5FF).withValues(alpha: 0.5)),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  selectedTime.format(context),
-                                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                                ),
-                                const Icon(Icons.access_time, color: Color(0xff00E5FF)),
-                              ],
+                          // Time Selector
+                          const Text("Schedule", style: TextStyle(color: Colors.white54, fontSize: 13)),
+                          const SizedBox(height: 5),
+                          GestureDetector(
+                            onTap: () async {
+                              final TimeOfDay? time = await showTimePicker(
+                                context: context,
+                                initialTime: selectedTime,
+                              );
+                              if (time != null) {
+                                setDialogState(() => selectedTime = time);
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 15),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xff00E5FF).withValues(alpha: 0.5)),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    selectedTime.format(context),
+                                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                                  ),
+                                  const Icon(Icons.access_time, color: Color(0xff00E5FF)),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 30),
+                          const SizedBox(height: 30),
 
-                        // Buttons
-                        Row(
-                          children: [
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () => Navigator.pop(context),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    border: Border.all(color: Colors.white38),
-                                    borderRadius: BorderRadius.circular(15),
+                          // Buttons
+                          Row(
+                            children: [
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () => Navigator.pop(context),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.white38),
+                                      borderRadius: BorderRadius.circular(15),
+                                    ),
+                                    child: const Text("Cancel", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                   ),
-                                  child: const Text("Cancel", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 15),
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () {
-                                  if (nameController.text.isEmpty || amountController.text.isEmpty) return;
+                              const SizedBox(width: 15),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    if (nameController.text.isEmpty || amountController.text.isEmpty) return;
 
-                                  setState(() {
-                                    if (existingMedication == null) {
-                                      // Add new
-                                      _medications.add(Medication(
-                                        id: DateTime.now().toString(),
-                                        name: nameController.text,
-                                        amount: amountController.text,
-                                        time: selectedTime,
-                                      ));
-                                    } else {
-                                      // Update existing
-                                      existingMedication.name = nameController.text;
-                                      existingMedication.amount = amountController.text;
-                                      existingMedication.time = selectedTime;
-                                    }
-                                  });
-                                  Navigator.pop(context);
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xff00E5FF),
-                                    borderRadius: BorderRadius.circular(15),
+                                    setState(() {
+                                      if (existingMedication == null) {
+                                        // Add new
+                                        _medications.add(Medication(
+                                          id: DateTime.now().toString(),
+                                          name: nameController.text,
+                                          amount: amountController.text,
+                                          time: selectedTime,
+                                        ));
+                                      } else {
+                                        // Update existing
+                                        existingMedication.name = nameController.text;
+                                        existingMedication.amount = amountController.text;
+                                        existingMedication.time = selectedTime;
+                                      }
+                                    });
+                                    Navigator.pop(context);
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xff00E5FF),
+                                      borderRadius: BorderRadius.circular(15),
+                                    ),
+                                    child: const Text("Save", style: TextStyle(color: Color(0xff040F31), fontWeight: FontWeight.bold)),
                                   ),
-                                  child: const Text("Save", style: TextStyle(color: Color(0xff040F31), fontWeight: FontWeight.bold)),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    )
                   ),
                 ),
               ),
