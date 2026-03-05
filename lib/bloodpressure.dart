@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 
 class BloodPressurePage extends StatefulWidget {
@@ -9,190 +8,204 @@ class BloodPressurePage extends StatefulWidget {
 }
 
 class _BloodPressurePageState extends State<BloodPressurePage> {
+  final systolicCtrl = TextEditingController();
+  final diastolicCtrl = TextEditingController();
+  final pulseCtrl = TextEditingController();
 
-  List<Map<String, int>> records = [
-    {"sys":118,"dia":76},
-    {"sys":120,"dia":78},
-    {"sys":122,"dia":80},
-    {"sys":119,"dia":77},
-  ];
+  String currentText = "118 / 76 mmHg";
+  String statusText = "Status: Normal";
 
-  void addRecord(int sys,int dia){
+  void saveData() {
+    final sStr = systolicCtrl.text.trim();
+    final dStr = diastolicCtrl.text.trim();
+    final pStr = pulseCtrl.text.trim();
+
+    final s = int.tryParse(sStr);
+    final d = int.tryParse(dStr);
+
+    if (s == null || d == null) {
+      setState(() {
+        statusText = "Status: Please enter valid numbers";
+      });
+      return;
+    }
+
+    String status;
+    // 简单判断规则（作业够用）
+    if (s >= 140 || d >= 90) {
+      status = "High";
+    } else if (s < 90 || d < 60) {
+      status = "Low";
+    } else {
+      status = "Normal";
+    }
+
     setState(() {
-      records.add({"sys":sys,"dia":dia});
-      if(records.length>10){
-        records.removeAt(0);
+      currentText = "$s / $d mmHg";
+      if (pStr.isNotEmpty) {
+        currentText += "  |  Pulse: $pStr";
       }
+      statusText = "Status: $status";
     });
   }
 
-  void showAddDialog(){
+  void clearData() {
+    systolicCtrl.clear();
+    diastolicCtrl.clear();
+    pulseCtrl.clear();
 
-    TextEditingController sys=TextEditingController();
-    TextEditingController dia=TextEditingController();
+    setState(() {
+      currentText = "— / — mmHg";
+      statusText = "Status: —";
+    });
+  }
 
-    showDialog(
-      context: context,
-      builder:(context){
-        return AlertDialog(
-          title: const Text("Add Blood Pressure"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-
-              TextField(
-                controller: sys,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: "Systolic (SYS)",
-                ),
-              ),
-
-              TextField(
-                controller: dia,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: "Diastolic (DIA)",
-                ),
-              )
-
-            ],
-          ),
-
-          actions: [
-
-            TextButton(
-              onPressed: (){
-                Navigator.pop(context);
-              },
-              child: const Text("Cancel"),
-            ),
-
-            ElevatedButton(
-              onPressed: (){
-                int s=int.parse(sys.text);
-                int d=int.parse(dia.text);
-                addRecord(s,d);
-                Navigator.pop(context);
-              },
-              child: const Text("Save"),
-            )
-
-          ],
-        );
-      }
-    );
+  @override
+  void dispose() {
+    systolicCtrl.dispose();
+    diastolicCtrl.dispose();
+    pulseCtrl.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-
-      backgroundColor: const Color(0xff040F31),
-
+      backgroundColor: const Color(0xff06163A),
       appBar: AppBar(
-        title: const Text("Blood Pressure"),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        title: const Text(
+          "Blood Pressure",
+          style: TextStyle(
+            color: Color(0xff6CE5FF),
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: const [Icon(Icons.share)],
       ),
-
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xff00E5FF),
-        onPressed: showAddDialog,
-        child: const Icon(Icons.add),
-      ),
-
-      body: Padding(
-        padding: const EdgeInsets.all(20),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            // Current BP
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Current", style: TextStyle(color: Colors.white70)),
+                    Text(
+                      currentText,
+                      style: const TextStyle(
+                        fontSize: 26,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      statusText,
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: const [
+                    Icon(Icons.add, color: Colors.white),
+                    SizedBox(width: 5),
+                    Text("Add data", style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+              ],
+            ),
 
+            const SizedBox(height: 20),
+
+            // Input Card
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xff1A3F6B),
-                borderRadius: BorderRadius.circular(20),
+                color: const Color(0xff375B86),
+                borderRadius: BorderRadius.circular(18),
               ),
               child: Column(
                 children: [
+                  bpField("Systolic (mmHg)", systolicCtrl),
+                  const SizedBox(height: 12),
+                  bpField("Diastolic (mmHg)", diastolicCtrl),
+                  const SizedBox(height: 12),
+                  bpField("Pulse (optional)", pulseCtrl),
 
-                  const Text(
-                    "Latest Reading",
-                    style: TextStyle(color: Colors.white70),
+                  const SizedBox(height: 16),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: saveData,
+                          child: const Text("Save / Calculate"),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: clearData,
+                          child: const Text("Clear"),
+                        ),
+                      ),
+                    ],
                   ),
-
-                  const SizedBox(height:10),
-
-                  Text(
-                    "${records.last["sys"]}/${records.last["dia"]}",
-                    style: const TextStyle(
-                      fontSize:32,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-
                 ],
               ),
             ),
 
-            const SizedBox(height:20),
+            const SizedBox(height: 20),
 
-            SizedBox(
-              height:150,
-              child: CustomPaint(
-                painter: ChartPainter(records),
+            // Chart placeholder
+            Container(
+              height: 220,
+              decoration: BoxDecoration(
+                color: const Color(0xff4F7CA8),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Center(
+                child: Text(
+                  "Blood Pressure Chart (later)",
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ),
 
-            const SizedBox(height:20),
+            const SizedBox(height: 20),
 
-            Expanded(
-              child: ListView.builder(
+            // Time filter
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: const [
+                Text("Week", style: TextStyle(color: Colors.white)),
+                Text("Month", style: TextStyle(color: Colors.white70)),
+                Text("3 Months", style: TextStyle(color: Colors.white70)),
+                Text("6 Months", style: TextStyle(color: Colors.white70)),
+                Text("Year", style: TextStyle(color: Colors.white70)),
+              ],
+            ),
 
-                itemCount: records.length,
+            const SizedBox(height: 40),
 
-                itemBuilder:(context,index){
-
-                  var r=records.reversed.toList()[index];
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom:10),
-                    padding: const EdgeInsets.all(15),
-
-                    decoration: BoxDecoration(
-                      color: const Color(0xff1A3F6B),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-
-                        const Text(
-                          "Blood Pressure",
-                          style: TextStyle(color: Colors.white70),
-                        ),
-
-                        Text(
-                          "${r["sys"]}/${r["dia"]}",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-
-                      ],
-                    ),
-
-                  );
-
-                }
-
-              ),
+            // Assistant
+            Column(
+              children: const [
+                Icon(Icons.search, size: 50, color: Colors.white70),
+                Text("Assistant", style: TextStyle(color: Colors.white70)),
+              ],
             )
-
           ],
         ),
       ),
@@ -200,54 +213,20 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
   }
 }
 
-
-class ChartPainter extends CustomPainter{
-
-  final List<Map<String,int>> data;
-
-  ChartPainter(this.data);
-
-  @override
-  void paint(Canvas canvas,Size size){
-
-    Paint line=Paint()
-      ..color=const Color(0xff00E5FF)
-      ..strokeWidth=3
-      ..style=PaintingStyle.stroke;
-
-    if(data.length<2) return;
-
-    double step=size.width/(data.length-1);
-
-    int minValue= data.map((e)=>e["sys"]!).reduce(min);
-    int maxValue= data.map((e)=>e["sys"]!).reduce(max);
-
-    double range=max(1,(maxValue-minValue).toDouble());
-
-    Path path=Path();
-
-    for(int i=0;i<data.length;i++){
-
-      double x=i*step;
-
-      double y=size.height-
-          ((data[i]["sys"]!-minValue)/range)*size.height;
-
-      if(i==0){
-        path.moveTo(x,y);
-      }else{
-        path.lineTo(x,y);
-      }
-
-    }
-
-    canvas.drawPath(path,line);
-
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate){
-    return true;
-  }
-
+Widget bpField(String label, TextEditingController controller) {
+  return TextField(
+    controller: controller,
+    keyboardType: TextInputType.number,
+    style: const TextStyle(color: Colors.white),
+    decoration: InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Colors.white70),
+      filled: true,
+      fillColor: const Color(0xff2B4B74),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+    ),
+  );
 }
