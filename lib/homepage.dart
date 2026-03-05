@@ -1,5 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:temanu/bloodpressure.dart';
+import 'package:temanu/bodyweight.dart';
 import 'package:temanu/caloriesMain.dart';
 import 'package:temanu/medicationlog.dart';
 
@@ -75,9 +77,9 @@ class HealthDashboardContent extends StatelessWidget {
           healthCard(context, Icons.water_drop, "Blood Glucose Level", "110", "mg/dl", HomePage()),
           healthCard(context, Icons.favorite, "Heart Rate", "68", "bpm", HomePage()),
           healthCard(context, Icons.opacity, "Oxygen Saturation", "98", "%", HomePage()),
-          healthCard(context, Icons.monitor_heart, "Blood Pressure", "118/76", "mmHg", HomePage()),
+          healthCard(context, Icons.monitor_heart, "Blood Pressure", "118/76", "mmHg", BloodPressurePage()),
           healthCard(context, Icons.local_fire_department, "Calories", "1900", "kcal", CaloriesMain()),
-          healthCard(context, Icons.monitor_weight, "Body Weight", "80.5", "kg", HomePage()),
+          healthCard(context, Icons.monitor_weight, "Body Weight", "80.5", "kg", BodyWeightPage()),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween, 
             children: [
