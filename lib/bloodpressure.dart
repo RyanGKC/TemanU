@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 
 class BloodPressurePage extends StatefulWidget {
@@ -8,125 +9,245 @@ class BloodPressurePage extends StatefulWidget {
 }
 
 class _BloodPressurePageState extends State<BloodPressurePage> {
-  final _sysController = TextEditingController();
-  final _diaController = TextEditingController();
-  final _pulseController = TextEditingController();
 
-  String _result = '';
+  List<Map<String, int>> records = [
+    {"sys":118,"dia":76},
+    {"sys":120,"dia":78},
+    {"sys":122,"dia":80},
+    {"sys":119,"dia":77},
+  ];
 
-  @override
-  void dispose() {
-    _sysController.dispose();
-    _diaController.dispose();
-    _pulseController.dispose();
-    super.dispose();
-  }
-
-  void _save() {
-    final sys = int.tryParse(_sysController.text.trim());
-    final dia = int.tryParse(_diaController.text.trim());
-    final pulse = int.tryParse(_pulseController.text.trim());
-
-    if (sys == null || dia == null) {
-      setState(() => _result = 'Please enter valid SYS and DIA values.');
-      return;
-    }
-
-    String category;
-    if (sys >= 180 || dia >= 120) {
-      category = 'Hypertensive Crisis (Seek medical help)';
-    } else if (sys >= 140 || dia >= 90) {
-      category = 'High Blood Pressure (Stage 2)';
-    } else if ((sys >= 130 && sys <= 139) || (dia >= 80 && dia <= 89)) {
-      category = 'High Blood Pressure (Stage 1)';
-    } else if (sys >= 120 && dia < 80) {
-      category = 'Elevated';
-    } else {
-      category = 'Normal';
-    }
-
+  void addRecord(int sys,int dia){
     setState(() {
-      _result = 'SYS: $sys, DIA: $dia'
-          '${pulse == null ? '' : ', Pulse: $pulse'}\nCategory: $category';
+      records.add({"sys":sys,"dia":dia});
+      if(records.length>10){
+        records.removeAt(0);
+      }
     });
   }
 
-  void _clear() {
-    _sysController.clear();
-    _diaController.clear();
-    _pulseController.clear();
-    setState(() => _result = '');
+  void showAddDialog(){
+
+    TextEditingController sys=TextEditingController();
+    TextEditingController dia=TextEditingController();
+
+    showDialog(
+      context: context,
+      builder:(context){
+        return AlertDialog(
+          title: const Text("Add Blood Pressure"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+
+              TextField(
+                controller: sys,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: "Systolic (SYS)",
+                ),
+              ),
+
+              TextField(
+                controller: dia,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: "Diastolic (DIA)",
+                ),
+              )
+
+            ],
+          ),
+
+          actions: [
+
+            TextButton(
+              onPressed: (){
+                Navigator.pop(context);
+              },
+              child: const Text("Cancel"),
+            ),
+
+            ElevatedButton(
+              onPressed: (){
+                int s=int.parse(sys.text);
+                int d=int.parse(dia.text);
+                addRecord(s,d);
+                Navigator.pop(context);
+              },
+              child: const Text("Save"),
+            )
+
+          ],
+        );
+      }
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Blood Pressure')),
+
+      backgroundColor: const Color(0xff040F31),
+
+      appBar: AppBar(
+        title: const Text("Blood Pressure"),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xff00E5FF),
+        onPressed: showAddDialog,
+        child: const Icon(Icons.add),
+      ),
+
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            TextField(
-              controller: _sysController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Systolic (SYS) mmHg',
-                hintText: 'e.g., 120',
-                border: OutlineInputBorder(),
+
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xff1A3F6B),
+                borderRadius: BorderRadius.circular(20),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _diaController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Diastolic (DIA) mmHg',
-                hintText: 'e.g., 80',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _pulseController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Pulse (optional) bpm',
-                hintText: 'e.g., 72',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _save,
-                    child: const Text('Save / Calculate'),
+              child: Column(
+                children: [
+
+                  const Text(
+                    "Latest Reading",
+                    style: TextStyle(color: Colors.white70),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _clear,
-                    child: const Text('Clear'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            if (_result.isNotEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  border: Border.all(),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(_result),
+
+                  const SizedBox(height:10),
+
+                  Text(
+                    "${records.last["sys"]}/${records.last["dia"]}",
+                    style: const TextStyle(
+                      fontSize:32,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  )
+
+                ],
               ),
+            ),
+
+            const SizedBox(height:20),
+
+            SizedBox(
+              height:150,
+              child: CustomPaint(
+                painter: ChartPainter(records),
+              ),
+            ),
+
+            const SizedBox(height:20),
+
+            Expanded(
+              child: ListView.builder(
+
+                itemCount: records.length,
+
+                itemBuilder:(context,index){
+
+                  var r=records.reversed.toList()[index];
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom:10),
+                    padding: const EdgeInsets.all(15),
+
+                    decoration: BoxDecoration(
+                      color: const Color(0xff1A3F6B),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+
+                        const Text(
+                          "Blood Pressure",
+                          style: TextStyle(color: Colors.white70),
+                        ),
+
+                        Text(
+                          "${r["sys"]}/${r["dia"]}",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+
+                      ],
+                    ),
+
+                  );
+
+                }
+
+              ),
+            )
+
           ],
         ),
       ),
     );
   }
+}
+
+
+class ChartPainter extends CustomPainter{
+
+  final List<Map<String,int>> data;
+
+  ChartPainter(this.data);
+
+  @override
+  void paint(Canvas canvas,Size size){
+
+    Paint line=Paint()
+      ..color=const Color(0xff00E5FF)
+      ..strokeWidth=3
+      ..style=PaintingStyle.stroke;
+
+    if(data.length<2) return;
+
+    double step=size.width/(data.length-1);
+
+    int minValue= data.map((e)=>e["sys"]!).reduce(min);
+    int maxValue= data.map((e)=>e["sys"]!).reduce(max);
+
+    double range=max(1,(maxValue-minValue).toDouble());
+
+    Path path=Path();
+
+    for(int i=0;i<data.length;i++){
+
+      double x=i*step;
+
+      double y=size.height-
+          ((data[i]["sys"]!-minValue)/range)*size.height;
+
+      if(i==0){
+        path.moveTo(x,y);
+      }else{
+        path.lineTo(x,y);
+      }
+
+    }
+
+    canvas.drawPath(path,line);
+
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate){
+    return true;
+  }
+
 }
