@@ -82,6 +82,8 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    final double bottomSafeArea = MediaQuery.paddingOf(context).bottom;
+
     return Scaffold(
       backgroundColor: const Color(0xff040F31),
       extendBodyBehindAppBar: false,
@@ -139,7 +141,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
               const SizedBox(height: 15),
               _buildAddMealButton(),
               
-              const SizedBox(height: 120), // Bottom padding for scrolling
+              SizedBox(height: 120 + bottomSafeArea), // Bottom padding for scrolling
             ],
           ),
         ),

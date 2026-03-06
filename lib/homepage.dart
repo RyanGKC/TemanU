@@ -1,5 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:temanu/bloodpressure.dart';
+import 'package:temanu/bodyweight.dart';
 import 'package:temanu/caloriesMain.dart';
 import 'package:temanu/medicationlog.dart';
 import 'package:temanu/bodyweight.dart';
