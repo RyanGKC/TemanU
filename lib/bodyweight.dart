@@ -286,13 +286,18 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
 
             // Goal / Change / BMI
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                infoCard("Goal", goalWeight.toStringAsFixed(0)),
+                Expanded(
+                  child: infoCard("Goal", goalWeight.toStringAsFixed(0)),
+                ),
                 const SizedBox(width: 8),
-                infoCard("Change", "${changeWeight.toStringAsFixed(1)}kg"),
+                Expanded(
+                  child: infoCard("Change", "${changeWeight.toStringAsFixed(1)}kg"),
+                ),
                 const SizedBox(width: 8),
-                infoCard("BMI", bmi.toStringAsFixed(1)),
+                Expanded(
+                  child: infoCard("BMI", bmi.toStringAsFixed(1)),
+                ),
               ],
             ),
 
@@ -384,7 +389,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
 
   Widget infoCard(String title, String value) {
     return Container(
-      width: 98,
       height: 95,
       decoration: BoxDecoration(
         color: const Color(0xff4DA5E0),
