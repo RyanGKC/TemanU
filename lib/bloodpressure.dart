@@ -1,7 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 
-
 class BloodPressurePage extends StatefulWidget {
   const BloodPressurePage({super.key});
 
@@ -12,23 +11,39 @@ class BloodPressurePage extends StatefulWidget {
 class _BloodPressurePageState extends State<BloodPressurePage> {
   int systolic = 118;
   int diastolic = 76;
-  int pulse = 70;
   String selectedRange = "Week";
 
+  // Week data
   List<int> weekSys = [122, 120, 119, 118, 117, 119, 118];
   List<int> weekDia = [80, 79, 78, 77, 76, 77, 76];
+  List<int> weekSysMin = [120, 118, 118, 117, 116, 118, 117];
+  List<int> weekSysMax = [124, 121, 120, 119, 118, 120, 119];
+  List<int> weekDiaMin = [78, 78, 77, 76, 75, 76, 75];
+  List<int> weekDiaMax = [82, 80, 79, 78, 77, 78, 77];
 
-  List<int> monthSys = [126, 124, 123, 121, 120, 119, 118];
-  List<int> monthDia = [84, 82, 81, 80, 79, 78, 76];
+  // Month data (30 days)
+  List<int> monthSys = [
+    126, 125, 124, 124, 123, 122, 121, 121, 120, 120,
+    119, 119, 118, 118, 118, 119, 120, 121, 122, 121,
+    120, 119, 118, 117, 118, 119, 118, 117, 118, 118
+  ];
+  List<int> monthDia = [
+    84, 83, 82, 82, 81, 80, 80, 79, 79, 78,
+    78, 77, 77, 76, 76, 77, 78, 79, 80, 79,
+    78, 77, 76, 75, 76, 77, 76, 75, 76, 76
+  ];
 
-  List<int> threeMonthSys = [130, 128, 126, 124, 122, 120, 118];
-  List<int> threeMonthDia = [86, 84, 83, 81, 80, 79, 76];
+  // 3 Months (12 weekly values)
+  List<int> threeMonthSys = [130, 129, 128, 127, 126, 125, 124, 123, 122, 121, 120, 118];
+  List<int> threeMonthDia = [86, 85, 84, 84, 83, 82, 81, 80, 79, 78, 77, 76];
 
-  List<int> sixMonthSys = [135, 133, 130, 127, 124, 121, 118];
-  List<int> sixMonthDia = [90, 88, 86, 84, 82, 80, 76];
+  // 6 Months (6 monthly averages)
+  List<int> sixMonthSys = [135, 133, 130, 127, 124, 118];
+  List<int> sixMonthDia = [90, 88, 86, 84, 82, 76];
 
-  List<int> yearSys = [140, 138, 136, 132, 128, 124, 118];
-  List<int> yearDia = [92, 90, 88, 86, 84, 80, 76];
+  // Year (12 monthly values)
+  List<int> yearSys = [140, 138, 136, 134, 132, 130, 128, 126, 124, 122, 120, 118];
+  List<int> yearDia = [92, 90, 89, 88, 86, 85, 84, 82, 81, 79, 78, 76];
 
   List<int> get currentSysData {
     switch (selectedRange) {
@@ -60,58 +75,98 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     }
   }
 
-  String get bpStatus {
-    if (systolic >= 140 || diastolic >= 90) return "High";
-    if (systolic < 90 || diastolic < 60) return "Low";
-    return "Normal";
+  List<int>? get currentSysMin {
+    if (selectedRange == "Week") return weekSysMin;
+    return null;
   }
 
-  int get changeSys {
-    final data = currentSysData;
-    if (data.length < 2) return 0;
-    return data.last - data.first;
+  List<int>? get currentSysMax {
+    if (selectedRange == "Week") return weekSysMax;
+    return null;
   }
 
-  int get changeDia {
-    final data = currentDiaData;
-    if (data.length < 2) return 0;
-    return data.last - data.first;
+  List<int>? get currentDiaMin {
+    if (selectedRange == "Week") return weekDiaMin;
+    return null;
   }
 
-  String get changeText {
-    final sysSign = changeSys > 0 ? "+" : "";
-    final diaSign = changeDia > 0 ? "+" : "";
-    return "$sysSign$changeSys / $diaSign$changeDia";
+  List<int>? get currentDiaMax {
+    if (selectedRange == "Week") return weekDiaMax;
+    return null;
   }
 
-  String get aiTips {
-    if (bpStatus == "High") {
-      return "Your blood pressure is high. Reduce salt intake, manage stress, exercise regularly, and monitor your readings consistently.";
-    } else if (bpStatus == "Low") {
-      return "Your blood pressure is low. Stay hydrated, eat balanced meals, and seek medical advice if dizziness continues.";
+  String get zoneText {
+    if (systolic > 180 || diastolic > 120) {
+      return "Crisis";
+    } else if (systolic >= 140 || diastolic >= 90) {
+      return "High";
+    } else if (systolic >= 130 || diastolic >= 80) {
+      return "Stage 1";
+    } else if (systolic >= 120 && diastolic < 80) {
+      return "Elevated";
     } else {
-      return "Your blood pressure is in the normal range. Maintain your healthy lifestyle, exercise regularly, and continue monitoring.";
+      return "Healthy";
     }
   }
 
-  void addBpData(int sys, int dia, int pulseValue) {
+  Color get zoneColor {
+    switch (zoneText) {
+      case "Healthy":
+        return const Color(0xff4DA5E0);
+      case "Elevated":
+        return Colors.orange;
+      case "Stage 1":
+        return Colors.deepOrange;
+      case "High":
+        return Colors.red;
+      case "Crisis":
+        return Colors.purple;
+      default:
+        return const Color(0xff4DA5E0);
+    }
+  }
+
+  String get aiTips {
+    switch (zoneText) {
+      case "Healthy":
+        return "Your blood pressure is in a healthy range. Keep maintaining your healthy lifestyle.";
+      case "Elevated":
+        return "Your blood pressure is slightly elevated. Reduce salt intake and monitor regularly.";
+      case "Stage 1":
+        return "Your blood pressure is in Stage 1 hypertension range. Consider lifestyle changes and regular monitoring.";
+      case "High":
+        return "Your blood pressure is high. Please reduce stress, improve diet, and consult a healthcare professional if needed.";
+      case "Crisis":
+        return "Your reading is in hypertensive crisis range. Seek medical attention immediately.";
+      default:
+        return "Monitor your blood pressure regularly.";
+    }
+  }
+
+  void addBpData(int sys, int dia) {
     setState(() {
       systolic = sys;
       diastolic = dia;
-      pulse = pulseValue;
 
       weekSys.add(sys);
       weekDia.add(dia);
+      weekSysMin.add(sys - 2);
+      weekSysMax.add(sys + 2);
+      weekDiaMin.add(dia - 2);
+      weekDiaMax.add(dia + 2);
 
       if (weekSys.length > 7) weekSys.removeAt(0);
       if (weekDia.length > 7) weekDia.removeAt(0);
+      if (weekSysMin.length > 7) weekSysMin.removeAt(0);
+      if (weekSysMax.length > 7) weekSysMax.removeAt(0);
+      if (weekDiaMin.length > 7) weekDiaMin.removeAt(0);
+      if (weekDiaMax.length > 7) weekDiaMax.removeAt(0);
     });
   }
 
   void showAddDataDialog() {
     final sysController = TextEditingController();
     final diaController = TextEditingController();
-    final pulseController = TextEditingController();
 
     showDialog(
       context: context,
@@ -125,21 +180,15 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                 controller: sysController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: "Systolic",
+                  labelText: "Systolic (mmHg)",
                 ),
               ),
+              const SizedBox(height: 12),
               TextField(
                 controller: diaController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: "Diastolic",
-                ),
-              ),
-              TextField(
-                controller: pulseController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: "Pulse",
+                  labelText: "Diastolic (mmHg)",
                 ),
               ),
             ],
@@ -153,10 +202,9 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
               onPressed: () {
                 final sys = int.tryParse(sysController.text);
                 final dia = int.tryParse(diaController.text);
-                final p = int.tryParse(pulseController.text);
 
-                if (sys != null && dia != null && p != null) {
-                  addBpData(sys, dia, p);
+                if (sys != null && dia != null) {
+                  addBpData(sys, dia);
                 }
 
                 Navigator.pop(context);
@@ -176,7 +224,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
         builder: (context) => BloodPressureSharePage(
           sys: systolic,
           dia: diastolic,
-          change: changeText,
+          zone: zoneText,
         ),
       ),
     );
@@ -237,7 +285,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                       ),
                     ),
                     Text(
-                      "$pulse bpm  |  $bpStatus",
+                      zoneText,
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 16,
@@ -263,12 +311,15 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
 
             const SizedBox(height: 18),
 
-            Text(
-              selectedRange,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "$selectedRange Overview",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
 
@@ -283,29 +334,69 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                 borderRadius: BorderRadius.circular(30),
               ),
               child: CustomPaint(
-                painter: BloodPressureChartPainter(currentSysData),
+                painter: BloodPressureChartPainter(
+                  sysData: currentSysData,
+                  diaData: currentDiaData,
+                  rangeLabel: selectedRange,
+                  sysMinData: currentSysMin,
+                  sysMaxData: currentSysMax,
+                  diaMinData: currentDiaMin,
+                  diaMaxData: currentDiaMax,
+                ),
                 child: Container(),
               ),
+            ),
+
+            const SizedBox(height: 14),
+
+            // Legend
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      color: Colors.orange,
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      "Systolic",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 20),
+                Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: const BoxDecoration(
+                        color: Colors.greenAccent,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      "Diastolic",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ],
+                ),
+              ],
             ),
 
             const SizedBox(height: 16),
 
             // Metrics
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                infoCard("Systolic", systolic.toString()),
-                infoCard("Diastolic", diastolic.toString()),
-                infoCard("Pulse", pulse.toString()),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                changeCard("Change", changeText),
+                infoCard("Systolic", "$systolic mmHg"),
+                infoCard("Diastolic", "$diastolic mmHg"),
+                zoneCard("Zone", zoneText),
               ],
             ),
 
@@ -394,7 +485,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
 
   Widget infoCard(String title, String value) {
     return Container(
-      width: 105,
+      width: 100,
       height: 95,
       decoration: BoxDecoration(
         color: const Color(0xff4DA5E0),
@@ -405,14 +496,16 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
         children: [
           Text(
             title,
+            textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.white, fontSize: 18),
           ),
           const SizedBox(height: 8),
           Text(
             value,
+            textAlign: TextAlign.center,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 22,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -421,12 +514,12 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     );
   }
 
-  Widget changeCard(String title, String value) {
+  Widget zoneCard(String title, String value) {
     return Container(
-      width: 180,
+      width: 100,
       height: 95,
       decoration: BoxDecoration(
-        color: const Color(0xff4DA5E0),
+        color: zoneColor,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
@@ -439,9 +532,10 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
           const SizedBox(height: 8),
           Text(
             value,
+            textAlign: TextAlign.center,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 22,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -477,59 +571,146 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
 }
 
 class BloodPressureChartPainter extends CustomPainter {
-  final List<int> data;
-  BloodPressureChartPainter(this.data);
+  final List<int> sysData;
+  final List<int> diaData;
+  final List<int>? sysMinData;
+  final List<int>? sysMaxData;
+  final List<int>? diaMinData;
+  final List<int>? diaMaxData;
+  final String rangeLabel;
+
+  BloodPressureChartPainter({
+    required this.sysData,
+    required this.diaData,
+    required this.rangeLabel,
+    this.sysMinData,
+    this.sysMaxData,
+    this.diaMinData,
+    this.diaMaxData,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    final dotPaint = Paint()
-      ..color = const Color(0xff7EF2FF)
+    final sysPaint = Paint()
+      ..color = Colors.orange
       ..style = PaintingStyle.fill;
+
+    final diaPaint = Paint()
+      ..color = Colors.greenAccent
+      ..style = PaintingStyle.fill;
+
+    final rangePaint = Paint()
+      ..color = Colors.lightBlueAccent
+      ..strokeWidth = 2;
 
     final gridPaint = Paint()
       ..color = Colors.white54
       ..strokeWidth = 1;
 
-    final minVal = data.reduce(min) - 10;
-    final maxVal = data.reduce(max) + 5;
-    final range = maxVal - minVal;
+    const textStyle = TextStyle(color: Colors.white, fontSize: 11);
 
-    for (int i = 0; i < 6; i++) {
-      final y = size.height * i / 5;
-      canvas.drawLine(Offset(30, y), Offset(size.width, y), gridPaint);
-    }
+    final allValues = [...sysData, ...diaData];
+    final minVal = ((allValues.reduce(min) - 10) ~/ 10) * 10;
+    final maxVal = (((allValues.reduce(max) + 9) ~/ 10) * 10).toDouble();
+    final range = maxVal - minVal == 0 ? 10 : maxVal - minVal;
 
-    final path = Path();
-    for (int i = 0; i < data.length; i++) {
-      final x = 40 + (size.width - 60) * i / (data.length - 1);
-      final y = size.height - ((data[i] - minVal) / range) * size.height;
+    const leftPadding = 55.0;
+    const bottomPadding = 24.0;
+    final chartHeight = size.height - bottomPadding;
 
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-      canvas.drawCircle(Offset(x, y), 5, dotPaint);
-    }
-    canvas.drawPath(path, linePaint);
+    // Y-axis labels
+    for (int i = 0; i <= 5; i++) {
+      final y = chartHeight * i / 5;
+      canvas.drawLine(Offset(leftPadding, y), Offset(size.width, y), gridPaint);
 
-    const labels = ["Mon", "Tues", "Wed", "Thurs", "Fri", "Sat", "Sun"];
-    for (int i = 0; i < min(labels.length, data.length); i++) {
-      final x = 30 + (size.width - 60) * i / (data.length - 1);
-      final textPainter = TextPainter(
+      final value = maxVal - (range * i / 5);
+      final tp = TextPainter(
         text: TextSpan(
-          text: labels[i],
-          style: const TextStyle(color: Colors.white, fontSize: 12),
+          text: value.toStringAsFixed(0),
+          style: textStyle,
         ),
         textDirection: TextDirection.ltr,
       );
-      textPainter.layout();
-      textPainter.paint(canvas, Offset(x - 12, size.height - 5));
+      tp.layout();
+      tp.paint(canvas, Offset(8, y - 8));
+    }
+
+    final pointCount = min(sysData.length, diaData.length);
+    if (pointCount == 0) return;
+
+    final usableWidth = size.width - leftPadding - 20;
+    final step = pointCount == 1 ? 0 : usableWidth / (pointCount - 1);
+
+    for (int i = 0; i < pointCount; i++) {
+      final x = leftPadding + step * i;
+
+      final sysY = chartHeight - ((sysData[i] - minVal) / range) * chartHeight;
+      final diaY = chartHeight - ((diaData[i] - minVal) / range) * chartHeight;
+
+      // Multiple readings range
+      if (sysMinData != null &&
+          sysMaxData != null &&
+          i < sysMinData!.length &&
+          i < sysMaxData!.length) {
+        final sysMinY =
+            chartHeight - ((sysMinData![i] - minVal) / range) * chartHeight;
+        final sysMaxY =
+            chartHeight - ((sysMaxData![i] - minVal) / range) * chartHeight;
+        canvas.drawLine(Offset(x, sysMinY), Offset(x, sysMaxY), rangePaint);
+        canvas.drawCircle(Offset(x, sysMinY), 4, rangePaint);
+        canvas.drawCircle(Offset(x, sysMaxY), 4, rangePaint);
+      }
+
+      if (diaMinData != null &&
+          diaMaxData != null &&
+          i < diaMinData!.length &&
+          i < diaMaxData!.length) {
+        final diaMinY =
+            chartHeight - ((diaMinData![i] - minVal) / range) * chartHeight;
+        final diaMaxY =
+            chartHeight - ((diaMaxData![i] - minVal) / range) * chartHeight;
+        canvas.drawLine(Offset(x + 6, diaMinY), Offset(x + 6, diaMaxY), rangePaint);
+        canvas.drawCircle(Offset(x + 6, diaMinY), 4, rangePaint);
+        canvas.drawCircle(Offset(x + 6, diaMaxY), 4, rangePaint);
+      }
+
+      // Systolic = orange rectangle
+      final sysRect = Rect.fromCenter(center: Offset(x, sysY), width: 12, height: 12);
+      canvas.drawRect(sysRect, sysPaint);
+
+      // Diastolic = green dot
+      canvas.drawCircle(Offset(x + 6, diaY), 5, diaPaint);
+    }
+
+    final labels = _getLabels(rangeLabel, pointCount);
+    for (int i = 0; i < min(labels.length, pointCount); i++) {
+      final x = leftPadding + step * i;
+      final tp = TextPainter(
+        text: TextSpan(text: labels[i], style: textStyle),
+        textDirection: TextDirection.ltr,
+      );
+      tp.layout();
+      tp.paint(canvas, Offset(x - tp.width / 2, size.height - 18));
+    }
+  }
+
+  List<String> _getLabels(String range, int length) {
+    switch (range) {
+      case "Week":
+        return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+      case "Month":
+        return List.generate(length, (i) => "${i + 1}");
+      case "3 Months":
+        return List.generate(length, (i) => "W${i + 1}");
+      case "6 Months":
+        return ["M1", "M2", "M3", "M4", "M5", "M6"];
+      case "Year":
+        return [
+          "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+        ];
+      default:
+        return List.generate(length, (i) => "${i + 1}");
     }
   }
 
@@ -540,13 +721,13 @@ class BloodPressureChartPainter extends CustomPainter {
 class BloodPressureSharePage extends StatelessWidget {
   final int sys;
   final int dia;
-  final String change;
+  final String zone;
 
   const BloodPressureSharePage({
     super.key,
     required this.sys,
     required this.dia,
-    required this.change,
+    required this.zone,
   });
 
   @override
@@ -581,7 +762,7 @@ class BloodPressureSharePage extends StatelessWidget {
                 ),
                 child: Center(
                   child: Text(
-                    "Blood Pressure\n$sys / $dia\n\nChange: $change",
+                    "Blood Pressure\n$sys / $dia\n\nZone: $zone",
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 28,
