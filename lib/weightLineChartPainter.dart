@@ -5,8 +5,9 @@ class WeightLineChartPainter extends CustomPainter {
   final List<double> data;
   final String selectedRange;
   final int? touchedIndex;
+  final double progress;
 
-  WeightLineChartPainter(this.data, this.selectedRange, this.touchedIndex);
+  WeightLineChartPainter(this.data, this.selectedRange, this.touchedIndex, this.progress);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -61,10 +62,13 @@ class WeightLineChartPainter extends CustomPainter {
 
     final path = Path();
     for (int i = 0; i < data.length; i++) {
-      final x =
-          leftPadding + (size.width - leftPadding - 20) * i / (data.length - 1);
-      final y =
-          chartHeight - ((data[i] - minAxis) / range) * chartHeight;
+      final x = leftPadding + (size.width - leftPadding - 20) * i / (data.length - 1);
+      
+      // Calculate the final target Y position
+      final targetY = chartHeight - ((data[i] - minAxis) / range) * chartHeight;
+      
+      // Animate it scaling UP from the bottom axis
+      final y = chartHeight - ((chartHeight - targetY) * progress);
 
       if (i == 0) {
         path.moveTo(x, y);

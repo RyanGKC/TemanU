@@ -12,13 +12,41 @@ class BodyWeightPage extends StatefulWidget {
   State<BodyWeightPage> createState() => _BodyWeightPageState();
 }
 
-class _BodyWeightPageState extends State<BodyWeightPage> {
+class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProviderStateMixin {
   double currentWeight = 80.5;
   double goalWeight = 80.0;
   double heightCm = 186.0;
   String selectedRange = "Week";
 
   int? touchedIndex; // Tracks which data point is currently selected
+
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize the controller
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800), // Adjust speed here
+    );
+
+    // Add a smooth easing curve
+    _animation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutQuart,
+    );
+
+    // Play the animation as soon as the page loads
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
   void _handleChartTap(TapUpDetails details, double width) {
     final double leftPadding = 58;
@@ -313,19 +341,21 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
                 color: const Color(0xff59A2DD),
                 borderRadius: BorderRadius.circular(30),
               ),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return GestureDetector(
-                    onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
-                    child: CustomPaint(
-                      size: Size(constraints.maxWidth, constraints.maxHeight),
-                      painter: WeightLineChartPainter(currentData, selectedRange, touchedIndex)
-                      // painter: isLineChart
-                      //     ? WeightLineChartPainter(currentData, selectedRange, touchedIndex)
-                      //     : WeightBarChartPainter(currentData, selectedRange, touchedIndex),
-                    ),
+              child: AnimatedBuilder(
+                animation: _animation,
+                builder: (context, child) {
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      return GestureDetector(
+                        onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
+                        child: CustomPaint(
+                          size: Size(constraints.maxWidth, constraints.maxHeight),
+                          painter: WeightLineChartPainter(currentData, selectedRange, touchedIndex, _animation.value)
+                        ),
+                      );
+                    },
                   );
-                },
+                }
               ),
             ),
 
@@ -492,6 +522,8 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
           selectedRange = label;
           touchedIndex = null; // <-- Clear selection on tab change
         });
+        _animationController.reset();
+        _animationController.forward();
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

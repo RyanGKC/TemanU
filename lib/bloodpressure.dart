@@ -1,7 +1,9 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:temanu/bloodPressureSharePage.dart';
 import 'package:temanu/bloodPresureChartPainter.dart';
-
+import 'package:temanu/assistantpage.dart';
 
 class BloodPressurePage extends StatefulWidget {
   const BloodPressurePage({super.key});
@@ -236,6 +238,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xff031447),
+      extendBody: true,
       appBar: AppBar(
         backgroundColor: const Color(0xff55607D),
         elevation: 0,
@@ -457,29 +460,51 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
               ),
             ),
 
-            const SizedBox(height: 24),
-
-            // Assistant
-            Container(
-              width: 160,
-              height: 90,
-              decoration: BoxDecoration(
-                color: const Color(0xff4C536F),
-                borderRadius: BorderRadius.circular(40),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.search, size: 38, color: Colors.white),
-                  SizedBox(height: 4),
-                  Text(
-                    "Assistant",
-                    style: TextStyle(color: Colors.white, fontSize: 18),
-                  ),
-                ],
-              ),
-            ),
+            const SizedBox(height: 24)
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(left:20, right: 20, bottom: 30),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 100),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                    child: Container(
+                      width: double.infinity,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1), 
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5), 
+                      ),
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context, 
+                            MaterialPageRoute(builder: (context) => const AssistantPage())
+                          );
+                        },
+                        child: const Center(
+                          child: Icon(
+                            Icons.auto_awesome,
+                            size: 28,
+                            color: Colors.white70
+                          ),
+                        )
+                      )
+                    )
+                  )
+                )
+              ),
+            ]
+          )
         ),
       ),
     );
