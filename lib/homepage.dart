@@ -1,5 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:temanu/bloodpressure.dart';
+import 'package:temanu/bodyweight.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temanu/caloriesMain.dart';
 import 'package:temanu/medicationlog.dart';
@@ -86,7 +88,7 @@ class _HealthDashboardContentState extends State<HealthDashboardContent> {
     },
     {
       "icon": Icons.monitor_heart, "title": "Blood Pressure", "value": "118/76", "unit": "mmHg", 
-      "destination": const HomePage(), "isVisible": true
+      "destination": const BloodPressurePage(), "isVisible": true
     },
     {
       "icon": Icons.local_fire_department, "title": "Calories", "value": "1900", "unit": "kcal", 
@@ -94,7 +96,7 @@ class _HealthDashboardContentState extends State<HealthDashboardContent> {
     },
     {
       "icon": Icons.monitor_weight, "title": "Body Weight", "value": "80.5", "unit": "kg", 
-      "destination": const HomePage(), "isVisible": true
+      "destination": const BodyWeightPage(), "isVisible": true
     },
   ];
 
@@ -220,7 +222,7 @@ class _HealthDashboardContentState extends State<HealthDashboardContent> {
       padding: const EdgeInsets.symmetric(horizontal: 20.0),
       child: Column(
         children: [
-          const SizedBox(height: 20),
+          const SizedBox(height: 20), 
           
           // 1. ADDED: LayoutBuilder to detect screen width
           LayoutBuilder(

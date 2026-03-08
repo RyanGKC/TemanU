@@ -21,14 +21,19 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		2B8CAF7FBBA22FB989EC2C21 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FB1409856A671625DCE4FEEB /* Pods_Runner.framework */; };
 		331C80D8294CF71000263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C80D7294CF71000263BE5 /* RunnerTests.swift */; };
 		335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 335BBD1A22A9A15E00E9071D /* GeneratedPluginRegistrant.swift */; };
 		33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC10F02044A3C60003C045 /* AppDelegate.swift */; };
 		33CC10F32044A3C60003C045 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F22044A3C60003C045 /* Assets.xcassets */; };
 		33CC10F62044A3C60003C045 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F42044A3C60003C045 /* MainMenu.xib */; };
 		33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC11122044BFA00003C045 /* MainFlutterWindow.swift */; };
+<<<<<<< HEAD
+		E64BEE07279C548C855248E6 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C31DBD46AF78EF28A9BA1E38 /* Pods_RunnerTests.framework */; };
+=======
 		6EB18A4AC0EA3E94682F9113 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DC1E42BBFEEDFD5D508E91DC /* Pods_RunnerTests.framework */; };
 		8EC7D54A59EB231539C1B108 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 66AC69072FA471830A90AC41 /* Pods_Runner.framework */; };
+>>>>>>> main
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -62,8 +67,13 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+<<<<<<< HEAD
+		073FCCC9156CA658E936D970 /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
+		09EDA0FA362854193DB63329 /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
+=======
 		1E026AA572EBBFB82B5FD743 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		1F956AF27E91443C33DB7B6F /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
+>>>>>>> main
 		331C80D5294CF71000263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		331C80D7294CF71000263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		333000ED22D3DE5D00554162 /* Warnings.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Warnings.xcconfig; sourceTree = "<group>"; };
@@ -84,10 +94,19 @@
 		5AFE2CDF67BDF41FEA1F51DC /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
 		66AC69072FA471830A90AC41 /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		8BB3CFE80F800A77C16872F3 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+<<<<<<< HEAD
+		AB3E8CF8A0C801977C632070 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
+		B3CD01BB5535D906A99482F2 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
+		B57376335FC6852EB91BC57A /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
+		C31DBD46AF78EF28A9BA1E38 /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		FB1409856A671625DCE4FEEB /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+=======
 		AA7E53D46D68CD24CB92651F /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
 		BE305B01639AD4737752701E /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		DC1E42BBFEEDFD5D508E91DC /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+>>>>>>> main
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,7 +114,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+<<<<<<< HEAD
+				E64BEE07279C548C855248E6 /* Pods_RunnerTests.framework in Frameworks */,
+=======
 				6EB18A4AC0EA3E94682F9113 /* Pods_RunnerTests.framework in Frameworks */,
+>>>>>>> main
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -103,7 +126,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+<<<<<<< HEAD
+				2B8CAF7FBBA22FB989EC2C21 /* Pods_Runner.framework in Frameworks */,
+=======
 				8EC7D54A59EB231539C1B108 /* Pods_Runner.framework in Frameworks */,
+>>>>>>> main
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -137,7 +164,11 @@
 				331C80D6294CF71000263BE5 /* RunnerTests */,
 				33CC10EE2044A3C60003C045 /* Products */,
 				D73912EC22F37F3D000D13A0 /* Frameworks */,
+<<<<<<< HEAD
+				B8F94BE3962432FA01A2CA5C /* Pods */,
+=======
 				BD974A9D1DD54C075D3FA452 /* Pods */,
+>>>>>>> main
 			);
 			sourceTree = "<group>";
 		};
@@ -185,6 +216,17 @@
 			path = Runner;
 			sourceTree = "<group>";
 		};
+<<<<<<< HEAD
+		B8F94BE3962432FA01A2CA5C /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				073FCCC9156CA658E936D970 /* Pods-Runner.debug.xcconfig */,
+				09EDA0FA362854193DB63329 /* Pods-Runner.release.xcconfig */,
+				AB3E8CF8A0C801977C632070 /* Pods-Runner.profile.xcconfig */,
+				8BB3CFE80F800A77C16872F3 /* Pods-RunnerTests.debug.xcconfig */,
+				B3CD01BB5535D906A99482F2 /* Pods-RunnerTests.release.xcconfig */,
+				B57376335FC6852EB91BC57A /* Pods-RunnerTests.profile.xcconfig */,
+=======
 		BD974A9D1DD54C075D3FA452 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
@@ -194,6 +236,7 @@
 				558B28E0341D58FC31BE57E0 /* Pods-RunnerTests.debug.xcconfig */,
 				5AFE2CDF67BDF41FEA1F51DC /* Pods-RunnerTests.release.xcconfig */,
 				BE305B01639AD4737752701E /* Pods-RunnerTests.profile.xcconfig */,
+>>>>>>> main
 			);
 			name = Pods;
 			path = Pods;
@@ -202,8 +245,13 @@
 		D73912EC22F37F3D000D13A0 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+<<<<<<< HEAD
+				FB1409856A671625DCE4FEEB /* Pods_Runner.framework */,
+				C31DBD46AF78EF28A9BA1E38 /* Pods_RunnerTests.framework */,
+=======
 				66AC69072FA471830A90AC41 /* Pods_Runner.framework */,
 				DC1E42BBFEEDFD5D508E91DC /* Pods_RunnerTests.framework */,
+>>>>>>> main
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -215,7 +263,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 331C80DE294CF71000263BE5 /* Build configuration list for PBXNativeTarget "RunnerTests" */;
 			buildPhases = (
+<<<<<<< HEAD
+				B16CFEB0C99B23AADD55104F /* [CP] Check Pods Manifest.lock */,
+=======
 				4596283622CB292889F61A56 /* [CP] Check Pods Manifest.lock */,
+>>>>>>> main
 				331C80D1294CF70F00263BE5 /* Sources */,
 				331C80D2294CF70F00263BE5 /* Frameworks */,
 				331C80D3294CF70F00263BE5 /* Resources */,
@@ -234,7 +286,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 33CC10FB2044A3C60003C045 /* Build configuration list for PBXNativeTarget "Runner" */;
 			buildPhases = (
+<<<<<<< HEAD
+				D7712A3FDDF8A42D8693062E /* [CP] Check Pods Manifest.lock */,
+=======
 				ABBC9B07EA6D12163B13BD6E /* [CP] Check Pods Manifest.lock */,
+>>>>>>> main
 				33CC10E92044A3C60003C045 /* Sources */,
 				33CC10EA2044A3C60003C045 /* Frameworks */,
 				33CC10EB2044A3C60003C045 /* Resources */,
@@ -378,7 +434,11 @@
 			shellPath = /bin/sh;
 			shellScript = "\"$FLUTTER_ROOT\"/packages/flutter_tools/bin/macos_assemble.sh && touch Flutter/ephemeral/tripwire";
 		};
+<<<<<<< HEAD
+		B16CFEB0C99B23AADD55104F /* [CP] Check Pods Manifest.lock */ = {
+=======
 		4596283622CB292889F61A56 /* [CP] Check Pods Manifest.lock */ = {
+>>>>>>> main
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -400,7 +460,11 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
+<<<<<<< HEAD
+		D7712A3FDDF8A42D8693062E /* [CP] Check Pods Manifest.lock */ = {
+=======
 		ABBC9B07EA6D12163B13BD6E /* [CP] Check Pods Manifest.lock */ = {
+>>>>>>> main
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -473,7 +537,11 @@
 /* Begin XCBuildConfiguration section */
 		331C80DB294CF71000263BE5 /* Debug */ = {
 			isa = XCBuildConfiguration;
+<<<<<<< HEAD
+			baseConfigurationReference = 8BB3CFE80F800A77C16872F3 /* Pods-RunnerTests.debug.xcconfig */;
+=======
 			baseConfigurationReference = 558B28E0341D58FC31BE57E0 /* Pods-RunnerTests.debug.xcconfig */;
+>>>>>>> main
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CURRENT_PROJECT_VERSION = 1;
@@ -488,7 +556,11 @@
 		};
 		331C80DC294CF71000263BE5 /* Release */ = {
 			isa = XCBuildConfiguration;
+<<<<<<< HEAD
+			baseConfigurationReference = B3CD01BB5535D906A99482F2 /* Pods-RunnerTests.release.xcconfig */;
+=======
 			baseConfigurationReference = 5AFE2CDF67BDF41FEA1F51DC /* Pods-RunnerTests.release.xcconfig */;
+>>>>>>> main
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CURRENT_PROJECT_VERSION = 1;
@@ -503,7 +575,11 @@
 		};
 		331C80DD294CF71000263BE5 /* Profile */ = {
 			isa = XCBuildConfiguration;
+<<<<<<< HEAD
+			baseConfigurationReference = B57376335FC6852EB91BC57A /* Pods-RunnerTests.profile.xcconfig */;
+=======
 			baseConfigurationReference = BE305B01639AD4737752701E /* Pods-RunnerTests.profile.xcconfig */;
+>>>>>>> main
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CURRENT_PROJECT_VERSION = 1;
