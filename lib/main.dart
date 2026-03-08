@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:temanu/login.dart';
 
-void main() {
+void main() async{
   runApp(TemanU());
 }
 

@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:temanu/changePassword.dart';
+import 'package:temanu/linkedDevices.dart';
 import 'package:temanu/profileInformation.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -113,9 +114,14 @@ class SettingsPage extends StatelessWidget {
                       ),
                       _buildDivider(),
                       _buildSettingsTile(
-                        icon: Icons.devices, 
+                        icon: Icons.watch, 
                         title: "Linked Devices", 
-                        onTap: () {}
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => LinkedDevices())
+                          );
+                        }
                       ),
                     ],
                   ),

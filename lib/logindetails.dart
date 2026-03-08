@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:temanu/button.dart';
+import 'package:temanu/forgotPassword.dart';
 import 'package:temanu/mainscreen.dart';
 import 'package:temanu/registerdetails.dart';
 import 'package:temanu/textbox.dart';
@@ -15,6 +16,15 @@ class _LoginDetailsState extends State<LoginDetails> {
   final usernameController = TextEditingController();
   final passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+
+  void _showForgotPasswordDialog() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.6), // Matches your sleek styling
+      barrierDismissible: false, 
+      builder: (context) => const ForgotPasswordDialog(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +66,6 @@ class _LoginDetailsState extends State<LoginDetails> {
                       hintText: 'Password',
                       prefixIcon: Icons.lock_outline,
                       obscureText: !_isPasswordVisible,
-                      // Pass the IconButton as the suffix
                       suffixIcon: IconButton(
                         icon: Icon(
                           _isPasswordVisible
@@ -71,19 +80,25 @@ class _LoginDetailsState extends State<LoginDetails> {
                         },
                       ),
                     ),
-                    SizedBox(height: 15,),
+                    const SizedBox(height: 15),
+                    
+                    // FORGOT PASSWORD TRIGGER ADDED HERE
                     Align(
                       alignment: Alignment.topRight,
-                      child: Text(
-                        'Forgot Password?',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w400,
-                          color: Colors.white
-                        )
+                      child: GestureDetector(
+                        onTap: _showForgotPasswordDialog,
+                        child: const Text(
+                          'Forgot Password?',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
+                            color: Colors.white,
+                            decoration: TextDecoration.underline, // Visual cue that it's clickable
+                          )
+                        ),
                       )
                     ),
-                    SizedBox(height: 30),
+
                     const SizedBox(height: 30),
                     MyRoundedButton(
                       text: 'Login',
@@ -96,33 +111,21 @@ class _LoginDetailsState extends State<LoginDetails> {
                         );
                       },
                     ),
-                    SizedBox(height: 20),
-                    Row(
+                    const SizedBox(height: 20),
+                    const Row(
                       children: [
-                        const Expanded(
-                          child: Divider(
-                            color: Colors.white,
-                            thickness: 1,
-                          ),
-                        ),
+                        Expanded(child: Divider(color: Colors.white, thickness: 1)),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 5.0),
+                          padding: EdgeInsets.symmetric(horizontal: 5.0),
                           child: Text(
                             'Don\'t have an account? ',
-                            style: TextStyle(
-                              color: Colors.white, 
-                              fontSize: 14),
+                            style: TextStyle(color: Colors.white, fontSize: 14),
                           ),
                         ),
-                        const Expanded(
-                          child: Divider(
-                            color: Colors.white,
-                            thickness: 1,
-                          ),
-                        ),
+                        Expanded(child: Divider(color: Colors.white, thickness: 1)),
                       ],
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     MyRoundedButton(
                       text: 'Register',
                       backgroundColor: Colors.white,
