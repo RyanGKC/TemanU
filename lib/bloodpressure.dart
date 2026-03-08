@@ -54,45 +54,47 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
         break;
       case "Week":
         startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
-        endTime = DateTime(now.year, now.month, now.day, 23, 59, 59);
+        endTime = DateTime(now.year, now.month, now.day + 1); 
         break;
-      case "Month":
-        startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 29));
-        endTime = DateTime(now.year, now.month, now.day, 23, 59, 59);
+      case "Month": // Beginning of the current month
+        startTime = DateTime(now.year, now.month, 1);
+        endTime = DateTime(now.year, now.month + 1, 1);
         break;
-      case "3 Months":
-        startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 89));
-        endTime = DateTime(now.year, now.month, now.day, 23, 59, 59);
+      case "3 Months": // 3 calendar months ago (e.g., Mar 8 -> Jan 1)
+        startTime = DateTime(now.year, now.month - 2, 1);
+        endTime = DateTime(now.year, now.month + 1, 1);
         break;
-      case "6 Months":
+      case "6 Months": // 6 calendar months ago
         startTime = DateTime(now.year, now.month - 5, 1);
-        endTime = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+        endTime = DateTime(now.year, now.month + 1, 1);
         break;
-      case "Year":
-        startTime = DateTime(now.year - 1, now.month, 1);
-        endTime = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+      case "Year": // Beginning of the current year
+        startTime = DateTime(now.year, 1, 1);
+        endTime = DateTime(now.year + 1, 1, 1);
         break;
       default:
         startTime = DateTime(now.year, now.month, now.day);
         endTime = startTime.add(const Duration(days: 1));
     }
 
-    // 2. Group the data, ignoring anything outside the window
+    // 2. Group the data into Hours, Days, Weeks, or Months
     for (var reading in rawData) {
-      // FILTER OUT OLD/FUTURE DATA: 
       if (reading.time.isBefore(startTime) || reading.time.isAfter(endTime)) {
         continue; 
       }
 
       DateTime bucket;
       
-      // Determine bucket size based on timeframe
       if (selectedRange == "Day") {
         bucket = DateTime(reading.time.year, reading.time.month, reading.time.day, reading.time.hour);
       } else if (selectedRange == "Week" || selectedRange == "Month") {
         bucket = DateTime(reading.time.year, reading.time.month, reading.time.day);
+      } else if (selectedRange == "3 Months" || selectedRange == "6 Months") {
+        // NEW: Group by Week! Calculates the Monday of the reading's week.
+        bucket = DateTime(reading.time.year, reading.time.month, reading.time.day - reading.time.weekday + 1);
       } else {
-        bucket = DateTime(reading.time.year, reading.time.month);
+        // Year: Group by Month
+        bucket = DateTime(reading.time.year, reading.time.month, 1);
       }
 
       grouped.putIfAbsent(bucket, () => []).add(reading);
@@ -190,7 +192,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     DateTime startTime;
     DateTime endTime;
 
-    // Get the bounds for the current view
     switch (selectedRange) {
       case "Day":
         startTime = DateTime(now.year, now.month, now.day);
@@ -198,23 +199,23 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
         break;
       case "Week":
         startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
-        endTime = DateTime(now.year, now.month, now.day, 23, 59, 59);
+        endTime = DateTime(now.year, now.month, now.day + 1); 
         break;
-      case "Month":
-        startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 29));
-        endTime = DateTime(now.year, now.month, now.day, 23, 59, 59);
+      case "Month": // Beginning of the current month
+        startTime = DateTime(now.year, now.month, 1);
+        endTime = DateTime(now.year, now.month + 1, 1);
         break;
-      case "3 Months":
-        startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 89));
-        endTime = DateTime(now.year, now.month, now.day, 23, 59, 59);
+      case "3 Months": // 3 calendar months ago (e.g., Mar 8 -> Jan 1)
+        startTime = DateTime(now.year, now.month - 2, 1);
+        endTime = DateTime(now.year, now.month + 1, 1);
         break;
-      case "6 Months":
+      case "6 Months": // 6 calendar months ago
         startTime = DateTime(now.year, now.month - 5, 1);
-        endTime = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+        endTime = DateTime(now.year, now.month + 1, 1);
         break;
-      case "Year":
-        startTime = DateTime(now.year - 1, now.month, 1);
-        endTime = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+      case "Year": // Beginning of the current year
+        startTime = DateTime(now.year, 1, 1);
+        endTime = DateTime(now.year + 1, 1, 1);
         break;
       default:
         startTime = DateTime(now.year, now.month, now.day);
@@ -459,7 +460,10 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                     Container(
                       width: 12,
                       height: 12,
-                      color: Colors.orange,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.orange,
+                      ),
                     ),
                     const SizedBox(width: 6),
                     const Text(

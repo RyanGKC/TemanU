@@ -55,13 +55,33 @@ class BloodPressureChartPainter extends CustomPainter {
     DateTime endTime;
 
     switch (rangeLabel) {
-      case "Day": startTime = DateTime(now.year, now.month, now.day); endTime = startTime.add(const Duration(days: 1)); break;
-      case "Week": startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6)); endTime = DateTime(now.year, now.month, now.day, 23, 59, 59); break;
-      case "Month": startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 29)); endTime = DateTime(now.year, now.month, now.day, 23, 59, 59); break;
-      case "3 Months": startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 89)); endTime = DateTime(now.year, now.month, now.day, 23, 59, 59); break;
-      case "6 Months": startTime = DateTime(now.year, now.month - 5, 1); endTime = DateTime(now.year, now.month + 1, 0, 23, 59, 59); break;
-      case "Year": startTime = DateTime(now.year - 1, now.month, 1); endTime = DateTime(now.year, now.month + 1, 0, 23, 59, 59); break;
-      default: startTime = DateTime(now.year, now.month, now.day); endTime = startTime.add(const Duration(days: 1));
+      case "Day":
+        startTime = DateTime(now.year, now.month, now.day);
+        endTime = startTime.add(const Duration(days: 1));
+        break;
+      case "Week":
+        startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
+        endTime = DateTime(now.year, now.month, now.day + 1);
+        break;
+      case "Month":
+        startTime = DateTime(now.year, now.month, 1);
+        endTime = DateTime(now.year, now.month + 1, 1);
+        break;
+      case "3 Months":
+        startTime = DateTime(now.year, now.month - 2, 1);
+        endTime = DateTime(now.year, now.month + 1, 1);
+        break;
+      case "6 Months":
+        startTime = DateTime(now.year, now.month - 5, 1);
+        endTime = DateTime(now.year, now.month + 1, 1);
+        break;
+      case "Year":
+        startTime = DateTime(now.year, 1, 1);
+        endTime = DateTime(now.year + 1, 1, 1);
+        break;
+      default:
+        startTime = DateTime(now.year, now.month, now.day);
+        endTime = startTime.add(const Duration(days: 1));
     }
 
     final totalMillis = endTime.difference(startTime).inMilliseconds;
@@ -135,14 +155,18 @@ class BloodPressureChartPainter extends CustomPainter {
     if (h == 0) h = 12;
     String m = date.minute.toString().padLeft(2, '0');
     
-    // Customize label based on range
+    // Customize label based on range grouping
     String dateStr;
     if (rangeLabel == "Day") {
-      dateStr = "${date.day} ${months[date.month - 1]}, $h:00 $period"; // Show the bucket hour
+      dateStr = "${date.day} ${months[date.month - 1]}, $h:00 $period"; 
     } else if (rangeLabel == "Week" || rangeLabel == "Month") {
-      dateStr = "${date.day} ${months[date.month - 1]}"; // Show the day
+      dateStr = "${date.day} ${months[date.month - 1]}"; 
+    } else if (rangeLabel == "3 Months" || rangeLabel == "6 Months") {
+      // Formats the tooltip as "2 Mar - 8 Mar"
+      final weekEnd = date.add(const Duration(days: 6));
+      dateStr = "${date.day} ${months[date.month - 1]} - ${weekEnd.day} ${months[weekEnd.month - 1]}";
     } else {
-      dateStr = "${months[date.month - 1]} ${date.year}"; // Show the month
+      dateStr = "${months[date.month - 1]} ${date.year}"; 
     }
 
     String sysText = sMin == sMax ? "SYS: $sMax" : "SYS: $sMin-$sMax";
@@ -175,13 +199,23 @@ class BloodPressureChartPainter extends CustomPainter {
   List<String> _getFixedLabels(String range, DateTime start, DateTime end) {
     const List<String> weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     const List<String> months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    
     switch (range) {
       case "Day": return ["12 AM", "6 AM", "12 PM", "6 PM", "12 AM"];
       case "Week": return List.generate(7, (i) => weekdays[start.add(Duration(days: i)).weekday - 1]);
-      case "Month": return List.generate(5, (i) => "${start.add(Duration(days: (i * 7.25).round())).day}/${start.add(Duration(days: (i * 7.25).round())).month}");
-      case "3 Months": return List.generate(4, (i) => months[start.add(Duration(days: i * 30)).month - 1]);
-      case "6 Months": return List.generate(6, (i) { int m = start.month + i; while (m > 12) m -= 12; return months[m - 1]; });
-      case "Year": return List.generate(6, (i) { int m = start.month + (i * 2); while (m > 12) m -= 12; return months[m - 1]; });
+      case "Month": 
+        // 5 evenly spaced labels marking the days of the current month
+        int daysInMonth = end.difference(start).inDays;
+        return List.generate(5, (i) => "${start.add(Duration(days: (i * daysInMonth / 4).round())).day} ${months[start.month - 1]}");
+      case "3 Months": 
+        // Prints exactly 3 month names
+        return List.generate(3, (i) { int m = start.month + i; while (m > 12) m -= 12; return months[m - 1]; });
+      case "6 Months": 
+        // Prints exactly 6 month names
+        return List.generate(6, (i) { int m = start.month + i; while (m > 12) m -= 12; return months[m - 1]; });
+      case "Year": 
+        // Prints all 12 months
+        return List.generate(12, (i) { int m = start.month + i; while (m > 12) m -= 12; return months[m - 1]; });
       default: return [];
     }
   }
