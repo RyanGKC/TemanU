@@ -1,10 +1,17 @@
 import 'dart:ui';
-
+import 'dart:math';
+import 'package:temanu/MockBpData.dart';
 import 'package:flutter/material.dart';
 import 'package:temanu/bloodPressureSharePage.dart';
 import 'package:temanu/bloodPresureChartPainter.dart';
 import 'package:temanu/assistantpage.dart';
 
+class BpReading {
+  final DateTime time;
+  final int sys;
+  final int dia;
+  BpReading(this.time, this.sys, this.dia);
+}
 class BloodPressurePage extends StatefulWidget {
   const BloodPressurePage({super.key});
 
@@ -15,88 +22,106 @@ class BloodPressurePage extends StatefulWidget {
 class _BloodPressurePageState extends State<BloodPressurePage> {
   int systolic = 118;
   int diastolic = 76;
-  String selectedRange = "Week";
+  String selectedRange = "Day";
+  int? touchedIndex;
 
-  // Week data
-  List<int> weekSys = [122, 120, 119, 118, 117, 119, 118];
-  List<int> weekDia = [80, 79, 78, 77, 76, 77, 76];
-  List<int> weekSysMin = [120, 118, 118, 117, 116, 118, 117];
-  List<int> weekSysMax = [124, 121, 120, 119, 118, 120, 119];
-  List<int> weekDiaMin = [78, 78, 77, 76, 75, 76, 75];
-  List<int> weekDiaMax = [82, 80, 79, 78, 77, 78, 77];
+  // Master lists holding the aggregated data to pass to the painter
+  List<DateTime> aggTimes = [];
+  List<int> aggSysMin = [];
+  List<int> aggSysMax = [];
+  List<int> aggDiaMin = [];
+  List<int> aggDiaMax = [];
 
-  // Month data (30 days)
-  List<int> monthSys = [
-    126, 125, 124, 124, 123, 122, 121, 121, 120, 120,
-    119, 119, 118, 118, 118, 119, 120, 121, 122, 121,
-    120, 119, 118, 117, 118, 119, 118, 117, 118, 118
-  ];
-  List<int> monthDia = [
-    84, 83, 82, 82, 81, 80, 80, 79, 79, 78,
-    78, 77, 77, 76, 76, 77, 78, 79, 80, 79,
-    78, 77, 76, 75, 76, 77, 76, 75, 76, 76
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _aggregateData(); // Calculate on load
+  }
 
-  // 3 Months (12 weekly values)
-  List<int> threeMonthSys = [130, 129, 128, 127, 126, 125, 124, 123, 122, 121, 120, 118];
-  List<int> threeMonthDia = [86, 85, 84, 84, 83, 82, 81, 80, 79, 78, 77, 76];
+  void _aggregateData() {
+    final rawData = MockBpData.allReadings; 
+    Map<DateTime, List<BpReading>> grouped = {};
 
-  // 6 Months (6 monthly averages)
-  List<int> sixMonthSys = [135, 133, 130, 127, 124, 118];
-  List<int> sixMonthDia = [90, 88, 86, 84, 82, 76];
+    // 1. Define the valid time window for the current filter
+    final now = DateTime.now();
+    DateTime startTime;
+    DateTime endTime;
 
-  // Year (12 monthly values)
-  List<int> yearSys = [140, 138, 136, 134, 132, 130, 128, 126, 124, 122, 120, 118];
-  List<int> yearDia = [92, 90, 89, 88, 86, 85, 84, 82, 81, 79, 78, 76];
-
-  List<int> get currentSysData {
     switch (selectedRange) {
+      case "Day":
+        startTime = DateTime(now.year, now.month, now.day);
+        endTime = startTime.add(const Duration(days: 1));
+        break;
+      case "Week":
+        startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
+        endTime = DateTime(now.year, now.month, now.day, 23, 59, 59);
+        break;
       case "Month":
-        return monthSys;
+        startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 29));
+        endTime = DateTime(now.year, now.month, now.day, 23, 59, 59);
+        break;
       case "3 Months":
-        return threeMonthSys;
+        startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 89));
+        endTime = DateTime(now.year, now.month, now.day, 23, 59, 59);
+        break;
       case "6 Months":
-        return sixMonthSys;
+        startTime = DateTime(now.year, now.month - 5, 1);
+        endTime = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+        break;
       case "Year":
-        return yearSys;
+        startTime = DateTime(now.year - 1, now.month, 1);
+        endTime = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+        break;
       default:
-        return weekSys;
+        startTime = DateTime(now.year, now.month, now.day);
+        endTime = startTime.add(const Duration(days: 1));
     }
-  }
 
-  List<int> get currentDiaData {
-    switch (selectedRange) {
-      case "Month":
-        return monthDia;
-      case "3 Months":
-        return threeMonthDia;
-      case "6 Months":
-        return sixMonthDia;
-      case "Year":
-        return yearDia;
-      default:
-        return weekDia;
+    // 2. Group the data, ignoring anything outside the window
+    for (var reading in rawData) {
+      // FILTER OUT OLD/FUTURE DATA: 
+      if (reading.time.isBefore(startTime) || reading.time.isAfter(endTime)) {
+        continue; 
+      }
+
+      DateTime bucket;
+      
+      // Determine bucket size based on timeframe
+      if (selectedRange == "Day") {
+        bucket = DateTime(reading.time.year, reading.time.month, reading.time.day, reading.time.hour);
+      } else if (selectedRange == "Week" || selectedRange == "Month") {
+        bucket = DateTime(reading.time.year, reading.time.month, reading.time.day);
+      } else {
+        bucket = DateTime(reading.time.year, reading.time.month);
+      }
+
+      grouped.putIfAbsent(bucket, () => []).add(reading);
     }
-  }
 
-  List<int>? get currentSysMin {
-    if (selectedRange == "Week") return weekSysMin;
-    return null;
-  }
+    // Sort the buckets chronologically
+    var sortedKeys = grouped.keys.toList()..sort();
 
-  List<int>? get currentSysMax {
-    if (selectedRange == "Week") return weekSysMax;
-    return null;
-  }
+    // Clear the arrays and calculate Min/Max for each bucket
+    aggTimes.clear();
+    aggSysMin.clear();
+    aggSysMax.clear();
+    aggDiaMin.clear();
+    aggDiaMax.clear();
 
-  List<int>? get currentDiaMin {
-    if (selectedRange == "Week") return weekDiaMin;
-    return null;
-  }
+    for (var key in sortedKeys) {
+      var readings = grouped[key]!;
+      aggTimes.add(key); 
+      
+      int sysMin = readings.map((e) => e.sys).reduce(min);
+      int sysMax = readings.map((e) => e.sys).reduce(max);
+      int diaMin = readings.map((e) => e.dia).reduce(min);
+      int diaMax = readings.map((e) => e.dia).reduce(max);
 
-  List<int>? get currentDiaMax {
-    if (selectedRange == "Week") return weekDiaMax;
-    return null;
+      aggSysMin.add(sysMin);
+      aggSysMax.add(sysMax);
+      aggDiaMin.add(diaMin);
+      aggDiaMax.add(diaMax);
+    }
   }
 
   String get zoneText {
@@ -147,24 +172,87 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     }
   }
 
+  void _handleChartTap(TapUpDetails details, double width) {
+    final double leftPadding = 55.0;
+    final double usableWidth = width - leftPadding - 20.0;
+    final double dx = details.localPosition.dx;
+
+    // Deselect if tapped completely outside the chart bounds
+    if (dx < leftPadding - 15 || dx > width - 5) {
+      setState(() => touchedIndex = null);
+      return;
+    }
+
+    final timeData = aggTimes;
+    if (timeData.isEmpty) return;
+
+    final now = DateTime.now();
+    DateTime startTime;
+    DateTime endTime;
+
+    // Get the bounds for the current view
+    switch (selectedRange) {
+      case "Day":
+        startTime = DateTime(now.year, now.month, now.day);
+        endTime = startTime.add(const Duration(days: 1));
+        break;
+      case "Week":
+        startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
+        endTime = DateTime(now.year, now.month, now.day, 23, 59, 59);
+        break;
+      case "Month":
+        startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 29));
+        endTime = DateTime(now.year, now.month, now.day, 23, 59, 59);
+        break;
+      case "3 Months":
+        startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 89));
+        endTime = DateTime(now.year, now.month, now.day, 23, 59, 59);
+        break;
+      case "6 Months":
+        startTime = DateTime(now.year, now.month - 5, 1);
+        endTime = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+        break;
+      case "Year":
+        startTime = DateTime(now.year - 1, now.month, 1);
+        endTime = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+        break;
+      default:
+        startTime = DateTime(now.year, now.month, now.day);
+        endTime = startTime.add(const Duration(days: 1));
+    }
+
+    final totalMillis = endTime.difference(startTime).inMilliseconds;
+    
+    int? closestIndex;
+    double minDistance = double.infinity;
+
+    // Find the data point closest to where the user tapped
+    for (int i = 0; i < timeData.length; i++) {
+      final elapsedMillis = timeData[i].difference(startTime).inMilliseconds;
+      double timeRatio = elapsedMillis / (totalMillis > 0 ? totalMillis : 1);
+      timeRatio = timeRatio.clamp(0.0, 1.0);
+      final x = leftPadding + (usableWidth * timeRatio);
+      
+      final distance = (x - dx).abs();
+      if (distance < 20 && distance < minDistance) { // 20-pixel touch radius
+        minDistance = distance;
+        closestIndex = i;
+      }
+    }
+
+    setState(() => touchedIndex = closestIndex);
+  }
+
   void addBpData(int sys, int dia) {
     setState(() {
       systolic = sys;
       diastolic = dia;
 
-      weekSys.add(sys);
-      weekDia.add(dia);
-      weekSysMin.add(sys - 2);
-      weekSysMax.add(sys + 2);
-      weekDiaMin.add(dia - 2);
-      weekDiaMax.add(dia + 2);
+      // 1. Add the raw reading to our master data source
+      MockBpData.allReadings.add(BpReading(DateTime.now(), sys, dia));
 
-      if (weekSys.length > 7) weekSys.removeAt(0);
-      if (weekDia.length > 7) weekDia.removeAt(0);
-      if (weekSysMin.length > 7) weekSysMin.removeAt(0);
-      if (weekSysMax.length > 7) weekSysMax.removeAt(0);
-      if (weekDiaMin.length > 7) weekDiaMin.removeAt(0);
-      if (weekDiaMax.length > 7) weekDiaMax.removeAt(0);
+      // 2. Recalculate the buckets so the graph updates immediately!
+      _aggregateData(); 
     });
   }
 
@@ -333,22 +421,30 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
             // Chart
             Container(
               height: 300,
+              width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: const Color(0xff59A2DD),
                 borderRadius: BorderRadius.circular(30),
               ),
-              child: CustomPaint(
-                painter: BloodPressureChartPainter(
-                  sysData: currentSysData,
-                  diaData: currentDiaData,
-                  rangeLabel: selectedRange,
-                  sysMinData: currentSysMin,
-                  sysMaxData: currentSysMax,
-                  diaMinData: currentDiaMin,
-                  diaMaxData: currentDiaMax,
-                ),
-                child: Container(),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return GestureDetector(
+                    onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
+                    child: CustomPaint(
+                      size: Size(constraints.maxWidth, constraints.maxHeight),
+                      painter: BloodPressureChartPainter(
+                        timeData: aggTimes,
+                        sysMinData: aggSysMin,
+                        sysMaxData: aggSysMax,
+                        diaMinData: aggDiaMin,
+                        diaMaxData: aggDiaMax,
+                        rangeLabel: selectedRange,
+                        touchedIndex: touchedIndex,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
 
@@ -397,11 +493,18 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
 
             // Metrics
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                infoCard("Systolic", "$systolic mmHg"),
-                infoCard("Diastolic", "$diastolic mmHg"),
-                zoneCard("Zone", zoneText),
+                Expanded(
+                  child: infoCard("Systolic", "$systolic\nmmHg"), // Added a \n so the text fits nicely!
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: infoCard("Diastolic", "$diastolic\nmmHg"),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: zoneCard("Zone", zoneText),
+                ),
               ],
             ),
 
@@ -451,6 +554,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
+                  filterButton("Day"),
                   filterButton("Week"),
                   filterButton("Month"),
                   filterButton("3 Months"),
@@ -512,7 +616,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
 
   Widget infoCard(String title, String value) {
     return Container(
-      width: 100,
       height: 95,
       decoration: BoxDecoration(
         color: const Color(0xff4DA5E0),
@@ -543,7 +646,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
 
   Widget zoneCard(String title, String value) {
     return Container(
-      width: 100,
       height: 95,
       decoration: BoxDecoration(
         color: zoneColor,
@@ -577,6 +679,8 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
       onTap: () {
         setState(() {
           selectedRange = label;
+          touchedIndex = null;
+          _aggregateData();
         });
       },
       child: Container(
