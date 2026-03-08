@@ -15,11 +15,30 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
   double heightCm = 186.0;
   String selectedRange = "Week";
 
+  // Week: 7 daily values
   List<double> weekData = [82.5, 82.0, 81.8, 81.5, 81.8, 81.0, 80.5];
-  List<double> monthData = [84.0, 83.5, 83.0, 82.5, 82.0, 81.5, 81.0, 80.5];
-  List<double> threeMonthData = [88.0, 86.5, 85.0, 83.5, 82.0, 81.0, 80.5];
-  List<double> sixMonthData = [92.0, 89.0, 87.0, 85.0, 83.0, 81.5, 80.5];
-  List<double> yearData = [98.0, 95.0, 92.0, 89.0, 86.0, 84.0, 82.0, 80.5];
+
+  // Month: 30 daily values
+  List<double> monthData = [
+    84.0, 83.8, 83.7, 83.6, 83.4, 83.2, 83.0, 82.9, 82.8, 82.7,
+    82.5, 82.4, 82.3, 82.2, 82.1, 82.0, 81.9, 81.8, 81.7, 81.6,
+    81.5, 81.4, 81.3, 81.2, 81.1, 81.0, 80.9, 80.8, 80.7, 80.5,
+  ];
+
+  // 3 Months: 12 weekly averages
+  List<double> threeMonthData = [
+    86.8, 86.2, 85.9, 85.4, 85.0, 84.6,
+    84.0, 83.4, 82.9, 82.3, 81.5, 80.8,
+  ];
+
+  // 6 Months: 6 monthly averages
+  List<double> sixMonthData = [89.0, 87.6, 86.1, 84.8, 82.9, 80.8];
+
+  // Year: 12 monthly values
+  List<double> yearData = [
+    96.0, 94.8, 93.5, 92.2, 90.8, 89.4,
+    88.0, 86.7, 85.2, 83.9, 82.3, 80.8,
+  ];
 
   List<double> get currentData {
     switch (selectedRange) {
@@ -37,13 +56,14 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
   }
 
   double get bmi {
-    double h = heightCm / 100;
+    final h = heightCm / 100;
     return currentWeight / (h * h);
   }
 
   double get changeWeight {
-    if (weekData.length < 2) return 0;
-    return weekData.last - weekData.first;
+    final data = currentData;
+    if (data.length < 2) return 0;
+    return data.last - data.first;
   }
 
   String get bmiStatus {
@@ -67,15 +87,36 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
   void addWeightData(double value) {
     setState(() {
       currentWeight = value;
+
       weekData.add(value);
       if (weekData.length > 7) {
         weekData.removeAt(0);
+      }
+
+      monthData.add(value);
+      if (monthData.length > 30) {
+        monthData.removeAt(0);
+      }
+
+      threeMonthData.add(value);
+      if (threeMonthData.length > 12) {
+        threeMonthData.removeAt(0);
+      }
+
+      sixMonthData.add(value);
+      if (sixMonthData.length > 6) {
+        sixMonthData.removeAt(0);
+      }
+
+      yearData.add(value);
+      if (yearData.length > 12) {
+        yearData.removeAt(0);
       }
     });
   }
 
   void showAddDataDialog() {
-    TextEditingController weightController = TextEditingController();
+    final weightController = TextEditingController();
 
     showDialog(
       context: context,
@@ -84,7 +125,7 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
           title: const Text("Add Weight Data"),
           content: TextField(
             controller: weightController,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(
               labelText: "Enter new weight (kg)",
             ),
@@ -96,7 +137,7 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
             ),
             ElevatedButton(
               onPressed: () {
-                double? newWeight = double.tryParse(weightController.text);
+                final newWeight = double.tryParse(weightController.text);
                 if (newWeight != null) {
                   addWeightData(newWeight);
                 }
@@ -121,6 +162,10 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
     );
   }
 
+  bool get isLineChart {
+    return selectedRange == "Week" || selectedRange == "6 Months";
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -136,7 +181,10 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        leading: const Icon(Icons.arrow_back, color: Color(0xff35E0FF)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xff35E0FF)),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
           IconButton(
             onPressed: openSharePage,
@@ -204,11 +252,11 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
 
             const SizedBox(height: 18),
 
-            const Align(
+            Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                "Week",
-                style: TextStyle(
+                selectedRange,
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -227,7 +275,9 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
                 borderRadius: BorderRadius.circular(30),
               ),
               child: CustomPaint(
-                painter: WeightChartPainter(currentData),
+                painter: isLineChart
+                    ? WeightLineChartPainter(currentData, selectedRange)
+                    : WeightBarChartPainter(currentData, selectedRange),
                 child: Container(),
               ),
             ),
@@ -236,10 +286,12 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
 
             // Goal / Change / BMI
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 infoCard("Goal", goalWeight.toStringAsFixed(0)),
+                const SizedBox(width: 8),
                 infoCard("Change", "${changeWeight.toStringAsFixed(1)}kg"),
+                const SizedBox(width: 8),
                 infoCard("BMI", bmi.toStringAsFixed(1)),
               ],
             ),
@@ -316,7 +368,10 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
                   SizedBox(height: 4),
                   Text(
                     "Assistant",
-                    style: TextStyle(color: Colors.white, fontSize: 18),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                    ),
                   ),
                 ],
               ),
@@ -329,7 +384,7 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
 
   Widget infoCard(String title, String value) {
     return Container(
-      width: 105,
+      width: 98,
       height: 95,
       decoration: BoxDecoration(
         color: const Color(0xff4DA5E0),
@@ -338,7 +393,13 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 18)),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+            ),
+          ),
           const SizedBox(height: 8),
           Text(
             value,
@@ -354,7 +415,7 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
   }
 
   Widget filterButton(String label) {
-    bool selected = selectedRange == label;
+    final selected = selectedRange == label;
     return InkWell(
       onTap: () {
         setState(() {
@@ -379,9 +440,11 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
   }
 }
 
-class WeightChartPainter extends CustomPainter {
+class WeightLineChartPainter extends CustomPainter {
   final List<double> data;
-  WeightChartPainter(this.data);
+  final String selectedRange;
+
+  WeightLineChartPainter(this.data, this.selectedRange);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -398,43 +461,215 @@ class WeightChartPainter extends CustomPainter {
       ..color = Colors.white54
       ..strokeWidth = 1;
 
-    double minVal = data.reduce(min) - 3;
-    double maxVal = data.reduce(max) + 1;
-    double range = maxVal - minVal;
+    const textStyle = TextStyle(
+      color: Colors.white,
+      fontSize: 12,
+    );
 
-    // Horizontal lines
-    for (int i = 0; i < 6; i++) {
-      double y = size.height * i / 5;
-      canvas.drawLine(Offset(30, y), Offset(size.width, y), gridPaint);
+    final axis = _buildFixed10kgAxis(data);
+    final double minAxis = axis.$1;
+    final double maxAxis = axis.$2;
+    final double range = maxAxis - minAxis;
+
+    const double leftPadding = 58;
+    const double bottomPadding = 24;
+    final double chartHeight = size.height - bottomPadding;
+
+    // 固定每格10kg，共6条线
+    for (int i = 0; i <= 5; i++) {
+      final y = chartHeight * i / 5;
+      canvas.drawLine(
+        Offset(leftPadding, y),
+        Offset(size.width, y),
+        gridPaint,
+      );
+
+      final value = maxAxis - i * 10;
+      final tp = TextPainter(
+        text: TextSpan(
+          text: "${value.toStringAsFixed(0)}kg",
+          style: textStyle,
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      tp.layout();
+      tp.paint(canvas, Offset(0, y - 8));
     }
 
-    // Path
-    Path path = Path();
+    final path = Path();
     for (int i = 0; i < data.length; i++) {
-      double x = 40 + (size.width - 60) * i / (data.length - 1);
-      double y = size.height - ((data[i] - minVal) / range) * size.height;
+      final x =
+          leftPadding + (size.width - leftPadding - 20) * i / (data.length - 1);
+      final y =
+          chartHeight - ((data[i] - minAxis) / range) * chartHeight;
+
       if (i == 0) {
         path.moveTo(x, y);
       } else {
         path.lineTo(x, y);
       }
+
       canvas.drawCircle(Offset(x, y), 5, dotPaint);
     }
     canvas.drawPath(path, linePaint);
 
-    // Bottom labels
-    List<String> labels = ["Mon", "Tues", "Wed", "Thurs", "Fri", "Sat", "Sun"];
+    final labels = _getLabels(selectedRange);
+
     for (int i = 0; i < min(labels.length, data.length); i++) {
-      double x = 30 + (size.width - 60) * i / (data.length - 1);
-      final textPainter = TextPainter(
+      final x =
+          leftPadding + (size.width - leftPadding - 20) * i / (data.length - 1);
+
+      final tp = TextPainter(
         text: TextSpan(
           text: labels[i],
-          style: const TextStyle(color: Colors.white, fontSize: 12),
+          style: textStyle,
         ),
         textDirection: TextDirection.ltr,
       );
-      textPainter.layout();
-      textPainter.paint(canvas, Offset(x - 12, size.height - 5));
+      tp.layout();
+      tp.paint(canvas, Offset(x - 12, size.height - 18));
+    }
+  }
+
+  (double, double) _buildFixed10kgAxis(List<double> values) {
+    double minVal = values.reduce(min);
+    double maxVal = values.reduce(max);
+
+    double minAxis = (minVal / 10).floor() * 10;
+    double maxAxis = minAxis + 50;
+
+    while (maxAxis < maxVal) {
+      maxAxis += 10;
+    }
+
+    return (minAxis, maxAxis);
+  }
+
+  List<String> _getLabels(String range) {
+    switch (range) {
+      case "Week":
+        return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+      case "6 Months":
+        return ["M1", "M2", "M3", "M4", "M5", "M6"];
+      default:
+        return [];
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class WeightBarChartPainter extends CustomPainter {
+  final List<double> data;
+  final String selectedRange;
+
+  WeightBarChartPainter(this.data, this.selectedRange);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final barPaint = Paint()
+      ..color = const Color(0xff7EF2FF);
+
+    final gridPaint = Paint()
+      ..color = Colors.white54
+      ..strokeWidth = 1;
+
+    const textStyle = TextStyle(
+      color: Colors.white,
+      fontSize: 11,
+    );
+
+    final axis = _buildFixed10kgAxis(data);
+    final double minAxis = axis.$1;
+    final double maxAxis = axis.$2;
+    final double range = maxAxis - minAxis;
+
+    const double leftPadding = 58;
+    const double bottomPadding = 24;
+    final double chartHeight = size.height - bottomPadding;
+
+    // 固定每格10kg，共6条线
+    for (int i = 0; i <= 5; i++) {
+      final y = chartHeight * i / 5;
+      canvas.drawLine(
+        Offset(leftPadding, y),
+        Offset(size.width, y),
+        gridPaint,
+      );
+
+      final value = maxAxis - i * 10;
+      final tp = TextPainter(
+        text: TextSpan(
+          text: "${value.toStringAsFixed(0)}kg",
+          style: textStyle,
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      tp.layout();
+      tp.paint(canvas, Offset(0, y - 8));
+    }
+
+    final usableWidth = size.width - leftPadding - 20;
+    final step = usableWidth / data.length;
+    final barWidth = step * 0.55;
+
+    for (int i = 0; i < data.length; i++) {
+      final x = leftPadding + step * i + (step - barWidth) / 2;
+      final barHeight = ((data[i] - minAxis) / range) * chartHeight;
+      final y = chartHeight - barHeight;
+
+      final rect = Rect.fromLTWH(x, y, barWidth, barHeight);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(4)),
+        barPaint,
+      );
+    }
+
+    final labels = _getLabels(selectedRange, data.length);
+
+    for (int i = 0; i < min(labels.length, data.length); i++) {
+      final x = leftPadding + step * i + step / 2;
+
+      final tp = TextPainter(
+        text: TextSpan(
+          text: labels[i],
+          style: textStyle,
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      tp.layout();
+      tp.paint(canvas, Offset(x - tp.width / 2, size.height - 18));
+    }
+  }
+
+  (double, double) _buildFixed10kgAxis(List<double> values) {
+    double minVal = values.reduce(min);
+    double maxVal = values.reduce(max);
+
+    double minAxis = (minVal / 10).floor() * 10;
+    double maxAxis = minAxis + 50;
+
+    while (maxAxis < maxVal) {
+      maxAxis += 10;
+    }
+
+    return (minAxis, maxAxis);
+  }
+
+  List<String> _getLabels(String range, int length) {
+    switch (range) {
+      case "Month":
+        return List.generate(length, (i) => "${i + 1}");
+      case "3 Months":
+        return List.generate(length, (i) => "W${i + 1}");
+      case "Year":
+        return [
+          "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+        ];
+      default:
+        return List.generate(length, (i) => "${i + 1}");
     }
   }
 
@@ -444,7 +679,11 @@ class WeightChartPainter extends CustomPainter {
 
 class ShareHighlightPage extends StatelessWidget {
   final double changeValue;
-  const ShareHighlightPage({super.key, required this.changeValue});
+
+  const ShareHighlightPage({
+    super.key,
+    required this.changeValue,
+  });
 
   @override
   Widget build(BuildContext context) {
