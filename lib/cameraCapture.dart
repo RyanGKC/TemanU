@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import 'package:temanu/assistantpage.dart';
 import 'package:temanu/mealInfo.dart';
 
 class TrackMealCameraPage extends StatefulWidget {
