@@ -153,7 +153,6 @@ class BloodPressureChartPainter extends CustomPainter {
     String period = date.hour >= 12 ? "PM" : "AM";
     int h = date.hour % 12;
     if (h == 0) h = 12;
-    String m = date.minute.toString().padLeft(2, '0');
     
     // Customize label based on range grouping
     String dateStr;
