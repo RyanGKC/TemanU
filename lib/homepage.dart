@@ -88,7 +88,7 @@ class _HealthDashboardContentState extends State<HealthDashboardContent> {
     },
     {
       "icon": Icons.monitor_heart, "title": "Blood Pressure", "value": "118/76", "unit": "mmHg", 
-      "destination": const HomePage(), "isVisible": true
+      "destination": const BloodPressurePage(), "isVisible": true
     },
     {
       "icon": Icons.local_fire_department, "title": "Calories", "value": "1900", "unit": "kcal", 
@@ -96,7 +96,7 @@ class _HealthDashboardContentState extends State<HealthDashboardContent> {
     },
     {
       "icon": Icons.monitor_weight, "title": "Body Weight", "value": "80.5", "unit": "kg", 
-      "destination": const HomePage(), "isVisible": true
+      "destination": const BodyWeightPage(), "isVisible": true
     },
   ];
 
@@ -223,13 +223,6 @@ class _HealthDashboardContentState extends State<HealthDashboardContent> {
       child: Column(
         children: [
           const SizedBox(height: 20), 
-          healthCard(context, Icons.water_drop, "Blood Glucose Level", "110", "mg/dl", HomePage()),
-          healthCard(context, Icons.favorite, "Heart Rate", "68", "bpm", HomePage()),
-          healthCard(context, Icons.opacity, "Oxygen Saturation", "98", "%", HomePage()),
-          healthCard(context, Icons.monitor_heart, "Blood Pressure", "118/76", "mmHg", const BloodPressurePage()),
-          healthCard(context, Icons.local_fire_department, "Calories", "1900", "kcal", CaloriesMain()),
-          healthCard(context, Icons.monitor_weight, "Body Weight", "80.5", "kg", const BodyWeightPage()),
-          const SizedBox(height: 20),
           
           // 1. ADDED: LayoutBuilder to detect screen width
           LayoutBuilder(

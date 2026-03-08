@@ -1,5 +1,8 @@
-import 'dart:math';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:temanu/assistantpage.dart';
+import 'package:temanu/shareWeightHighlightPage.dart';
+import 'package:temanu/weightLineChartPainter.dart';
 
 
 class BodyWeightPage extends StatefulWidget {
@@ -14,6 +17,40 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
   double goalWeight = 80.0;
   double heightCm = 186.0;
   String selectedRange = "Week";
+
+  int? touchedIndex; // Tracks which data point is currently selected
+
+  void _handleChartTap(TapUpDetails details, double width) {
+    final double leftPadding = 58;
+    final double rightPadding = 20;
+    final double usableWidth = width - leftPadding - rightPadding;
+    final double dx = details.localPosition.dx;
+
+    // If tapped outside the chart area, deselect
+    if (dx < leftPadding - 10 || dx > width - rightPadding + 10) {
+      setState(() => touchedIndex = null);
+      return;
+    }
+
+    final int dataLength = currentData.length;
+    if (dataLength < 2) return;
+
+    int index;
+    if (isLineChart) {
+      final double step = usableWidth / (dataLength - 1);
+      index = ((dx - leftPadding) / step).round();
+    } else {
+      final double step = usableWidth / dataLength;
+      index = ((dx - leftPadding) / step).floor();
+    }
+
+    // Update the state with the tapped index
+    if (index >= 0 && index < dataLength) {
+      setState(() => touchedIndex = index);
+    } else {
+      setState(() => touchedIndex = null);
+    }
+  }
 
   // Week: 7 daily values
   List<double> weekData = [82.5, 82.0, 81.8, 81.5, 81.8, 81.0, 80.5];
@@ -155,7 +192,7 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ShareHighlightPage(
+        builder: (context) => ShareWeightHighlightPage(
           changeValue: changeWeight,
         ),
       ),
@@ -163,13 +200,14 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
   }
 
   bool get isLineChart {
-    return selectedRange == "Week" || selectedRange == "6 Months";
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xff031447),
+      extendBody: true,
       appBar: AppBar(
         backgroundColor: const Color(0xff55607D),
         elevation: 0,
@@ -269,16 +307,25 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
             // Chart
             Container(
               height: 300,
+              width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: const Color(0xff59A2DD),
                 borderRadius: BorderRadius.circular(30),
               ),
-              child: CustomPaint(
-                painter: isLineChart
-                    ? WeightLineChartPainter(currentData, selectedRange)
-                    : WeightBarChartPainter(currentData, selectedRange),
-                child: Container(),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return GestureDetector(
+                    onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
+                    child: CustomPaint(
+                      size: Size(constraints.maxWidth, constraints.maxHeight),
+                      painter: WeightLineChartPainter(currentData, selectedRange, touchedIndex)
+                      // painter: isLineChart
+                      //     ? WeightLineChartPainter(currentData, selectedRange, touchedIndex)
+                      //     : WeightBarChartPainter(currentData, selectedRange, touchedIndex),
+                    ),
+                  );
+                },
               ),
             ),
 
@@ -357,31 +404,50 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
             ),
 
             const SizedBox(height: 24),
-
-            // Assistant
-            Container(
-              width: 160,
-              height: 90,
-              decoration: BoxDecoration(
-                color: const Color(0xff4C536F),
-                borderRadius: BorderRadius.circular(40),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.search, size: 38, color: Colors.white),
-                  SizedBox(height: 4),
-                  Text(
-                    "Assistant",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(left:20, right: 20, bottom: 30),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 100),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                    child: Container(
+                      width: double.infinity,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1), 
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5), 
+                      ),
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context, 
+                            MaterialPageRoute(builder: (context) => AssistantPage())
+                          );
+                        },
+                        child: Center(
+                          child: Icon(
+                            Icons.auto_awesome,
+                            size: 28,
+                            color: Colors.white70
+                          ),
+                        )
+                      )
+                    )
+                  )
+                )
+              ),
+            ]
+          )
         ),
       ),
     );
@@ -424,6 +490,7 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
       onTap: () {
         setState(() {
           selectedRange = label;
+          touchedIndex = null; // <-- Clear selection on tab change
         });
       },
       child: Container(
@@ -437,315 +504,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> {
           style: TextStyle(
             color: selected ? Colors.white : Colors.white70,
             fontSize: 15,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class WeightLineChartPainter extends CustomPainter {
-  final List<double> data;
-  final String selectedRange;
-
-  WeightLineChartPainter(this.data, this.selectedRange);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    final dotPaint = Paint()
-      ..color = const Color(0xff7EF2FF)
-      ..style = PaintingStyle.fill;
-
-    final gridPaint = Paint()
-      ..color = Colors.white54
-      ..strokeWidth = 1;
-
-    const textStyle = TextStyle(
-      color: Colors.white,
-      fontSize: 12,
-    );
-
-    final axis = _buildFixed10kgAxis(data);
-    final double minAxis = axis.$1;
-    final double maxAxis = axis.$2;
-    final double range = maxAxis - minAxis;
-
-    const double leftPadding = 58;
-    const double bottomPadding = 24;
-    final double chartHeight = size.height - bottomPadding;
-
-    // 固定每格10kg，共6条线
-    for (int i = 0; i <= 5; i++) {
-      final y = chartHeight * i / 5;
-      canvas.drawLine(
-        Offset(leftPadding, y),
-        Offset(size.width, y),
-        gridPaint,
-      );
-
-      final value = maxAxis - i * 10;
-      final tp = TextPainter(
-        text: TextSpan(
-          text: "${value.toStringAsFixed(0)}kg",
-          style: textStyle,
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      tp.layout();
-      tp.paint(canvas, Offset(0, y - 8));
-    }
-
-    final path = Path();
-    for (int i = 0; i < data.length; i++) {
-      final x =
-          leftPadding + (size.width - leftPadding - 20) * i / (data.length - 1);
-      final y =
-          chartHeight - ((data[i] - minAxis) / range) * chartHeight;
-
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-
-      canvas.drawCircle(Offset(x, y), 5, dotPaint);
-    }
-    canvas.drawPath(path, linePaint);
-
-    final labels = _getLabels(selectedRange);
-
-    for (int i = 0; i < min(labels.length, data.length); i++) {
-      final x =
-          leftPadding + (size.width - leftPadding - 20) * i / (data.length - 1);
-
-      final tp = TextPainter(
-        text: TextSpan(
-          text: labels[i],
-          style: textStyle,
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      tp.layout();
-      tp.paint(canvas, Offset(x - 12, size.height - 18));
-    }
-  }
-
-  (double, double) _buildFixed10kgAxis(List<double> values) {
-    double minVal = values.reduce(min);
-    double maxVal = values.reduce(max);
-
-    double minAxis = (minVal / 10).floor() * 10;
-    double maxAxis = minAxis + 50;
-
-    while (maxAxis < maxVal) {
-      maxAxis += 10;
-    }
-
-    return (minAxis, maxAxis);
-  }
-
-  List<String> _getLabels(String range) {
-    switch (range) {
-      case "Week":
-        return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-      case "6 Months":
-        return ["M1", "M2", "M3", "M4", "M5", "M6"];
-      default:
-        return [];
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-class WeightBarChartPainter extends CustomPainter {
-  final List<double> data;
-  final String selectedRange;
-
-  WeightBarChartPainter(this.data, this.selectedRange);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final barPaint = Paint()
-      ..color = const Color(0xff7EF2FF);
-
-    final gridPaint = Paint()
-      ..color = Colors.white54
-      ..strokeWidth = 1;
-
-    const textStyle = TextStyle(
-      color: Colors.white,
-      fontSize: 11,
-    );
-
-    final axis = _buildFixed10kgAxis(data);
-    final double minAxis = axis.$1;
-    final double maxAxis = axis.$2;
-    final double range = maxAxis - minAxis;
-
-    const double leftPadding = 58;
-    const double bottomPadding = 24;
-    final double chartHeight = size.height - bottomPadding;
-
-    // 固定每格10kg，共6条线
-    for (int i = 0; i <= 5; i++) {
-      final y = chartHeight * i / 5;
-      canvas.drawLine(
-        Offset(leftPadding, y),
-        Offset(size.width, y),
-        gridPaint,
-      );
-
-      final value = maxAxis - i * 10;
-      final tp = TextPainter(
-        text: TextSpan(
-          text: "${value.toStringAsFixed(0)}kg",
-          style: textStyle,
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      tp.layout();
-      tp.paint(canvas, Offset(0, y - 8));
-    }
-
-    final usableWidth = size.width - leftPadding - 20;
-    final step = usableWidth / data.length;
-    final barWidth = step * 0.55;
-
-    for (int i = 0; i < data.length; i++) {
-      final x = leftPadding + step * i + (step - barWidth) / 2;
-      final barHeight = ((data[i] - minAxis) / range) * chartHeight;
-      final y = chartHeight - barHeight;
-
-      final rect = Rect.fromLTWH(x, y, barWidth, barHeight);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(4)),
-        barPaint,
-      );
-    }
-
-    final labels = _getLabels(selectedRange, data.length);
-
-    for (int i = 0; i < min(labels.length, data.length); i++) {
-      final x = leftPadding + step * i + step / 2;
-
-      final tp = TextPainter(
-        text: TextSpan(
-          text: labels[i],
-          style: textStyle,
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      tp.layout();
-      tp.paint(canvas, Offset(x - tp.width / 2, size.height - 18));
-    }
-  }
-
-  (double, double) _buildFixed10kgAxis(List<double> values) {
-    double minVal = values.reduce(min);
-    double maxVal = values.reduce(max);
-
-    double minAxis = (minVal / 10).floor() * 10;
-    double maxAxis = minAxis + 50;
-
-    while (maxAxis < maxVal) {
-      maxAxis += 10;
-    }
-
-    return (minAxis, maxAxis);
-  }
-
-  List<String> _getLabels(String range, int length) {
-    switch (range) {
-      case "Month":
-        return List.generate(length, (i) => "${i + 1}");
-      case "3 Months":
-        return List.generate(length, (i) => "W${i + 1}");
-      case "Year":
-        return [
-          "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-        ];
-      default:
-        return List.generate(length, (i) => "${i + 1}");
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-class ShareHighlightPage extends StatelessWidget {
-  final double changeValue;
-
-  const ShareHighlightPage({
-    super.key,
-    required this.changeValue,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xff041B57),
-      body: Center(
-        child: Container(
-          width: 320,
-          height: 380,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white70,
-            borderRadius: BorderRadius.circular(36),
-          ),
-          child: Column(
-            children: [
-              const Text(
-                "Share Highlights",
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                width: 240,
-                height: 180,
-                decoration: BoxDecoration(
-                  color: const Color(0xff4DA5E0),
-                  borderRadius: BorderRadius.circular(40),
-                ),
-                child: Center(
-                  child: Text(
-                    "Change\n${changeValue.toStringAsFixed(1)}kg",
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 34,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              const Spacer(),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("< Back"),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {},
-                    child: const Text("Save to Device"),
-                  ),
-                ],
-              )
-            ],
           ),
         ),
       ),
