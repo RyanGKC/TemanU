@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temanu/caloriesMain.dart';
 import 'package:temanu/medicationlog.dart';
+import 'package:temanu/heart_rate.dart';
+import 'package:temanu/oxygen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -78,11 +80,13 @@ class _HealthDashboardContentState extends State<HealthDashboardContent> {
     },
     {
       "icon": Icons.favorite, "title": "Heart Rate", "value": "68", "unit": "bpm", 
-      "destination": const HomePage(), "isVisible": true
+      // This now points to your new heart rate file
+      "destination": const HeartRateDetail(), "isVisible": true
     },
     {
       "icon": Icons.opacity, "title": "Oxygen Saturation", "value": "98", "unit": "%", 
-      "destination": const HomePage(), "isVisible": true
+      // This now points to your new oxygen saturation file
+      "destination": const OxygenSaturationDetail(), "isVisible": true
     },
     {
       "icon": Icons.monitor_heart, "title": "Blood Pressure", "value": "118/76", "unit": "mmHg", 
