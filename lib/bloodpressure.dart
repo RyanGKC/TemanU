@@ -22,8 +22,20 @@ class BloodPressurePage extends StatefulWidget {
 class _BloodPressurePageState extends State<BloodPressurePage> {
   int systolic = 118;
   int diastolic = 76;
-  String selectedRange = "Day";
+  String selectedRange = "D";
   int? touchedIndex;
+
+  String get fullRangeName {
+    switch (selectedRange) {
+      case "D": return "Day";
+      case "W": return "Week";
+      case "M": return "Month";
+      case "3M": return "3 Months";
+      case "6M": return "6 Months";
+      case "Y": return "Year";
+      default: return "Day";
+    }
+  }
 
   // Master lists holding the aggregated data to pass to the painter
   List<DateTime> aggTimes = [];
@@ -48,27 +60,27 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     DateTime endTime;
 
     switch (selectedRange) {
-      case "Day":
+      case "D":
         startTime = DateTime(now.year, now.month, now.day);
         endTime = startTime.add(const Duration(days: 1));
         break;
-      case "Week":
+      case "W":
         startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
         endTime = DateTime(now.year, now.month, now.day + 1); 
         break;
-      case "Month": // Beginning of the current month
+      case "M": 
         startTime = DateTime(now.year, now.month, 1);
         endTime = DateTime(now.year, now.month + 1, 1);
         break;
-      case "3 Months": // 3 calendar months ago (e.g., Mar 8 -> Jan 1)
+      case "3M": 
         startTime = DateTime(now.year, now.month - 2, 1);
         endTime = DateTime(now.year, now.month + 1, 1);
         break;
-      case "6 Months": // 6 calendar months ago
+      case "6M": 
         startTime = DateTime(now.year, now.month - 5, 1);
         endTime = DateTime(now.year, now.month + 1, 1);
         break;
-      case "Year": // Beginning of the current year
+      case "Y": 
         startTime = DateTime(now.year, 1, 1);
         endTime = DateTime(now.year + 1, 1, 1);
         break;
@@ -85,15 +97,13 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
 
       DateTime bucket;
       
-      if (selectedRange == "Day") {
+      if (selectedRange == "D") {
         bucket = DateTime(reading.time.year, reading.time.month, reading.time.day, reading.time.hour);
-      } else if (selectedRange == "Week" || selectedRange == "Month") {
+      } else if (selectedRange == "W" || selectedRange == "M") {
         bucket = DateTime(reading.time.year, reading.time.month, reading.time.day);
-      } else if (selectedRange == "3 Months" || selectedRange == "6 Months") {
-        // NEW: Group by Week! Calculates the Monday of the reading's week.
+      } else if (selectedRange == "3M" || selectedRange == "6M") {
         bucket = DateTime(reading.time.year, reading.time.month, reading.time.day - reading.time.weekday + 1);
       } else {
-        // Year: Group by Month
         bucket = DateTime(reading.time.year, reading.time.month, 1);
       }
 
@@ -408,7 +418,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                "$selectedRange Overview",
+                "$fullRangeName Overview",
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 24,
@@ -451,6 +461,26 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
 
             const SizedBox(height: 14),
 
+            // Time filter
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade600,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  filterButton("D"),
+                  filterButton("W"),
+                  filterButton("M"),
+                  filterButton("3M"),
+                  filterButton("6M"),
+                  filterButton("Y"),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
             // Legend
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -515,104 +545,52 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
             const SizedBox(height: 16),
 
             // AI Tips
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xff375B86),
-                borderRadius: BorderRadius.circular(22),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "💡 AI Tips",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    aiTips,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Time filter
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade600,
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  filterButton("Day"),
-                  filterButton("Week"),
-                  filterButton("Month"),
-                  filterButton("3 Months"),
-                  filterButton("6 Months"),
-                  filterButton("Year"),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24)
-          ],
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(left:20, right: 20, bottom: 30),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 100),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(30),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                    child: Container(
-                      width: double.infinity,
-                      height: 70,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1), 
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5), 
-                      ),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context, 
-                            MaterialPageRoute(builder: (context) => const AssistantPage())
-                          );
-                        },
-                        child: const Center(
-                          child: Icon(
-                            Icons.auto_awesome,
-                            size: 28,
-                            color: Colors.white70
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context, 
+                  MaterialPageRoute(builder: (context) => const AssistantPage())
+                );
+              },
+              borderRadius: BorderRadius.circular(22), // Matches container radius for the ripple
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xff375B86),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: const [
+                        Text(
+                          "💡 AI Tips",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
                           ),
-                        )
-                      )
-                    )
-                  )
-                )
+                        ),
+                        Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18), // Little indicator arrow
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      aiTips,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ]
-          )
+            ),
+          ],
         ),
       ),
     );
