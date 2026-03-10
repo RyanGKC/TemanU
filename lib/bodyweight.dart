@@ -332,6 +332,25 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
 
             const SizedBox(height: 10),
 
+            // Time filter
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade600,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  filterButton("Week"),
+                  filterButton("Month"),
+                  filterButton("3 Months"),
+                  filterButton("6 Months"),
+                  filterButton("Year"),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
             // Chart
             Container(
               height: 300,
@@ -411,28 +430,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
                 ],
               ),
             ),
-
-            const SizedBox(height: 16),
-
-            // Time filter
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade600,
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  filterButton("Week"),
-                  filterButton("Month"),
-                  filterButton("3 Months"),
-                  filterButton("6 Months"),
-                  filterButton("Year"),
-                ],
-              ),
-            ),
-
             const SizedBox(height: 24),
           ],
         ),
