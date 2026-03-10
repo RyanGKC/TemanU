@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:temanu/activity.dart';
 import 'package:temanu/bloodpressure.dart';
 import 'package:temanu/bodyweight.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -77,6 +78,10 @@ class _HealthDashboardContentState extends State<HealthDashboardContent> {
     {
       "icon": Icons.water_drop, "title": "Blood Glucose Level", "value": "110", "unit": "mg/dl", 
       "destination": const HomePage(), "isVisible": true
+    },
+    {
+      "icon": Icons.directions_run, "title": "Activity", "value": "8240", "unit": "steps", 
+      "destination": const Activity(), "isVisible": true
     },
     {
       "icon": Icons.favorite, "title": "Heart Rate", "value": "68", "unit": "bpm", 
