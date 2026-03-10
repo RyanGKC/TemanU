@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:temanu/homepage.dart'; 
 import 'package:temanu/settingspage.dart'; // Add your Settings file
 import 'package:temanu/assistantpage.dart'; // Add your Assistant file
-import 'package:temanu/bloodpressure.dart';
-import 'package:temanu/bodyweight.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
