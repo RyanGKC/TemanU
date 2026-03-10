@@ -24,6 +24,58 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
   int diastolic = 76;
   String selectedRange = "D";
   int? touchedIndex;
+  int dateOffset = 0;
+
+  // 1. Calculates the EXACT start time based on the offset
+  DateTime get _startTime {
+    final now = DateTime.now();
+    switch (selectedRange) {
+      case "D": return DateTime(now.year, now.month, now.day + dateOffset);
+      case "W": 
+        // Find how many days to subtract to get back to Monday
+        int daysToMonday = now.weekday - 1; 
+        return DateTime(now.year, now.month, now.day - daysToMonday + (dateOffset * 7));
+      case "M": return DateTime(now.year, now.month + dateOffset, 1);
+      case "3M": return DateTime(now.year, now.month - 2 + (dateOffset * 3), 1);
+      case "6M": return DateTime(now.year, now.month - 5 + (dateOffset * 6), 1);
+      case "Y": return DateTime(now.year + dateOffset, 1, 1);
+      default: return DateTime(now.year, now.month, now.day);
+    }
+  }
+
+  // 2. Calculates the EXACT end time based on the offset
+  DateTime get _endTime {
+    final now = DateTime.now();
+    switch (selectedRange) {
+      case "D": return DateTime(now.year, now.month, now.day + dateOffset + 1);
+      case "W": 
+        // End time is exactly 7 days after the Monday start time
+        int daysToMonday = now.weekday - 1;
+        return DateTime(now.year, now.month, now.day - daysToMonday + 7 + (dateOffset * 7));
+      case "M": return DateTime(now.year, now.month + dateOffset + 1, 1);
+      case "3M": return DateTime(now.year, now.month + 1 + (dateOffset * 3), 1);
+      case "6M": return DateTime(now.year, now.month + 1 + (dateOffset * 6), 1);
+      case "Y": return DateTime(now.year + dateOffset + 1, 1, 1);
+      default: return DateTime(now.year, now.month, now.day + 1);
+    }
+  }
+
+  // 3. Formats a beautiful label for the UI (e.g., "2 Mar - 8 Mar")
+  String get dateRangeLabel {
+    final start = _startTime;
+    final visualEnd = _endTime.subtract(const Duration(days: 1)); 
+    const List<String> months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    switch (selectedRange) {
+      case "D": return "${start.day} ${months[start.month - 1]} ${start.year}";
+      case "W": return "${start.day} ${months[start.month - 1]} - ${visualEnd.day} ${months[visualEnd.month - 1]}";
+      case "M": return "${months[start.month - 1]} ${start.year}";
+      case "3M":
+      case "6M": return "${months[start.month - 1]} - ${months[visualEnd.month - 1]} ${visualEnd.year}";
+      case "Y": return "${start.year}";
+      default: return "";
+    }
+  }
 
   String get fullRangeName {
     switch (selectedRange) {
@@ -54,40 +106,9 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     final rawData = MockBpData.allReadings; 
     Map<DateTime, List<BpReading>> grouped = {};
 
-    // 1. Define the valid time window for the current filter
-    final now = DateTime.now();
-    DateTime startTime;
-    DateTime endTime;
-
-    switch (selectedRange) {
-      case "D":
-        startTime = DateTime(now.year, now.month, now.day);
-        endTime = startTime.add(const Duration(days: 1));
-        break;
-      case "W":
-        startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
-        endTime = DateTime(now.year, now.month, now.day + 1); 
-        break;
-      case "M": 
-        startTime = DateTime(now.year, now.month, 1);
-        endTime = DateTime(now.year, now.month + 1, 1);
-        break;
-      case "3M": 
-        startTime = DateTime(now.year, now.month - 2, 1);
-        endTime = DateTime(now.year, now.month + 1, 1);
-        break;
-      case "6M": 
-        startTime = DateTime(now.year, now.month - 5, 1);
-        endTime = DateTime(now.year, now.month + 1, 1);
-        break;
-      case "Y": 
-        startTime = DateTime(now.year, 1, 1);
-        endTime = DateTime(now.year + 1, 1, 1);
-        break;
-      default:
-        startTime = DateTime(now.year, now.month, now.day);
-        endTime = startTime.add(const Duration(days: 1));
-    }
+    // 1. Fetch the valid time window using our new offset getters!
+    final startTime = _startTime;
+    final endTime = _endTime;
 
     // 2. Group the data into Hours, Days, Weeks, or Months
     for (var reading in rawData) {
@@ -198,39 +219,8 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
     final timeData = aggTimes;
     if (timeData.isEmpty) return;
 
-    final now = DateTime.now();
-    DateTime startTime;
-    DateTime endTime;
-
-    switch (selectedRange) {
-      case "Day":
-        startTime = DateTime(now.year, now.month, now.day);
-        endTime = startTime.add(const Duration(days: 1));
-        break;
-      case "Week":
-        startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
-        endTime = DateTime(now.year, now.month, now.day + 1); 
-        break;
-      case "Month": // Beginning of the current month
-        startTime = DateTime(now.year, now.month, 1);
-        endTime = DateTime(now.year, now.month + 1, 1);
-        break;
-      case "3 Months": // 3 calendar months ago (e.g., Mar 8 -> Jan 1)
-        startTime = DateTime(now.year, now.month - 2, 1);
-        endTime = DateTime(now.year, now.month + 1, 1);
-        break;
-      case "6 Months": // 6 calendar months ago
-        startTime = DateTime(now.year, now.month - 5, 1);
-        endTime = DateTime(now.year, now.month + 1, 1);
-        break;
-      case "Year": // Beginning of the current year
-        startTime = DateTime(now.year, 1, 1);
-        endTime = DateTime(now.year + 1, 1, 1);
-        break;
-      default:
-        startTime = DateTime(now.year, now.month, now.day);
-        endTime = startTime.add(const Duration(days: 1));
-    }
+    final startTime = _startTime;
+    final endTime = _endTime;
 
     final totalMillis = endTime.difference(startTime).inMilliseconds;
     
@@ -428,6 +418,45 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
             ),
 
             const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
+                  onPressed: () {
+                    setState(() {
+                      dateOffset--; // Move back in time
+                      touchedIndex = null;
+                      _aggregateData();
+                    });
+                  },
+                ),
+                Text(
+                  dateRangeLabel, // Shows "March 2026", etc.
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.chevron_right, 
+                    color: dateOffset < 0 ? Colors.white : Colors.white38, // Dim if at current date
+                    size: 30
+                  ),
+                  onPressed: dateOffset < 0 ? () {
+                    setState(() {
+                      dateOffset++; // Move forward in time
+                      touchedIndex = null;
+                      _aggregateData();
+                    });
+                  } : null, // Disables button if we are at the present
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
 
             // Chart
             Container(
@@ -452,6 +481,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
                         diaMaxData: aggDiaMax,
                         rangeLabel: selectedRange,
                         touchedIndex: touchedIndex,
+                        dateOffset: dateOffset,
                       ),
                     ),
                   );
@@ -662,6 +692,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> {
         setState(() {
           selectedRange = label;
           touchedIndex = null;
+          dateOffset = 0;
           _aggregateData();
         });
       },

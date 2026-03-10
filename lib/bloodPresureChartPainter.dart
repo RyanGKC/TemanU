@@ -9,6 +9,7 @@ class BloodPressureChartPainter extends CustomPainter {
   final List<int> diaMaxData;
   final String rangeLabel;
   final int? touchedIndex;
+  final int dateOffset;
 
   BloodPressureChartPainter({
     required this.timeData,
@@ -18,6 +19,7 @@ class BloodPressureChartPainter extends CustomPainter {
     required this.diaMaxData,
     required this.rangeLabel,
     this.touchedIndex,
+    required this.dateOffset,
   });
 
   @override
@@ -56,28 +58,30 @@ class BloodPressureChartPainter extends CustomPainter {
 
     switch (rangeLabel) {
       case "D":
-        startTime = DateTime(now.year, now.month, now.day);
-        endTime = startTime.add(const Duration(days: 1));
+        startTime = DateTime(now.year, now.month, now.day + dateOffset);
+        endTime = DateTime(now.year, now.month, now.day + dateOffset + 1);
         break;
       case "W":
-        startTime = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
-        endTime = DateTime(now.year, now.month, now.day + 1);
+        // Make the visual graph canvas strictly Monday to Sunday
+        int daysToMonday = now.weekday - 1;
+        startTime = DateTime(now.year, now.month, now.day - daysToMonday + (dateOffset * 7));
+        endTime = DateTime(now.year, now.month, now.day - daysToMonday + 7 + (dateOffset * 7));
         break;
       case "M":
-        startTime = DateTime(now.year, now.month, 1);
-        endTime = DateTime(now.year, now.month + 1, 1);
+        startTime = DateTime(now.year, now.month + dateOffset, 1);
+        endTime = DateTime(now.year, now.month + dateOffset + 1, 1);
         break;
       case "3M":
-        startTime = DateTime(now.year, now.month - 2, 1);
-        endTime = DateTime(now.year, now.month + 1, 1);
+        startTime = DateTime(now.year, now.month - 2 + (dateOffset * 3), 1);
+        endTime = DateTime(now.year, now.month + 1 + (dateOffset * 3), 1);
         break;
       case "6M":
-        startTime = DateTime(now.year, now.month - 5, 1);
-        endTime = DateTime(now.year, now.month + 1, 1);
+        startTime = DateTime(now.year, now.month - 5 + (dateOffset * 6), 1);
+        endTime = DateTime(now.year, now.month + 1 + (dateOffset * 6), 1);
         break;
       case "Y":
-        startTime = DateTime(now.year, 1, 1);
-        endTime = DateTime(now.year + 1, 1, 1);
+        startTime = DateTime(now.year + dateOffset, 1, 1);
+        endTime = DateTime(now.year + dateOffset + 1, 1, 1);
         break;
       default:
         startTime = DateTime(now.year, now.month, now.day);
@@ -86,11 +90,17 @@ class BloodPressureChartPainter extends CustomPainter {
 
     final totalMillis = endTime.difference(startTime).inMilliseconds;
 
-    final labels = _getFixedLabels(rangeLabel, startTime, endTime);
-    for (int i = 0; i < labels.length; i++) {
-      final step = labels.length == 1 ? 0 : usableWidth / (labels.length - 1);
-      final x = leftPadding + step * i;
-      final tp = TextPainter(text: TextSpan(text: labels[i], style: textStyle), textDirection: TextDirection.ltr);
+    final labels = _getDynamicLabels(rangeLabel, startTime, endTime);
+    
+    for (var label in labels) {
+      // Calculate exactly where this specific timestamp sits on the X axis
+      final elapsedMillis = label.time.difference(startTime).inMilliseconds;
+      double timeRatio = elapsedMillis / (totalMillis > 0 ? totalMillis : 1);
+      timeRatio = timeRatio.clamp(0.0, 1.0); 
+      
+      final x = leftPadding + (usableWidth * timeRatio);
+      
+      final tp = TextPainter(text: TextSpan(text: label.text, style: textStyle), textDirection: TextDirection.ltr);
       tp.layout();
       tp.paint(canvas, Offset(x - tp.width / 2, size.height - 18));
     }
@@ -206,23 +216,55 @@ class BloodPressureChartPainter extends CustomPainter {
     textPainter.paint(canvas, Offset(rectLeft + 10, rectTop + 7));
   }
 
-  List<String> _getFixedLabels(String range, DateTime start, DateTime end) {
+  List<ChartLabel> _getDynamicLabels(String range, DateTime start, DateTime end) {
     const List<String> weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     const List<String> months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     
     switch (range) {
-      case "D": return ["12 AM", "6 AM", "12 PM", "6 PM", "12 AM"];
-      case "W": return List.generate(7, (i) => weekdays[start.add(Duration(days: i)).weekday - 1]);
+      case "D": 
+        return [
+          ChartLabel("12 AM", start),
+          ChartLabel("6 AM", start.add(const Duration(hours: 6))),
+          ChartLabel("12 PM", start.add(const Duration(hours: 12))),
+          ChartLabel("6 PM", start.add(const Duration(hours: 18))),
+          ChartLabel("12 AM", start.add(const Duration(hours: 24))),
+        ];
+      case "W": 
+        return List.generate(7, (i) {
+          DateTime t = start.add(Duration(days: i));
+          return ChartLabel(weekdays[t.weekday - 1], t);
+        });
       case "M": 
         int daysInMonth = end.difference(start).inDays;
-        return List.generate(5, (i) => "${start.add(Duration(days: (i * daysInMonth / 4).round())).day} ${months[start.month - 1]}");
-      case "3M": return List.generate(3, (i) { int m = start.month + i; while (m > 12) m -= 12; return months[m - 1]; });
-      case "6M": return List.generate(6, (i) { int m = start.month + i; while (m > 12) m -= 12; return months[m - 1]; });
-      case "Y": return List.generate(12, (i) { int m = start.month + i; while (m > 12) m -= 12; return months[m - 1]; });
+        return List.generate(5, (i) {
+          DateTime t = start.add(Duration(days: (i * (daysInMonth - 1) / 4).round()));
+          return ChartLabel("${t.day} ${months[t.month - 1]}", t);
+        });
+      case "3M": 
+        return List.generate(3, (i) {
+          DateTime t = DateTime(start.year, start.month + i, 1);
+          return ChartLabel(months[t.month - 1], t);
+        });
+      case "6M": 
+        return List.generate(6, (i) {
+          DateTime t = DateTime(start.year, start.month + i, 1);
+          return ChartLabel(months[t.month - 1], t);
+        });
+      case "Y": 
+        return List.generate(12, (i) {
+          DateTime t = DateTime(start.year, start.month + i, 1);
+          return ChartLabel(months[t.month - 1], t);
+        });
       default: return [];
     }
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class ChartLabel {
+  final String text;
+  final DateTime time;
+  ChartLabel(this.text, this.time);
 }
