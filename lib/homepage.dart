@@ -72,11 +72,15 @@ class HealthDashboardContent extends StatefulWidget {
 class _HealthDashboardContentState extends State<HealthDashboardContent> {
   
   // 2. MASTER LIST OF METRICS
-  // We store the visibility state ('isVisible') for each card here.
   final List<Map<String, dynamic>> _metricsData = [
     {
       "icon": Icons.water_drop, "title": "Blood Glucose Level", "value": "110", "unit": "mg/dl", 
       "destination": const HomePage(), "isVisible": true
+    },
+    {
+      "icon": Icons.directions_run, "title": "Activity", "value": "8240", "unit": "steps", 
+      "destination": const HomePage(), // Currently points back to HomePage as a placeholder
+      "isVisible": true
     },
     {
       "icon": Icons.favorite, "title": "Heart Rate", "value": "68", "unit": "bpm", 
@@ -166,7 +170,7 @@ class _HealthDashboardContentState extends State<HealthDashboardContent> {
                       itemBuilder: (context, index) {
                         final metric = _metricsData[index];
                         return SwitchListTile(
-                          activeColor: const Color(0xff00E5FF),
+                          activeThumbColor: const Color(0xff00E5FF),
                           activeTrackColor: const Color(0xff00E5FF).withValues(alpha: 0.3),
                           inactiveThumbColor: Colors.white54,
                           inactiveTrackColor: Colors.white.withValues(alpha: 0.1),

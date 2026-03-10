@@ -89,25 +89,35 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
       extendBodyBehindAppBar: false,
       extendBody: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xff55607D),
         elevation: 0,
         centerTitle: false,
         title: const Text(
-          'Calories',
+          "Calories",
           style: TextStyle(
+            color: Color(0xff35E0FF),
             fontSize: 25,
             fontWeight: FontWeight.w600,
-            color: Color(0xff00E5FF),
-          )
+          ),
         ),
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
             child: Container(
-              color: Colors.white.withValues(alpha: 0.25),
+              color: Colors.white.withValues(alpha: 0.25)
             )
-          ),
+          )
         ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xff35E0FF)),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            onPressed: () {}, // to add sharing page
+            icon: const Icon(Icons.ios_share, color: Colors.white),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Padding(

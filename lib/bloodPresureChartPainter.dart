@@ -10,6 +10,7 @@ class BloodPressureChartPainter extends CustomPainter {
   final String rangeLabel;
   final int? touchedIndex;
   final int dateOffset;
+  final double progress;
 
   BloodPressureChartPainter({
     required this.timeData,
@@ -20,6 +21,7 @@ class BloodPressureChartPainter extends CustomPainter {
     required this.rangeLabel,
     this.touchedIndex,
     required this.dateOffset,
+    required this.progress
   });
 
   @override
@@ -115,28 +117,35 @@ class BloodPressureChartPainter extends CustomPainter {
       timeRatio = timeRatio.clamp(0.0, 1.0); 
       final x = leftPadding + (usableWidth * timeRatio);
 
-      // Systolic
-      final sysMinY = chartHeight - ((sysMinData[i] - minVal) / range) * chartHeight;
-      final sysMaxY = chartHeight - ((sysMaxData[i] - minVal) / range) * chartHeight;
+      // --- NEW ANIMATION MATH ---
+      // We calculate where the dot *should* be (target Y)...
+      final targetSysMinY = chartHeight - ((sysMinData[i] - minVal) / range) * chartHeight;
+      final targetSysMaxY = chartHeight - ((sysMaxData[i] - minVal) / range) * chartHeight;
+      final targetDiaMinY = chartHeight - ((diaMinData[i] - minVal) / range) * chartHeight;
+      final targetDiaMaxY = chartHeight - ((diaMaxData[i] - minVal) / range) * chartHeight;
+
+      // ...and then multiply its distance from the bottom by the progress (0.0 to 1.0)
+      final sysMinY = chartHeight - ((chartHeight - targetSysMinY) * progress);
+      final sysMaxY = chartHeight - ((chartHeight - targetSysMaxY) * progress);
+      final diaMinY = chartHeight - ((chartHeight - targetDiaMinY) * progress);
+      final diaMaxY = chartHeight - ((chartHeight - targetDiaMaxY) * progress);
       
+      // Systolic
       if (sysMinData[i] != sysMaxData[i]) {
         canvas.drawLine(Offset(x, sysMinY), Offset(x, sysMaxY), sysColumnPaint);
         canvas.drawCircle(Offset(x, sysMinY), dotRadius, sysPaint);
         canvas.drawCircle(Offset(x, sysMaxY), dotRadius, sysPaint);
       } else {
-        canvas.drawCircle(Offset(x, sysMinY), dotRadius, sysPaint); // Single dot if Min == Max
+        canvas.drawCircle(Offset(x, sysMinY), dotRadius, sysPaint); 
       }
 
       // Diastolic
-      final diaMinY = chartHeight - ((diaMinData[i] - minVal) / range) * chartHeight;
-      final diaMaxY = chartHeight - ((diaMaxData[i] - minVal) / range) * chartHeight;
-      
       if (diaMinData[i] != diaMaxData[i]) {
         canvas.drawLine(Offset(x, diaMinY), Offset(x, diaMaxY), diaColumnPaint);
         canvas.drawCircle(Offset(x, diaMinY), dotRadius, diaPaint);
         canvas.drawCircle(Offset(x, diaMaxY), dotRadius, diaPaint);
       } else {
-        canvas.drawCircle(Offset(x, diaMinY), dotRadius, diaPaint); // Single dot if Min == Max
+        canvas.drawCircle(Offset(x, diaMinY), dotRadius, diaPaint); 
       }
     }
 
