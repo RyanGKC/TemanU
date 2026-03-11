@@ -209,7 +209,6 @@ class PdfGenerator {
     await SharePlus.instance.share(
       ShareParams(
         files: [XFile(file.path)],
-        text: 'Here is my latest health data report.',
       ),
     );
   }
