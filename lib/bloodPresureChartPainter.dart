@@ -10,6 +10,7 @@ class BloodPressureChartPainter extends CustomPainter {
   final String rangeLabel;
   final int? touchedIndex;
   final int dateOffset;
+  final double progress;
 
   BloodPressureChartPainter({
     required this.timeData,
@@ -20,6 +21,7 @@ class BloodPressureChartPainter extends CustomPainter {
     required this.rangeLabel,
     this.touchedIndex,
     required this.dateOffset,
+    required this.progress
   });
 
   @override
@@ -115,28 +117,35 @@ class BloodPressureChartPainter extends CustomPainter {
       timeRatio = timeRatio.clamp(0.0, 1.0); 
       final x = leftPadding + (usableWidth * timeRatio);
 
-      // Systolic
-      final sysMinY = chartHeight - ((sysMinData[i] - minVal) / range) * chartHeight;
-      final sysMaxY = chartHeight - ((sysMaxData[i] - minVal) / range) * chartHeight;
+      // --- NEW ANIMATION MATH ---
+      // We calculate where the dot *should* be (target Y)...
+      final targetSysMinY = chartHeight - ((sysMinData[i] - minVal) / range) * chartHeight;
+      final targetSysMaxY = chartHeight - ((sysMaxData[i] - minVal) / range) * chartHeight;
+      final targetDiaMinY = chartHeight - ((diaMinData[i] - minVal) / range) * chartHeight;
+      final targetDiaMaxY = chartHeight - ((diaMaxData[i] - minVal) / range) * chartHeight;
+
+      // ...and then multiply its distance from the bottom by the progress (0.0 to 1.0)
+      final sysMinY = chartHeight - ((chartHeight - targetSysMinY) * progress);
+      final sysMaxY = chartHeight - ((chartHeight - targetSysMaxY) * progress);
+      final diaMinY = chartHeight - ((chartHeight - targetDiaMinY) * progress);
+      final diaMaxY = chartHeight - ((chartHeight - targetDiaMaxY) * progress);
       
+      // Systolic
       if (sysMinData[i] != sysMaxData[i]) {
         canvas.drawLine(Offset(x, sysMinY), Offset(x, sysMaxY), sysColumnPaint);
         canvas.drawCircle(Offset(x, sysMinY), dotRadius, sysPaint);
         canvas.drawCircle(Offset(x, sysMaxY), dotRadius, sysPaint);
       } else {
-        canvas.drawCircle(Offset(x, sysMinY), dotRadius, sysPaint); // Single dot if Min == Max
+        canvas.drawCircle(Offset(x, sysMinY), dotRadius, sysPaint); 
       }
 
       // Diastolic
-      final diaMinY = chartHeight - ((diaMinData[i] - minVal) / range) * chartHeight;
-      final diaMaxY = chartHeight - ((diaMaxData[i] - minVal) / range) * chartHeight;
-      
       if (diaMinData[i] != diaMaxData[i]) {
         canvas.drawLine(Offset(x, diaMinY), Offset(x, diaMaxY), diaColumnPaint);
         canvas.drawCircle(Offset(x, diaMinY), dotRadius, diaPaint);
         canvas.drawCircle(Offset(x, diaMaxY), dotRadius, diaPaint);
       } else {
-        canvas.drawCircle(Offset(x, diaMinY), dotRadius, diaPaint); // Single dot if Min == Max
+        canvas.drawCircle(Offset(x, diaMinY), dotRadius, diaPaint); 
       }
     }
 
@@ -216,46 +225,54 @@ class BloodPressureChartPainter extends CustomPainter {
     textPainter.paint(canvas, Offset(rectLeft + 10, rectTop + 7));
   }
 
-  List<ChartLabel> _getDynamicLabels(String range, DateTime start, DateTime end) {
+  List<ChartLabel> _getDynamicLabels(String range, DateTime start, DateTime end) { 
     const List<String> weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     const List<String> months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const List<String> singleLetterMonths = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
     
     switch (range) {
       case "D": 
         return [
-          ChartLabel("12 AM", start),
-          ChartLabel("6 AM", start.add(const Duration(hours: 6))),
-          ChartLabel("12 PM", start.add(const Duration(hours: 12))),
-          ChartLabel("6 PM", start.add(const Duration(hours: 18))),
-          ChartLabel("12 AM", start.add(const Duration(hours: 24))),
+          ChartLabel("12 AM", start), 
+          ChartLabel("6 AM", start.add(const Duration(hours: 6))), 
+          ChartLabel("12 PM", start.add(const Duration(hours: 12))), 
+          ChartLabel("6 PM", start.add(const Duration(hours: 18))), 
+          ChartLabel("12 AM", start.add(const Duration(hours: 24)))
         ];
+
       case "W": 
-        return List.generate(7, (i) {
-          DateTime t = start.add(Duration(days: i));
-          return ChartLabel(weekdays[t.weekday - 1], t);
+        return List.generate(7, (i) { 
+          DateTime t = start.add(Duration(days: i)); 
+          return ChartLabel(weekdays[t.weekday - 1], t); 
         });
+
       case "M": 
-        int daysInMonth = end.difference(start).inDays;
-        return List.generate(5, (i) {
-          DateTime t = start.add(Duration(days: (i * (daysInMonth - 1) / 4).round()));
-          return ChartLabel("${t.day} ${months[t.month - 1]}", t);
+        int daysInMonth = end.difference(start).inDays; 
+        return List.generate(5, (i) { 
+          DateTime t = start.add(Duration(days: (i * (daysInMonth - 1) / 4).round())); 
+          return ChartLabel("${t.day} ${months[t.month - 1]}", t); 
         });
+
       case "3M": 
-        return List.generate(3, (i) {
-          DateTime t = DateTime(start.year, start.month + i, 1);
-          return ChartLabel(months[t.month - 1], t);
+        return List.generate(3, (i) { 
+          DateTime t = DateTime(start.year, start.month + i, 1); 
+          return ChartLabel(months[t.month - 1], t); 
         });
+
       case "6M": 
-        return List.generate(6, (i) {
-          DateTime t = DateTime(start.year, start.month + i, 1);
-          return ChartLabel(months[t.month - 1], t);
+        return List.generate(6, (i) { 
+          DateTime t = DateTime(start.year, start.month + i, 1); 
+          return ChartLabel(months[t.month - 1], t); 
         });
+      
       case "Y": 
-        return List.generate(12, (i) {
-          DateTime t = DateTime(start.year, start.month + i, 1);
-          return ChartLabel(months[t.month - 1], t);
+        return List.generate(12, (i) { 
+          DateTime t = DateTime(start.year, start.month + i, 1); 
+          return ChartLabel(singleLetterMonths[t.month - 1], t); 
         });
-      default: return [];
+      
+      default: 
+        return [];
     }
   }
 
