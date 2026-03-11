@@ -225,46 +225,54 @@ class BloodPressureChartPainter extends CustomPainter {
     textPainter.paint(canvas, Offset(rectLeft + 10, rectTop + 7));
   }
 
-  List<ChartLabel> _getDynamicLabels(String range, DateTime start, DateTime end) {
+  List<ChartLabel> _getDynamicLabels(String range, DateTime start, DateTime end) { 
     const List<String> weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     const List<String> months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const List<String> singleLetterMonths = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
     
     switch (range) {
       case "D": 
         return [
-          ChartLabel("12 AM", start),
-          ChartLabel("6 AM", start.add(const Duration(hours: 6))),
-          ChartLabel("12 PM", start.add(const Duration(hours: 12))),
-          ChartLabel("6 PM", start.add(const Duration(hours: 18))),
-          ChartLabel("12 AM", start.add(const Duration(hours: 24))),
+          ChartLabel("12 AM", start), 
+          ChartLabel("6 AM", start.add(const Duration(hours: 6))), 
+          ChartLabel("12 PM", start.add(const Duration(hours: 12))), 
+          ChartLabel("6 PM", start.add(const Duration(hours: 18))), 
+          ChartLabel("12 AM", start.add(const Duration(hours: 24)))
         ];
+
       case "W": 
-        return List.generate(7, (i) {
-          DateTime t = start.add(Duration(days: i));
-          return ChartLabel(weekdays[t.weekday - 1], t);
+        return List.generate(7, (i) { 
+          DateTime t = start.add(Duration(days: i)); 
+          return ChartLabel(weekdays[t.weekday - 1], t); 
         });
+
       case "M": 
-        int daysInMonth = end.difference(start).inDays;
-        return List.generate(5, (i) {
-          DateTime t = start.add(Duration(days: (i * (daysInMonth - 1) / 4).round()));
-          return ChartLabel("${t.day} ${months[t.month - 1]}", t);
+        int daysInMonth = end.difference(start).inDays; 
+        return List.generate(5, (i) { 
+          DateTime t = start.add(Duration(days: (i * (daysInMonth - 1) / 4).round())); 
+          return ChartLabel("${t.day} ${months[t.month - 1]}", t); 
         });
+
       case "3M": 
-        return List.generate(3, (i) {
-          DateTime t = DateTime(start.year, start.month + i, 1);
-          return ChartLabel(months[t.month - 1], t);
+        return List.generate(3, (i) { 
+          DateTime t = DateTime(start.year, start.month + i, 1); 
+          return ChartLabel(months[t.month - 1], t); 
         });
+
       case "6M": 
-        return List.generate(6, (i) {
-          DateTime t = DateTime(start.year, start.month + i, 1);
-          return ChartLabel(months[t.month - 1], t);
+        return List.generate(6, (i) { 
+          DateTime t = DateTime(start.year, start.month + i, 1); 
+          return ChartLabel(months[t.month - 1], t); 
         });
+      
       case "Y": 
-        return List.generate(12, (i) {
-          DateTime t = DateTime(start.year, start.month + i, 1);
-          return ChartLabel(months[t.month - 1], t);
+        return List.generate(12, (i) { 
+          DateTime t = DateTime(start.year, start.month + i, 1); 
+          return ChartLabel(singleLetterMonths[t.month - 1], t); 
         });
-      default: return [];
+      
+      default: 
+        return [];
     }
   }
 

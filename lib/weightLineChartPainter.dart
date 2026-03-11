@@ -116,13 +116,23 @@ class WeightLineChartPainter extends CustomPainter {
   List<ChartLabel> _getDynamicLabels(String range, DateTime start, DateTime end) {
     const List<String> weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     const List<String> months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    
+    // 1. ADD THIS NEW LIST
+    const List<String> singleLetterMonths = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]; 
+    
     switch (range) {
       case "D": return [ChartLabel("12 AM", start), ChartLabel("12 PM", start.add(const Duration(hours: 12))), ChartLabel("12 AM", start.add(const Duration(hours: 24)))];
       case "W": return List.generate(7, (i) { DateTime t = start.add(Duration(days: i)); return ChartLabel(weekdays[t.weekday - 1], t); });
       case "M": int daysInMonth = end.difference(start).inDays; return List.generate(5, (i) { DateTime t = start.add(Duration(days: (i * (daysInMonth - 1) / 4).round())); return ChartLabel("${t.day}/${t.month}", t); });
       case "3M": return List.generate(3, (i) { DateTime t = DateTime(start.year, start.month + i, 1); return ChartLabel(months[t.month - 1], t); });
       case "6M": return List.generate(6, (i) { DateTime t = DateTime(start.year, start.month + i, 1); return ChartLabel(months[t.month - 1], t); });
-      case "Y": return List.generate(12, (i) { DateTime t = DateTime(start.year, start.month + i, 1); return ChartLabel(months[t.month - 1], t); });
+      
+      // 2. UPDATE THE "Y" CASE TO USE THE SINGLE LETTERS
+      case "Y": return List.generate(12, (i) { 
+        DateTime t = DateTime(start.year, start.month + i, 1); 
+        return ChartLabel(singleLetterMonths[t.month - 1], t); 
+      });
+      
       default: return [];
     }
   }
