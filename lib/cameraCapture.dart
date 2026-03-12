@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:temanu/mealInfo.dart';
+import 'package:image_picker/image_picker.dart';
 
 class TrackMealCameraPage extends StatefulWidget {
   const TrackMealCameraPage({super.key});
@@ -90,17 +91,39 @@ class _TrackMealCameraPageState extends State<TrackMealCameraPage> with WidgetsB
       
       print("Picture saved to: ${image.path}");
       
-      // TODO: Navigate to an "Analyze Meal" or "Confirm Meal" screen here, passing the image.path
       if (mounted) {
-        Navigator.push(
+        final result = await Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => MealInfo(imagePath: image.path))
+          MaterialPageRoute(builder: (context) => MealInfo(imageFile: image)) // Pass 'image' directly!
         );
+        
+        // If we got data back, pop again and pass it to CaloriesMain!
+        if (result != null && mounted) {
+          Navigator.pop(context, result);
+        }
       }
 
     } catch (e) {
       print("Error capturing picture: $e");
       setState(() => _isCapturing = false);
+    }
+  }
+
+  Future<void> _pickFromGallery() async {
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    
+    // ADDED: Check if the image is NOT null before proceeding
+    if (image != null && mounted) {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => MealInfo(imageFile: image)) // Pass 'image' directly!
+      );
+      
+      // If we got data back, pop again and pass it to CaloriesMain!
+      if (result != null && mounted) {
+        Navigator.pop(context, result);
+      }
     }
   }
 
@@ -161,12 +184,15 @@ class _TrackMealCameraPageState extends State<TrackMealCameraPage> with WidgetsB
             ),
           ),
 
-          // 2. BOTTOM CONTROLS (Shutter Button)
+          // 2. BOTTOM CONTROLS (Shutter & Gallery)
           Container(
             padding: const EdgeInsets.only(bottom: 50, top: 10),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // Spacer so the shutter stays perfectly centered
+                const SizedBox(width: 60), 
+                
                 // Custom Shutter Button
                 GestureDetector(
                   onTap: _takePicture,
@@ -186,11 +212,21 @@ class _TrackMealCameraPageState extends State<TrackMealCameraPage> with WidgetsB
                         width: 60,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: _isCapturing ? Colors.grey : Colors.white, // Inner button
+                          color: _isCapturing ? Colors.grey : Colors.white, 
                         ),
                       ),
                     ),
                   ),
+                ),
+                
+                const SizedBox(width: 20),
+                
+                // --- NEW GALLERY BUTTON HERE ---
+                IconButton(
+                  icon: const Icon(Icons.photo_library),
+                  color: Colors.white,
+                  iconSize: 32,
+                  onPressed: _pickFromGallery,
                 ),
               ],
             ),
