@@ -9,6 +9,7 @@ class CaloriesMain extends StatefulWidget {
   @override
   State<CaloriesMain> createState() => _CaloriesMainState();
 }
+
 class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderStateMixin {
   // Dummy data, to be replaced with real variables
   final double caloriesConsumed = 1450;
@@ -53,6 +54,8 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
       "fats": 12
     },
   ];
+
+  final String aiTips = "You've hit 60% of your protein goal but only 30% of your calories. Great lean eating! Consider a balanced dinner to hit your energy targets.";
 
   @override
   void initState() {
@@ -132,6 +135,38 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
               // 2. MIDDLE: COMBINED MACROS CARD
               _buildCombinedMacrosCard(),
 
+              const SizedBox(height: 15),
+
+              //AI Tips
+              InkWell(
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const AssistantPage()));
+              },
+              borderRadius: BorderRadius.circular(22), 
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xff375B86),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: const [
+                        Text("💡 AI Tips", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                        Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18), 
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(aiTips, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
+                  ],
+                ),
+              ),
+            ),
+
               const SizedBox(height: 40), 
 
               // 3. BOTTOM: MEALS SECTION
@@ -151,58 +186,15 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
               const SizedBox(height: 15),
               _buildAddMealButton(),
               
-              SizedBox(height: 120 + bottomSafeArea), // Bottom padding for scrolling
+              SizedBox(height: 40 + bottomSafeArea), // Reduced bottom padding since the nav bar is gone
             ],
           ),
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(left:20, right: 20, bottom: 30),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 100),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(30),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                    child: Container(
-                      width: double.infinity,
-                      height: 70,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1), 
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5), 
-                      ),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context, 
-                            MaterialPageRoute(builder: (context) => AssistantPage())
-                          );
-                        },
-                        child: Center(
-                          child: Icon(
-                            Icons.auto_awesome,
-                            size: 28,
-                            color: Colors.white70
-                          ),
-                        )
-                      )
-                    )
-                  )
-                )
-              ),
-            ]
-          )
         ),
       ),
     );
   }
 
-Widget _buildMainCalorieCard() {
+  Widget _buildMainCalorieCard() {
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
@@ -290,7 +282,7 @@ Widget _buildMainCalorieCard() {
     );
   }
 
-// WIDGET: Combined Macros Card (Middle section)
+  // WIDGET: Combined Macros Card (Middle section)
   Widget _buildCombinedMacrosCard() {
     return Container(
       width: double.infinity,
@@ -378,6 +370,7 @@ Widget _buildMainCalorieCard() {
       }
     );
   }
+
   // WIDGET: Individual Meal Item
   Widget _buildMealListItem(Map<String, dynamic> meal) {
     return Container(
@@ -479,4 +472,3 @@ Widget _buildMainCalorieCard() {
     );
   }
 }
-
