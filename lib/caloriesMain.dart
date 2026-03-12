@@ -12,20 +12,18 @@ class CaloriesMain extends StatefulWidget {
 
 class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderStateMixin {
   // Dummy data, to be replaced with real variables
-  final double caloriesConsumed = 1450;
+  double caloriesConsumed = 1450;
   final double caloriesTarget = 2200;
   
-  final double proteinConsumed = 85;
+  double proteinConsumed = 85;
   final double proteinTarget = 140;
   
-  final double carbsConsumed = 150;
+  double carbsConsumed = 150;
   final double carbsTarget = 250;
   
-  final double fatsConsumed = 45;
+  double fatsConsumed = 45;
   final double fatsTarget = 70;
-
-  final int mealsTracked = 3;
-
+  
   // Declare animation variables
   late AnimationController _controller;
   late Animation<double> _animation;
@@ -439,11 +437,37 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
   // WIDGET: Add New Meal Button
   Widget _buildAddMealButton() {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        // 1. Wait for the camera/info pages to finish
+        final newMeal = await Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => TrackMealCameraPage())
+          MaterialPageRoute(builder: (context) => const TrackMealCameraPage())
         );
+
+        // 2. If we got data back, update the UI!
+        if (newMeal != null && newMeal is Map<String, dynamic>) {
+          setState(() {
+            // Add to your list of meals
+            trackedMealsList.add(newMeal);
+
+            // Add the new macros to your daily totals
+            caloriesConsumed += (newMeal["calories"] as num).toDouble();
+            proteinConsumed += (newMeal["protein"] as num).toDouble();
+            carbsConsumed += (newMeal["carbs"] as num).toDouble();
+            fatsConsumed += (newMeal["fats"] as num).toDouble();
+          });
+
+          // 3. Restart the circular animations from zero to show the new progress!
+          _controller.forward(from: 0.0);
+          
+          // Optional: Show a success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Meal tracked successfully!"),
+              backgroundColor: Color(0xff00E5FF),
+            ),
+          );
+        }
       },
       child: Container(
         width: double.infinity,
