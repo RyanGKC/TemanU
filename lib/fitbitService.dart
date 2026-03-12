@@ -13,11 +13,18 @@ class FitbitService {
       ? 'http://localhost:8080/auth.html' 
       : 'temanu://oauth2redirect';
 
-  // --- NEW: Initialize the secure vault ---
+  // --- Initialize the secure vault ---
   static const _storage = FlutterSecureStorage();
   static const _tokenKey = 'fitbit_access_token';
 
-  // --- NEW: The Smart Token Checker ---
+  // --- NEW: IN-MEMORY CACHES ---
+  static String? _cachedSteps;
+  static DateTime? _lastStepsFetchTime;
+
+  static String? _cachedHeartRate;
+  static DateTime? _lastHeartRateFetchTime;
+
+  // --- The Smart Token Checker ---
   static Future<String?> getValidToken() async {
     // 1. Look in the vault first
     String? savedToken = await _storage.read(key: _tokenKey);
@@ -42,7 +49,7 @@ class FitbitService {
     return await _storage.read(key: _tokenKey);
   }
 
-  // --- NEW: Clear Token (Useful for logging out or when token expires) ---
+  // --- Clear Token (Useful for logging out or when token expires) ---
   static Future<void> logout() async {
     await _storage.delete(key: _tokenKey);
   }
@@ -73,64 +80,103 @@ class FitbitService {
     }
   }
 
-  /// Fetch Today's Total Steps
-  static Future<String> getTodaysSteps(String accessToken) async {
+  static String _getTodayDateString() {
+    final now = DateTime.now();
+    final year = now.year.toString();
+    final month = now.month.toString().padLeft(2, '0');
+    final day = now.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
+  }
+
+/// Fetch Today's Total Steps (Now Returns String? and caches)
+  static Future<String?> getTodaysSteps(String accessToken, {bool forceRefresh = false}) async {
+    // --- CACHE CHECK ---
+    // If we are NOT forcing a refresh, and the cache is less than 2 minutes old, use it!
+    if (!forceRefresh && _cachedSteps != null && _lastStepsFetchTime != null) {
+      if (DateTime.now().difference(_lastStepsFetchTime!).inMinutes < 2) {
+        print("Using cached steps to save API limits.");
+        return _cachedSteps;
+      }
+    }
+
     try {
+      String today = _getTodayDateString(); 
+      
       final response = await http.get(
-        Uri.parse('https://api.fitbit.com/1/user/-/activities/date/today.json'),
+        // Inject the formatted date into the URL
+        Uri.parse('https://api.fitbit.com/1/user/-/activities/date/$today.json'),
         headers: {'Authorization': 'Bearer $accessToken'},
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final steps = data['summary']['steps'];
-        return steps.toString();
+        final steps = data['summary']['steps'].toString();
+        
+        // Save to cache before returning
+        _cachedSteps = steps;
+        _lastStepsFetchTime = DateTime.now();
+        
+        return steps;
       } else if (response.statusCode == 401) {
-        // --- NEW: If token expired (401), clear the vault so the user can log in again ---
-        print("Token expired! Clearing vault.");
         await logout();
-        return "0";
+        return null;
       } else {
         print("API Error: ${response.body}");
-        return "0";
+        return null;
       }
     } catch (e) {
       print("Network Error: $e");
-      return "0";
+      return null;
     }
   }
 
-  /// Fetch Today's Resting Heart Rate
-  static Future<String> getHeartRate(String accessToken) async {
+  /// Fetch Today's Resting Heart Rate (Now Returns String? and caches)
+  static Future<String?> getHeartRate(String accessToken, {bool forceRefresh = false}) async {
+    // --- CACHE CHECK ---
+    if (!forceRefresh && _cachedHeartRate != null && _lastHeartRateFetchTime != null) {
+      if (DateTime.now().difference(_lastHeartRateFetchTime!).inMinutes < 2) {
+        print("Using cached heart rate to save API limits.");
+        return _cachedHeartRate;
+      }
+    }
+
     try {
+      String today = _getTodayDateString(); 
+      
       final response = await http.get(
-        Uri.parse('https://api.fitbit.com/1/user/-/activities/heart/date/today/1d.json'),
+        // Inject the formatted date into the URL
+        Uri.parse('https://api.fitbit.com/1/user/-/activities/heart/date/$today/1d.json'),
         headers: {'Authorization': 'Bearer $accessToken'},
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        
-        // Fitbit nests the heart rate data inside an array
         final heartData = data['activities-heart'][0]['value'];
         
-        // Check if a resting heart rate has been calculated for today
         if (heartData != null && heartData.containsKey('restingHeartRate')) {
-          return heartData['restingHeartRate'].toString();
-        } else {
-          return "--"; // Return dashes if they haven't worn the watch enough today
+          final hr = heartData['restingHeartRate'].toString();
+          
+          // Save to cache before returning
+          _cachedHeartRate = hr;
+          _lastHeartRateFetchTime = DateTime.now();
+          return hr;
         }
-      } else if (response.statusCode == 401) {
-        print("Token expired! Clearing vault.");
-        await logout();
+        
+        // Cache the "--" so we don't spam the API looking for non-existent data
+        _cachedHeartRate = "--";
+        _lastHeartRateFetchTime = DateTime.now();
         return "--";
+
+      } else if (response.statusCode == 401) {
+        await logout();
+        return null;
       } else {
         print("API Error: ${response.body}");
-        return "--";
+        return null;
       }
     } catch (e) {
       print("Network Error: $e");
-      return "--";
+      return null;
     }
   }
 }
