@@ -9,6 +9,7 @@ import 'package:temanu/medicationlog.dart';
 import 'package:temanu/patientData.dart';
 import 'package:temanu/pdfGenerator.dart';
 import 'package:temanu/profileInformation.dart';
+import 'package:temanu/fitbitService.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -116,6 +117,140 @@ class _HealthDashboardContentState extends State<HealthDashboardContent> {
   void initState() {
     super.initState();
     _loadPreferences();
+    
+    // Wait for the UI to build, then check the Fitbit connection
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkInitialFitbitSync();
+    });
+  }
+
+  // --- NEW: INITIAL STARTUP CHECK ---
+  Future<void> _checkInitialFitbitSync() async {
+    String? token = await FitbitService.getSilentToken();
+
+    if (token == null) {
+      // The vault is empty. This is their first time (or they logged out). Show the prompt!
+      if (mounted) {
+        _showFitbitConnectDialog();
+      }
+    } else {
+      // They are already connected. Do the silent background update.
+      _autoSyncFitbit(token);
+    }
+  }
+
+  // --- SILENT BACKGROUND SYNC ---
+  Future<void> _autoSyncFitbit(String token) async {
+    // 1. Fetch the data concurrently so it loads faster
+    String realSteps = await FitbitService.getTodaysSteps(token);
+    String realHeartRate = await FitbitService.getHeartRate(token);
+    
+    if (mounted) {
+      setState(() {
+        // 2. Update the Steps
+        final activityMetric = _metricsData.firstWhere((m) => m['title'] == 'Activity');
+        activityMetric['value'] = realSteps;
+
+        // 3. Update the Heart Rate
+        final hrMetric = _metricsData.firstWhere((m) => m['title'] == 'Heart Rate');
+        hrMetric['value'] = realHeartRate;
+      });
+    }
+  }
+
+  // --- NEW: THE STARTUP PROMPT DIALOG ---
+  void _showFitbitConnectDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Forces them to make a choice
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(25),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                padding: const EdgeInsets.all(25),
+                decoration: BoxDecoration(
+                  color: const Color(0xff1A3F6B).withValues(alpha: 0.8),
+                  borderRadius: BorderRadius.circular(25),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                        color: const Color(0xff00E5FF).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.watch, color: Color(0xff00E5FF), size: 40),
+                    ),
+                    const SizedBox(height: 15),
+                    const Text(
+                      "Connect Your Health Data",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      "Link your Fitbit account to automatically track your daily steps, heart rate, and sleep directly on your dashboard.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                    const SizedBox(height: 30),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context), // "Not Now"
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(color: Colors.white38, width: 1.5),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Text("Not Now", style: TextStyle(color: Colors.white, fontSize: 16)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () async {
+                              Navigator.pop(context); // Close dialog
+                              // Trigger the web flow
+                              String? newToken = await FitbitService.getValidToken();
+                              if (newToken != null) {
+                                _autoSyncFitbit(newToken);
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xff00E5FF),
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Text("Connect", style: TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _loadPreferences() async {
@@ -404,16 +539,17 @@ class _HealthDashboardContentState extends State<HealthDashboardContent> {
               );
             },
           ),
+          // Edit & Share Buttons
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween, 
             children: [
               IconButton(
                 icon: const Icon(Icons.edit_note, color: Colors.white, size: 30),
-                onPressed: _showEditMetricsBottomSheet,
+                onPressed: _showEditMetricsBottomSheet, 
               ),
               IconButton(
                 icon: const Icon(Icons.ios_share, color: Colors.white, size: 28),
-                onPressed: _showShareMetricsBottomSheet,
+                onPressed: _showShareMetricsBottomSheet, 
               ),
             ],
           ),
@@ -456,7 +592,9 @@ class _HealthDashboardContentState extends State<HealthDashboardContent> {
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 20,
-                        fontWeight: FontWeight.bold)),
+                        fontWeight: FontWeight.bold
+                  )
+                ),
               ],
             ),
           ],

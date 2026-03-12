@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Authentication complete</title>
+</head>
+<body>
+  <p id="message">Processing authentication...</p>
+  <script>
+    window.onload = function() {
+      const message = {
+        'flutter-web-auth-2': window.location.href
+      };
+
+      try {
+        if (window.opener) {
+          // Attempt 1: The standard direct connection (Usually works on Mobile/Safari)
+          window.opener.postMessage(message, window.location.origin);
+          document.getElementById("message").innerText = "Success! Closing window...";
+          window.close();
+        } else {
+          // Attempt 2: The COOP Bypass (Leaves a note in Local Storage)
+          localStorage.setItem('flutter-web-auth-2', window.location.href);
+          document.getElementById("message").innerText = "Success via storage! Closing window...";
+          window.close();
+        }
+      } catch (e) {
+        document.getElementById("message").innerText = "ERROR: " + e.message;
+      }
+    };
+  </script>
+</body>
+</html>

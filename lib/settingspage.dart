@@ -1,8 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:temanu/changePassword.dart';
-import 'package:temanu/linkedDevices.dart';
 import 'package:temanu/profileInformation.dart';
+import 'package:temanu/fitbitService.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -10,11 +10,12 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xff040F31), // Match app background
+      backgroundColor: const Color(0xff040F31), 
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
+        automaticallyImplyLeading: false,
         title: const Text(
           'Settings',
           style: TextStyle(
@@ -48,14 +49,13 @@ class SettingsPage extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(3),
                       decoration: const BoxDecoration(
-                        color: Color(0xff00E5FF), // Cyan border ring
+                        color: Color(0xff00E5FF), 
                         shape: BoxShape.circle,
                       ),
                       child: const CircleAvatar(
                         radius: 50,
                         backgroundColor: Color(0xff1A3F6B),
                         child: Icon(Icons.person, size: 50, color: Colors.white),
-                        // backgroundImage: AssetImage('assets/profile_pic.png'), // Uncomment to add an actual image
                       ),
                     ),
                     const SizedBox(height: 15),
@@ -85,7 +85,6 @@ class SettingsPage extends StatelessWidget {
                   color: const Color(0xff1A3F6B),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                // ADDED: ClipRRect forces the tap ripples to respect the rounded corners!
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
                   child: Column(
@@ -96,7 +95,7 @@ class SettingsPage extends StatelessWidget {
                         onTap: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => ProfileInformationPage()),
+                            MaterialPageRoute(builder: (context) => const ProfileInformationPage()),
                           );
                         }
                       ),
@@ -113,14 +112,19 @@ class SettingsPage extends StatelessWidget {
                         }
                       ),
                       _buildDivider(),
+                      // --- UPDATED: FITBIT MANUAL SYNC TILE ---
                       _buildSettingsTile(
-                        icon: Icons.watch, 
-                        title: "Linked Devices", 
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => LinkedDevices())
-                          );
+                        icon: Icons.sync, 
+                        title: "Sync Fitbit Data", 
+                        onTap: () async {
+                          // 1. Silently check if they are already connected
+                          String? token = await FitbitService.getSilentToken();
+                          bool isConnected = token != null;
+
+                          // 2. Show the smart dialog based on their status
+                          if (context.mounted) {
+                            _showFitbitSyncDialog(context, isConnected);
+                          }
                         }
                       ),
                     ],
@@ -132,7 +136,7 @@ class SettingsPage extends StatelessWidget {
 
               // 3. DANGER ZONE
               const Text(
-                "Account Managment",
+                "Account Management",
                 style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
@@ -150,16 +154,15 @@ class SettingsPage extends StatelessWidget {
                         iconColor: Colors.redAccent,
                         hideArrow: true,
                         onTap: () {
-                          // TRIGGERS THE LOG OUT DIALOG
                           _showConfirmationDialog(
                             context,
                             title: "Log Out",
                             content: "Are you sure you want to log out of your account? You will need to sign back in to view your health data.",
                             actionText: "Log Out",
                             actionColor: const Color.fromARGB(168, 0, 229, 255),
-                            onConfirm: () {
+                            onConfirm: () async {
+                              await FitbitService.logout();
                               print("User officially logged out!");
-                              // Add your actual logout navigation logic here
                             },
                           );
                         }
@@ -172,16 +175,15 @@ class SettingsPage extends StatelessWidget {
                         iconColor: Colors.redAccent,
                         hideArrow: true,
                         onTap: () {
-                          // TRIGGERS THE DELETE ACCOUNT DIALOG
                           _showConfirmationDialog(
                             context,
                             title: "Delete Account",
                             content: "This action cannot be undone. All of your saved health data, medication logs, and settings will be permanently erased.",
                             actionText: "Delete",
-                            actionColor: Colors.redAccent, // Red for destructive actions!
-                            onConfirm: () {
+                            actionColor: Colors.redAccent, 
+                            onConfirm: () async {
+                              await FitbitService.logout();
                               print("User officially deleted account!");
-                              // Add your actual delete logic here
                             },
                           );
                         }
@@ -189,8 +191,6 @@ class SettingsPage extends StatelessWidget {
                   ],
                 ),
               ),
-
-              // Extra padding to ensure it scrolls above the floating navigation bar
               const SizedBox(height: 120),
             ],
           ),
@@ -209,7 +209,6 @@ class SettingsPage extends StatelessWidget {
   }) {
     return GestureDetector(
       onTap: onTap,
-      // HitTestBehavior.opaque ensures the tap registers even if you click the empty space between the text and arrow!
       behavior: HitTestBehavior.opaque, 
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -218,7 +217,7 @@ class SettingsPage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.1), // Soft glow behind the icon
+                color: iconColor.withValues(alpha: 0.1), 
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: iconColor, size: 24),
@@ -238,19 +237,125 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // WIDGET: Subtle divider line between settings items
   Widget _buildDivider() {
     return Divider(
       color: Colors.white.withValues(alpha: 0.1),
       height: 1,
       thickness: 1,
-      indent: 65, // Aligns the line with the text, not the icon
+      indent: 65, 
       endIndent: 20,
     );
   }
-}
 
-// WIDGET: Sleek, Glassmorphism Confirmation Dialog
+  // --- NEW: DEDICATED SMART FITBIT SYNC DIALOG ---
+  void _showFitbitSyncDialog(BuildContext context, bool isConnected) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.6), 
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent, 
+          elevation: 0,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(25),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                padding: const EdgeInsets.all(25),
+                decoration: BoxDecoration(
+                  color: const Color(0xff1A3F6B).withValues(alpha: 0.8), 
+                  borderRadius: BorderRadius.circular(25),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5), 
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min, 
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                        color: const Color(0xff00E5FF).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(isConnected ? Icons.sync : Icons.watch, color: const Color(0xff00E5FF), size: 40),
+                    ),
+                    const SizedBox(height: 15),
+                    Text(
+                      isConnected ? "Fitbit Connected" : "Connect Fitbit",
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      isConnected 
+                          ? "Your account is already linked. Would you like to pull the latest health data right now?" 
+                          : "Your account is not linked yet. Connect to Fitbit to automatically track your health data.",
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white70, fontSize: 15),
+                    ),
+                    const SizedBox(height: 30),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context), 
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: BoxDecoration(
+                                color: Colors.transparent,
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(color: Colors.white38, width: 1.5),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Text(
+                                "Cancel",
+                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () async {
+                              Navigator.pop(context); // Close the dialog
+                              // Trigger the connection or sync
+                              String? token = await FitbitService.getValidToken();
+                              if (token != null && context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Fitbit synchronized successfully!", style: TextStyle(color: Color(0xff040F31))), 
+                                    backgroundColor: Color(0xff00E5FF)
+                                  ),
+                                );
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xff00E5FF),
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                isConnected ? "Sync Now" : "Connect",
+                                style: const TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // STANDARD DESTRUCTIVE DIALOG
   void _showConfirmationDialog(
     BuildContext context, {
     required String title,
@@ -261,10 +366,10 @@ class SettingsPage extends StatelessWidget {
   }) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.6), // Darkens the background smoothly
+      barrierColor: Colors.black.withValues(alpha: 0.6), 
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: Colors.transparent, // Makes the default white box invisible
+          backgroundColor: Colors.transparent, 
           elevation: 0,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(25),
@@ -273,12 +378,12 @@ class SettingsPage extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
-                  color: const Color(0xff1A3F6B).withValues(alpha: 0.8), // Semi-transparent dark blue
+                  color: const Color(0xff1A3F6B).withValues(alpha: 0.8), 
                   borderRadius: BorderRadius.circular(25),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5), // Glass edge
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5), 
                 ),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min, // Shrinks the dialog to exactly fit the text
+                  mainAxisSize: MainAxisSize.min, 
                   children: [
                     Icon(Icons.warning_amber_rounded, color: actionColor, size: 45),
                     const SizedBox(height: 15),
@@ -296,10 +401,9 @@ class SettingsPage extends StatelessWidget {
                     const SizedBox(height: 30),
                     Row(
                       children: [
-                        // CANCEL BUTTON
                         Expanded(
                           child: GestureDetector(
-                            onTap: () => Navigator.pop(context), // Closes the dialog
+                            onTap: () => Navigator.pop(context), 
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               decoration: BoxDecoration(
@@ -316,12 +420,11 @@ class SettingsPage extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 15),
-                        // ACTION BUTTON (Log Out / Delete)
                         Expanded(
                           child: GestureDetector(
                             onTap: () {
-                              Navigator.pop(context); // Close the dialog first
-                              onConfirm(); // Then run the actual action
+                              Navigator.pop(context); 
+                              onConfirm(); 
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -348,3 +451,4 @@ class SettingsPage extends StatelessWidget {
       },
     );
   }
+}
