@@ -15,7 +15,7 @@ class _OxygenSaturationDetailState extends State<OxygenSaturationDetail> {
     switch (selectedRange) {
       case "D": return [98, 97, 99, 96, 98, 95, 98];
       case "W": return [98, 94, 96, 99, 97, 98, 95];
-      case "M": return [94, 95, 98, 99, 97, 96, 95, 98, 99, 94];
+      case "M": return [94, 95, 98, 99, 97, 96, 96, 98, 99, 94];
       default: return [96, 97, 98, 95, 99, 94];
     }
   }
@@ -32,7 +32,7 @@ class _OxygenSaturationDetailState extends State<OxygenSaturationDetail> {
           "Oxygen Saturation",
           style: TextStyle(color: Color(0xff35E0FF), fontSize: 25, fontWeight: FontWeight.w600),
         ),
-        // MATCHED: White low-opacity layer from bodyweight.dart
+        
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
@@ -66,7 +66,7 @@ class _OxygenSaturationDetailState extends State<OxygenSaturationDetail> {
             ),
             const SizedBox(height: 30),
             
-            // NAVIGATION TABS
+            // navigation tabs
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(25)),
@@ -77,7 +77,7 @@ class _OxygenSaturationDetailState extends State<OxygenSaturationDetail> {
             ),
             const SizedBox(height: 20),
 
-            // TREND GRAPH WITH LABELED AXES
+            // the graph with axiss
             Container(
               height: 240,
               width: double.infinity,
@@ -145,8 +145,13 @@ class LabeledOxygenChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xff35E0FF)..strokeWidth = 3..style = PaintingStyle.stroke;
-    final axisPaint = Paint()..color = Colors.white24..strokeWidth = 1;
+    final paint = Paint()
+      ..color = const Color(0xff35E0FF)
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+    final axisPaint = Paint()
+      ..color = Colors.white24
+      ..strokeWidth = 1;
 
     double leftMargin = 40;
     double bottomMargin = 30;
@@ -157,30 +162,42 @@ class LabeledOxygenChartPainter extends CustomPainter {
     canvas.drawLine(Offset(leftMargin, 0), Offset(leftMargin, usableHeight), axisPaint);
     canvas.drawLine(Offset(leftMargin, usableHeight), Offset(size.width, usableHeight), axisPaint);
 
-    // 1. Draw Y-Axis Labels (90, 95, 100)
+    // 1. Y-Axis Labels (90% - 100%)
     for (int val in [90, 95, 100]) {
       double y = usableHeight - ((val - 90) / 10 * usableHeight);
       _drawText(canvas, "$val%", Offset(5, y - 7), Colors.white54, 10);
-      canvas.drawLine(Offset(leftMargin - 5, y), Offset(leftMargin, y), axisPaint); // Tick
+      canvas.drawLine(Offset(leftMargin - 5, y), Offset(leftMargin, y), axisPaint);
     }
 
     if (data.isEmpty) return;
 
-    // 2. Draw X-Axis Labels
-    List<String> xLabels = range == "W" ? ["M", "T", "W", "T", "F", "S", "S"] : ["Start", "Mid", "End"];
+    // 2. dynamic X-Axis Labels based on Range
+    List<String> xLabels = [];
+    if (range == "D") {
+      xLabels = ["12am", "6am", "12pm", "6pm", "12am"];
+    } else if (range == "W") {
+      xLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    } else if (range == "M") {
+      xLabels = ["Week 1", "Week 2", "Week 3", "Week 4"];
+    } else {
+      xLabels = ["Jan", "Apr", "Jul", "Oct", "Dec"];
+    }
+
     double stepX = usableWidth / (xLabels.length - 1);
     for (int i = 0; i < xLabels.length; i++) {
       double x = leftMargin + (i * stepX);
-      _drawText(canvas, xLabels[i], Offset(x - 5, usableHeight + 5), Colors.white54, 10);
+      _drawText(canvas, xLabels[i], Offset(x - 10, usableHeight + 8), Colors.white54, 9);
     }
 
-    // 3. Draw Data Line
+    // 3. data line draw here
     double dataStepX = usableWidth / (data.length - 1);
     Path path = Path();
     for (int i = 0; i < data.length; i++) {
       double y = usableHeight - ((data[i] - 90) / 10 * usableHeight);
       double x = leftMargin + (i * dataStepX);
       if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
+      
+      // Draw small glow points
       canvas.drawCircle(Offset(x, y), 3, Paint()..color = const Color(0xff35E0FF));
     }
     canvas.drawPath(path, paint);
@@ -188,7 +205,7 @@ class LabeledOxygenChartPainter extends CustomPainter {
 
   void _drawText(Canvas canvas, String text, Offset offset, Color color, double size) {
     TextPainter(
-      text: TextSpan(text: text, style: TextStyle(color: color, fontSize: size)),
+      text: TextSpan(text: text, style: TextStyle(color: color, fontSize: size, fontWeight: FontWeight.w500)),
       textDirection: TextDirection.ltr,
     )..layout()..paint(canvas, offset);
   }
