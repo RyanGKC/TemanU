@@ -32,7 +32,7 @@ class _OxygenSaturationDetailState extends State<OxygenSaturationDetail> {
           "Oxygen Saturation",
           style: TextStyle(color: Color(0xff35E0FF), fontSize: 25, fontWeight: FontWeight.w600),
         ),
-        
+        // MATCHED: White low-opacity layer from bodyweight.dart
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
@@ -66,7 +66,7 @@ class _OxygenSaturationDetailState extends State<OxygenSaturationDetail> {
             ),
             const SizedBox(height: 30),
             
-            // navigation tabss
+            // NAVIGATION TABS
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(25)),
@@ -77,7 +77,7 @@ class _OxygenSaturationDetailState extends State<OxygenSaturationDetail> {
             ),
             const SizedBox(height: 20),
 
-            // the graph with axiss
+            // TREND GRAPH WITH LABELED AXES
             Container(
               height: 240,
               width: double.infinity,
