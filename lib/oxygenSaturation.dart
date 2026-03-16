@@ -1,34 +1,35 @@
 import 'dart:ui';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:temanu/heartRateChartPainter.dart'; // Make sure this matches your file name!
+import 'package:temanu/oxygenSaturationChartPainter.dart'; // Ensure this matches your file name!
 import 'package:temanu/assistantpage.dart';
 
 // --- MOCK DATA GENERATOR ---
-class HrReading {
+class SpO2Reading {
   final DateTime time;
-  final int bpm;
-  HrReading(this.time, this.bpm);
+  final int spo2;
+  SpO2Reading(this.time, this.spo2);
 }
 
-class MockHrData {
-  static List<HrReading> allReadings = List.generate(
+class MockSpO2Data {
+  // Generates realistic oxygen levels mostly between 94% and 100%
+  static List<SpO2Reading> allReadings = List.generate(
     150, 
-    (i) => HrReading(DateTime.now().subtract(Duration(hours: i * 2)), 60 + Random().nextInt(45))
+    (i) => SpO2Reading(DateTime.now().subtract(Duration(hours: i * 2)), 94 + Random().nextInt(7))
   );
 }
 // ----------------------------
 
-class HeartRatePage extends StatefulWidget {
-  const HeartRatePage({super.key});
+class OxygenSaturationPage extends StatefulWidget {
+  const OxygenSaturationPage({super.key});
 
   @override
-  State<HeartRatePage> createState() => _HeartRatePageState();
+  State<OxygenSaturationPage> createState() => _OxygenSaturationPageState();
 }
 
-class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProviderStateMixin {
-  int currentHr = 72;
-  int restingHr = 64;
+class _OxygenSaturationPageState extends State<OxygenSaturationPage> with SingleTickerProviderStateMixin {
+  int currentSpO2 = 98;
+  int avgSpO2 = 97;
   String selectedRange = "D";
   int? touchedIndex;
   int dateOffset = 0;
@@ -95,8 +96,8 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
   }
 
   List<DateTime> aggTimes = [];
-  List<int> aggMinBpm = [];
-  List<int> aggMaxBpm = [];
+  List<int> aggMinSpO2 = [];
+  List<int> aggMaxSpO2 = [];
 
   @override
   void initState() {
@@ -114,8 +115,8 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
   }
 
   void _aggregateData() {
-    final rawData = MockHrData.allReadings; 
-    Map<DateTime, List<HrReading>> grouped = {};
+    final rawData = MockSpO2Data.allReadings; 
+    Map<DateTime, List<SpO2Reading>> grouped = {};
 
     final startTime = _startTime;
     final endTime = _endTime;
@@ -140,45 +141,43 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     var sortedKeys = grouped.keys.toList()..sort();
 
     aggTimes.clear();
-    aggMinBpm.clear();
-    aggMaxBpm.clear();
+    aggMinSpO2.clear();
+    aggMaxSpO2.clear();
 
     for (var key in sortedKeys) {
       var readings = grouped[key]!;
       aggTimes.add(key); 
       
-      int minBpm = readings.map((e) => e.bpm).reduce(min);
-      int maxBpm = readings.map((e) => e.bpm).reduce(max);
+      int minVal = readings.map((e) => e.spo2).reduce(min);
+      int maxVal = readings.map((e) => e.spo2).reduce(max);
 
-      aggMinBpm.add(minBpm);
-      aggMaxBpm.add(maxBpm);
+      aggMinSpO2.add(minVal);
+      aggMaxSpO2.add(maxVal);
     }
   }
 
+  // --- SPO2 SPECIFIC ZONES ---
   String get zoneText {
-    if (currentHr < 60) return "Low"; // Bradycardia
-    if (currentHr <= 100) return "Normal";
-    if (currentHr <= 120) return "Elevated";
-    return "High"; // Tachycardia
+    if (currentSpO2 >= 95) return "Normal";
+    if (currentSpO2 >= 90) return "Borderline";
+    return "Low"; 
   }
 
   Color get zoneColor {
     switch (zoneText) {
-      case "Normal": return const Color(0xff4DA5E0);
-      case "Low": return Colors.deepPurple;
-      case "Elevated": return Colors.orange;
-      case "High": return Colors.red;
+      case "Normal": return const Color(0xff4DA5E0); // Cyan
+      case "Borderline": return Colors.orange;
+      case "Low": return Colors.red;
       default: return const Color(0xff4DA5E0);
     }
   }
 
   String get aiTips {
     switch (zoneText) {
-      case "Normal": return "Your heart rate is in a healthy resting range (60-100 bpm). Keep maintaining your healthy lifestyle!";
-      case "Low": return "Your heart rate is below average. This is completely normal if you are athletic, but monitor for dizziness or fatigue.";
-      case "Elevated": return "Your heart rate is slightly elevated. Try taking a few deep breaths and relaxing for a few minutes.";
-      case "High": return "Your heart rate is high for a resting state. Avoid strenuous activities right now and consult a doctor if it doesn't lower.";
-      default: return "Monitor your heart rate regularly.";
+      case "Normal": return "Your blood oxygen is excellent (95-100%). Your lungs and circulatory system are distributing oxygen efficiently.";
+      case "Borderline": return "Your oxygen level is slightly lower than average. Consider taking some deep breaths or standing up and moving around.";
+      case "Low": return "Your blood oxygen is considered low. If this persists, or if you feel short of breath, please consult a healthcare professional immediately.";
+      default: return "Monitor your oxygen saturation regularly.";
     }
   }
 
@@ -218,10 +217,10 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     setState(() => touchedIndex = closestIndex);
   }
 
-  void addHrData(int bpm) {
+  void addSpO2Data(int spo2) {
     setState(() {
-      currentHr = bpm;
-      MockHrData.allReadings.add(HrReading(DateTime.now(), bpm));
+      currentSpO2 = spo2;
+      MockSpO2Data.allReadings.add(SpO2Reading(DateTime.now(), spo2));
       _aggregateData(); 
     });
     _animationController.reset();
@@ -229,17 +228,17 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
   }
 
   void showAddDataDialog() {
-    final bpmController = TextEditingController();
+    final spo2Controller = TextEditingController();
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text("Add Heart Rate Data"),
+          title: const Text("Add Oxygen Data"),
           content: TextField(
-            controller: bpmController,
+            controller: spo2Controller,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: "Heart Rate (BPM)"),
+            decoration: const InputDecoration(labelText: "SpO2 (%)"),
           ),
           actions: [
             TextButton(
@@ -248,9 +247,9 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
             ),
             ElevatedButton(
               onPressed: () {
-                final bpm = int.tryParse(bpmController.text);
-                if (bpm != null) {
-                  addHrData(bpm);
+                final spo2 = int.tryParse(spo2Controller.text);
+                if (spo2 != null && spo2 <= 100 && spo2 > 0) {
+                  addSpO2Data(spo2);
                 }
                 Navigator.pop(context);
               },
@@ -272,7 +271,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
         elevation: 0,
         centerTitle: false,
         title: const Text(
-          "Heart Rate",
+          "Oxygen Saturation",
           style: TextStyle(
             color: Color(0xff35E0FF),
             fontSize: 25,
@@ -306,13 +305,13 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
                       textBaseline: TextBaseline.alphabetic,
                       children: [
                         Text(
-                          "$currentHr",
+                          "$currentSpO2",
                           style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(width: 4),
                         const Text(
-                          "bpm",
-                          style: TextStyle(color: Colors.white70, fontSize: 20),
+                          "%",
+                          style: TextStyle(color: Colors.white70, fontSize: 24, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
@@ -401,10 +400,10 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
                         onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
                         child: CustomPaint(
                           size: Size(constraints.maxWidth, constraints.maxHeight),
-                          painter: HeartRateChartPainter(
+                          painter: OxygenSaturationChartPainter(
                             timeData: aggTimes,
-                            minBpmData: aggMinBpm,
-                            maxBpmData: aggMaxBpm,
+                            minSpO2Data: aggMinSpO2,
+                            maxSpO2Data: aggMaxSpO2,
                             rangeLabel: selectedRange,
                             touchedIndex: touchedIndex,
                             dateOffset: dateOffset,
@@ -443,9 +442,9 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
 
             Row(
               children: [
-                Expanded(child: infoCard("Current HR", "$currentHr\nbpm")), 
+                Expanded(child: infoCard("Current", "$currentSpO2%")), 
                 const SizedBox(width: 8),
-                Expanded(child: infoCard("Resting HR", "$restingHr\nbpm")),
+                Expanded(child: infoCard("Daily Avg", "$avgSpO2%")),
                 const SizedBox(width: 8),
                 Expanded(child: zoneCard("Zone", zoneText)),
               ],
@@ -509,7 +508,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 16)),
+          Text(title, style: const TextStyle(color: Colors.white, fontSize: 18)),
           const SizedBox(height: 8),
           Text(value, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
         ],
@@ -533,7 +532,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xff6CE5FF) : Colors.transparent, // Highlight matches graph color
+          color: selected ? const Color(0xff6CE5FF) : Colors.transparent, 
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
