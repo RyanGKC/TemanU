@@ -24,6 +24,9 @@ class FitbitService {
   static String? _cachedHeartRate;
   static DateTime? _lastHeartRateFetchTime;
 
+  static String? _cachedCalories;
+  static DateTime? _lastCaloriesFetchTime;
+
   // --- The Smart Token Checker ---
   static Future<String?> getValidToken() async {
     // 1. Look in the vault first
@@ -179,4 +182,45 @@ class FitbitService {
       return null;
     }
   }
+
+  /// Fetch Today's Active Calories Burned
+static Future<String?> getCaloriesBurned(String accessToken, {bool forceRefresh = false}) async {
+  // Reuse the same 2-minute cache pattern
+  if (!forceRefresh && _cachedCalories != null && _lastCaloriesFetchTime != null) {
+    if (DateTime.now().difference(_lastCaloriesFetchTime!).inMinutes < 2) {
+      print("Using cached calories to save API limits.");
+      return _cachedCalories;
+    }
+  }
+
+  try {
+    String today = _getTodayDateString();
+
+    final response = await http.get(
+      // Same activities endpoint as steps — calories are in the same summary object
+      Uri.parse('https://api.fitbit.com/1/user/-/activities/date/$today.json'),
+      headers: {'Authorization': 'Bearer $accessToken'},
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      // "activityCalories" = active burn only, "caloriesOut" = total including BMR
+      final calories = data['summary']['caloriesOut'].toString();
+
+      _cachedCalories = calories;
+      _lastCaloriesFetchTime = DateTime.now();
+      return calories;
+
+    } else if (response.statusCode == 401) {
+      await logout();
+      return null;
+    } else {
+      print("API Error: ${response.body}");
+      return null;
+    }
+  } catch (e) {
+    print("Network Error: $e");
+    return null;
+  }
+}
 }

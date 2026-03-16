@@ -6,8 +6,6 @@ import 'package:temanu/activity.dart';
 import 'package:temanu/bloodpressure.dart';
 import 'package:temanu/bodyweight.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:temanu/bloodpressure.dart';
-import 'package:temanu/bodyweight.dart';
 import 'package:temanu/caloriesMain.dart';
 import 'package:temanu/heartrate.dart';
 import 'package:temanu/medicationlog.dart';
@@ -16,8 +14,6 @@ import 'package:temanu/patientData.dart';
 import 'package:temanu/pdfGenerator.dart';
 import 'package:temanu/profileInformation.dart';
 import 'package:temanu/fitbitService.dart';
-import 'package:temanu/heartrate.dart';
-import 'package:temanu/oxygen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -101,7 +97,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
 
   final List<Map<String, dynamic>> _metricsData = [
     { "icon": Icons.water_drop, "title": "Blood Glucose Level", "value": "110", "unit": "mg/dl", "destination": const HomePage(), "isVisible": true, "isShareSelected": true },
-    { "icon": Icons.directions_run, "title": "Activity", "value": "--", "unit": "steps", "destination": const HomePage(), "isVisible": true, "isShareSelected": true },
+    { "icon": Icons.directions_run, "title": "Activity", "value": "--", "unit": "steps", "destination": const Activity(), "isVisible": true, "isShareSelected": true },
     { "icon": Icons.favorite, "title": "Heart Rate", "value": "--", "unit": "bpm", "destination": const HeartRatePage(), "isVisible": true, "isShareSelected": true },
     { "icon": Icons.opacity, "title": "Oxygen Saturation", "value": "98", "unit": "%", "destination": const OxygenSaturationPage(), "isVisible": true, "isShareSelected": true },
     { "icon": Icons.monitor_heart, "title": "Blood Pressure", "value": "118/76", "unit": "mmHg", "destination": const BloodPressurePage(), "isVisible": true, "isShareSelected": true },
