@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:temanu/activity.dart';
+import 'package:temanu/bloodpressure.dart';
+import 'package:temanu/bodyweight.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temanu/bloodpressure.dart';
 import 'package:temanu/bodyweight.dart';
@@ -13,6 +16,8 @@ import 'package:temanu/patientData.dart';
 import 'package:temanu/pdfGenerator.dart';
 import 'package:temanu/profileInformation.dart';
 import 'package:temanu/fitbitService.dart';
+import 'package:temanu/heartrate.dart';
+import 'package:temanu/oxygen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
