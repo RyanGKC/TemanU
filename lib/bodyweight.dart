@@ -1,9 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:temanu/MockBwData.dart'; // Make sure this file name matches exactly
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/shareWeightHighlightPage.dart';
 import 'package:temanu/weightLineChartPainter.dart';
-
 
 class BodyWeightPage extends StatefulWidget {
   const BodyWeightPage({super.key});
@@ -16,30 +16,121 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
   double currentWeight = 80.5;
   double goalWeight = 80.0;
   double heightCm = 186.0;
-  String selectedRange = "Week";
+  String selectedRange = "W";
+  int dateOffset = 0;
 
-  int? touchedIndex; // Tracks which data point is currently selected
+  int? touchedIndex; 
 
   late AnimationController _animationController;
   late Animation<double> _animation;
 
+  // Master lists for the graph
+  List<DateTime> aggTimes = [];
+  List<double> aggWeights = [];
+
+  String get fullRangeName {
+    switch (selectedRange) {
+      case "D": return "Day";
+      case "W": return "Week";
+      case "M": return "Month";
+      case "3M": return "3 Months";
+      case "6M": return "6 Months";
+      case "Y": return "Year";
+      default: return "Week";
+    }
+  }
+
+  // Beautiful UI Label for the time travel arrows
+  String get dateRangeLabel {
+    final start = _startTime;
+    final visualEnd = _endTime.subtract(const Duration(days: 1)); 
+    const List<String> months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    switch (selectedRange) {
+      case "D": return "${start.day} ${months[start.month - 1]} ${start.year}";
+      case "W": return "${start.day} ${months[start.month - 1]} - ${visualEnd.day} ${months[visualEnd.month - 1]}";
+      case "M": return "${months[start.month - 1]} ${start.year}";
+      case "3M":
+      case "6M": return "${months[start.month - 1]} - ${months[visualEnd.month - 1]} ${visualEnd.year}";
+      case "Y": return "${start.year}";
+      default: return "";
+    }
+  }
+
+  // Time Boundary Math
+  DateTime get _startTime {
+    final now = DateTime.now();
+    switch (selectedRange) {
+      case "D": return DateTime(now.year, now.month, now.day + dateOffset);
+      case "W": 
+        int daysToMonday = now.weekday - 1; 
+        return DateTime(now.year, now.month, now.day - daysToMonday + (dateOffset * 7));
+      case "M": return DateTime(now.year, now.month + dateOffset, 1);
+      case "3M": return DateTime(now.year, now.month - 2 + (dateOffset * 3), 1);
+      case "6M": return DateTime(now.year, now.month - 5 + (dateOffset * 6), 1);
+      case "Y": return DateTime(now.year + dateOffset, 1, 1);
+      default: return DateTime(now.year, now.month, now.day);
+    }
+  }
+
+  DateTime get _endTime {
+    final now = DateTime.now();
+    switch (selectedRange) {
+      case "D": return DateTime(now.year, now.month, now.day + dateOffset + 1);
+      case "W": 
+        int daysToMonday = now.weekday - 1;
+        return DateTime(now.year, now.month, now.day - daysToMonday + 7 + (dateOffset * 7));
+      case "M": return DateTime(now.year, now.month + dateOffset + 1, 1);
+      case "3M": return DateTime(now.year, now.month + 1 + (dateOffset * 3), 1);
+      case "6M": return DateTime(now.year, now.month + 1 + (dateOffset * 6), 1);
+      case "Y": return DateTime(now.year + dateOffset + 1, 1, 1);
+      default: return DateTime(now.year, now.month, now.day + 1);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    // Initialize the controller
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800), // Adjust speed here
-    );
-
-    // Add a smooth easing curve
-    _animation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutQuart,
-    );
-
-    // Play the animation as soon as the page loads
+    _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
+    _aggregateData(); 
     _animationController.forward();
+  }
+
+  void _aggregateData() {
+    final rawData = MockWeightData.allReadings; 
+    Map<DateTime, List<WeightReading>> grouped = {};
+    final startTime = _startTime;
+    final endTime = _endTime;
+
+    // 1. Group the data 
+    for (var reading in rawData) {
+      if (reading.time.isBefore(startTime) || reading.time.isAfter(endTime)) continue; 
+
+      DateTime bucket;
+      if (selectedRange == "D") {
+        bucket = DateTime(reading.time.year, reading.time.month, reading.time.day, reading.time.hour);
+      } else if (selectedRange == "W" || selectedRange == "M") {
+        bucket = DateTime(reading.time.year, reading.time.month, reading.time.day);
+      } else if (selectedRange == "3M" || selectedRange == "6M") {
+        bucket = DateTime(reading.time.year, reading.time.month, reading.time.day - reading.time.weekday + 1);
+      } else {
+        bucket = DateTime(reading.time.year, reading.time.month, 1);
+      }
+      grouped.putIfAbsent(bucket, () => []).add(reading);
+    }
+
+    var sortedKeys = grouped.keys.toList()..sort();
+    aggTimes.clear();
+    aggWeights.clear();
+
+    // 2. Calculate the Average Weight for each bucket
+    for (var key in sortedKeys) {
+      var readings = grouped[key]!;
+      aggTimes.add(key); 
+      double sum = readings.map((e) => e.weight).reduce((a, b) => a + b);
+      aggWeights.add(sum / readings.length);
+    }
   }
 
   @override
@@ -54,70 +145,35 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     final double usableWidth = width - leftPadding - rightPadding;
     final double dx = details.localPosition.dx;
 
-    // If tapped outside the chart area, deselect
-    if (dx < leftPadding - 10 || dx > width - rightPadding + 10) {
+    if (dx < leftPadding - 15 || dx > width - 5) {
       setState(() => touchedIndex = null);
       return;
     }
 
-    final int dataLength = currentData.length;
-    if (dataLength < 2) return;
+    if (aggTimes.isEmpty) return;
 
-    int index;
-    if (isLineChart) {
-      final double step = usableWidth / (dataLength - 1);
-      index = ((dx - leftPadding) / step).round();
-    } else {
-      final double step = usableWidth / dataLength;
-      index = ((dx - leftPadding) / step).floor();
+    final startTime = _startTime;
+    final endTime = _endTime;
+    final totalMillis = endTime.difference(startTime).inMilliseconds;
+    
+    int? closestIndex;
+    double minDistance = double.infinity;
+
+    // Find proportional tap zones just like BP chart
+    for (int i = 0; i < aggTimes.length; i++) {
+      final elapsedMillis = aggTimes[i].difference(startTime).inMilliseconds;
+      double timeRatio = elapsedMillis / (totalMillis > 0 ? totalMillis : 1);
+      timeRatio = timeRatio.clamp(0.0, 1.0);
+      final x = leftPadding + (usableWidth * timeRatio);
+      
+      final distance = (x - dx).abs();
+      if (distance < 20 && distance < minDistance) { 
+        minDistance = distance;
+        closestIndex = i;
+      }
     }
 
-    // Update the state with the tapped index
-    if (index >= 0 && index < dataLength) {
-      setState(() => touchedIndex = index);
-    } else {
-      setState(() => touchedIndex = null);
-    }
-  }
-
-  // Week: 7 daily values
-  List<double> weekData = [82.5, 82.0, 81.8, 81.5, 81.8, 81.0, 80.5];
-
-  // Month: 30 daily values
-  List<double> monthData = [
-    84.0, 83.8, 83.7, 83.6, 83.4, 83.2, 83.0, 82.9, 82.8, 82.7,
-    82.5, 82.4, 82.3, 82.2, 82.1, 82.0, 81.9, 81.8, 81.7, 81.6,
-    81.5, 81.4, 81.3, 81.2, 81.1, 81.0, 80.9, 80.8, 80.7, 80.5,
-  ];
-
-  // 3 Months: 12 weekly averages
-  List<double> threeMonthData = [
-    86.8, 86.2, 85.9, 85.4, 85.0, 84.6,
-    84.0, 83.4, 82.9, 82.3, 81.5, 80.8,
-  ];
-
-  // 6 Months: 6 monthly averages
-  List<double> sixMonthData = [89.0, 87.6, 86.1, 84.8, 82.9, 80.8];
-
-  // Year: 12 monthly values
-  List<double> yearData = [
-    96.0, 94.8, 93.5, 92.2, 90.8, 89.4,
-    88.0, 86.7, 85.2, 83.9, 82.3, 80.8,
-  ];
-
-  List<double> get currentData {
-    switch (selectedRange) {
-      case "Month":
-        return monthData;
-      case "3 Months":
-        return threeMonthData;
-      case "6 Months":
-        return sixMonthData;
-      case "Year":
-        return yearData;
-      default:
-        return weekData;
-    }
+    setState(() => touchedIndex = closestIndex);
   }
 
   double get bmi {
@@ -126,16 +182,8 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
   }
 
   double get changeWeight {
-    final data = currentData;
-    if (data.length < 2) return 0;
-    return data.last - data.first;
-  }
-
-  String get bmiStatus {
-    if (bmi < 18.5) return "Underweight";
-    if (bmi < 25) return "Normal";
-    if (bmi < 30) return "Overweight";
-    return "Obese";
+    if (aggWeights.length < 2) return 0;
+    return aggWeights.last - aggWeights.first;
   }
 
   String get aiTips {
@@ -152,32 +200,12 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
   void addWeightData(double value) {
     setState(() {
       currentWeight = value;
-
-      weekData.add(value);
-      if (weekData.length > 7) {
-        weekData.removeAt(0);
-      }
-
-      monthData.add(value);
-      if (monthData.length > 30) {
-        monthData.removeAt(0);
-      }
-
-      threeMonthData.add(value);
-      if (threeMonthData.length > 12) {
-        threeMonthData.removeAt(0);
-      }
-
-      sixMonthData.add(value);
-      if (sixMonthData.length > 6) {
-        sixMonthData.removeAt(0);
-      }
-
-      yearData.add(value);
-      if (yearData.length > 12) {
-        yearData.removeAt(0);
-      }
+      // Add dynamic data to master list!
+      MockWeightData.allReadings.add(WeightReading(DateTime.now(), value));
+      _aggregateData();
     });
+    _animationController.reset();
+    _animationController.forward();
   }
 
   void showAddDataDialog() {
@@ -227,10 +255,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     );
   }
 
-  bool get isLineChart {
-    return true;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -239,13 +263,22 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
       appBar: AppBar(
         backgroundColor: const Color(0xff55607D),
         elevation: 0,
+        centerTitle: false,
         title: const Text(
           "Body Weight",
           style: TextStyle(
             color: Color(0xff35E0FF),
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
+            fontSize: 25,
+            fontWeight: FontWeight.w600,
           ),
+        ),
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+            child: Container(
+              color: Colors.white.withValues(alpha: 0.25)
+            )
+          )
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xff35E0FF)),
@@ -257,11 +290,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
             icon: const Icon(Icons.ios_share, color: Colors.white),
           ),
         ],
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            bottom: Radius.circular(24),
-          ),
-        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -318,39 +346,45 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
 
             const SizedBox(height: 18),
 
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                selectedRange,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
+                  onPressed: () {
+                    setState(() {
+                      dateOffset--;
+                      touchedIndex = null;
+                      _aggregateData(); // Calculate the new dates
+                    });
+                    _animationController.reset();
+                    _animationController.forward();
+                  },
                 ),
-              ),
+                Text(
+                  dateRangeLabel, // Now it shows the beautiful date range!
+                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.chevron_right, 
+                    color: dateOffset < 0 ? Colors.white : Colors.white38, 
+                    size: 30
+                  ),
+                  onPressed: dateOffset < 0 ? () {
+                    setState(() {
+                      dateOffset++;
+                      touchedIndex = null;
+                      _aggregateData(); // Calculate the new dates
+                    });
+                    _animationController.reset();
+                    _animationController.forward();
+                  } : null, 
+                ),
+              ],
             ),
-
             const SizedBox(height: 10),
-
-            // Time filter
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade600,
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  filterButton("Week"),
-                  filterButton("Month"),
-                  filterButton("3 Months"),
-                  filterButton("6 Months"),
-                  filterButton("Year"),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
+            
             // Chart
             Container(
               height: 300,
@@ -369,12 +403,35 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
                         onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
                         child: CustomPaint(
                           size: Size(constraints.maxWidth, constraints.maxHeight),
-                          painter: WeightLineChartPainter(currentData, selectedRange, touchedIndex, _animation.value)
+                          // Updated with the correct variables!
+                          painter: WeightLineChartPainter(aggTimes, aggWeights, selectedRange, touchedIndex, _animation.value, dateOffset)
                         ),
                       );
                     },
                   );
                 }
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Time filter
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade600,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  filterButton("D"), // Added Day filter back!
+                  filterButton("W"),
+                  filterButton("M"),
+                  filterButton("3M"),
+                  filterButton("6M"),
+                  filterButton("Y"),
+                ],
               ),
             ),
 
@@ -399,41 +456,57 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
 
             const SizedBox(height: 16),
 
-            // AI Tips
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xff375B86),
-                borderRadius: BorderRadius.circular(22),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "💡 AI Tips",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
+            // AI Tips (Clickable to Assistant just like BP Page)
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context, 
+                  MaterialPageRoute(builder: (context) => const AssistantPage())
+                );
+              },
+              borderRadius: BorderRadius.circular(22),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xff375B86),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: const [
+                        Text(
+                          "💡 AI Tips",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18), 
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    aiTips,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      height: 1.5,
+                    const SizedBox(height: 8),
+                    Text(
+                      aiTips,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        height: 1.5,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 24),
           ],
         ),
       ),
+      // Left the Bottom Nav Bar here as requested, though you can delete it if you prefer!
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.only(left:20, right: 20, bottom: 30),
@@ -458,10 +531,10 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
                         onTap: () {
                           Navigator.push(
                             context, 
-                            MaterialPageRoute(builder: (context) => AssistantPage())
+                            MaterialPageRoute(builder: (context) => const AssistantPage())
                           );
                         },
-                        child: Center(
+                        child: const Center(
                           child: Icon(
                             Icons.auto_awesome,
                             size: 28,
@@ -517,7 +590,9 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
       onTap: () {
         setState(() {
           selectedRange = label;
-          touchedIndex = null; // <-- Clear selection on tab change
+          touchedIndex = null;
+          dateOffset = 0; // Reset offset when switching tabs!
+          _aggregateData(); 
         });
         _animationController.reset();
         _animationController.forward();

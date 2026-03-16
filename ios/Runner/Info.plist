@@ -50,5 +50,16 @@
     <string>Temanu needs access to your camera so you can take photos of your meals to track your calories.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Temanu needs access to your microphone to support the camera plugin.</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>temanu</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>

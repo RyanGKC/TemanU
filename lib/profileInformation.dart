@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:temanu/patientData.dart';
 
 class ProfileInformationPage extends StatefulWidget {
   const ProfileInformationPage({super.key});
@@ -11,7 +12,6 @@ class ProfileInformationPage extends StatefulWidget {
 class _ProfileInformationPageState extends State<ProfileInformationPage> {
   bool _isEditing = false;
   
-  // 1. ADDED: Form Key for validation
   final _formKey = GlobalKey<FormState>();
 
   late TextEditingController _fullNameController;
@@ -23,7 +23,6 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
   String _bloodType = "O+";
   DateTime _dateOfBirth = DateTime(1990, 5, 15);
 
-  // 2. ADDED: Master list of conditions and user's selected conditions
   final List<String> _availableConditions = [
     "Asthma", "Diabetes Type 1", "Diabetes Type 2", 
     "Hypertension", "High Cholesterol", "Anemia", "Thyroid Disorder"
@@ -51,21 +50,15 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
 
   void _toggleEdit() {
     if (_isEditing) {
-      // 3. ADDED: Validation check before saving
       if (_formKey.currentState!.validate()) {
-        setState(() {
-          _isEditing = false;
-        });
-        print("Data is valid. Saving profile...");
-        // TODO: Send data to backend here
+        setState(() => _isEditing = false);
+        // Return the updated PatientData back to the calling page
+        Navigator.pop(context, toPatientData());
       } else {
-        // If validation fails, don't exit edit mode
         print("Validation failed.");
       }
     } else {
-      setState(() {
-        _isEditing = true;
-      });
+      setState(() => _isEditing = true);
     }
   }
 
@@ -97,6 +90,28 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
     }
   }
 
+  // Builds a PatientData object from current form state
+  PatientData toPatientData() {
+    final dob = _dateOfBirth;
+    final age = DateTime.now().year - dob.year;
+
+    return PatientData(
+      name: _preferredNameController.text,
+      dob: "${dob.day} ${_monthName(dob.month)} ${dob.year}",
+      age: age.toString(),
+      gender: _gender,
+      height: _heightController.text,
+      weight: _weightController.text,
+      bloodType: _bloodType,
+      conditions: _selectedConditions.isEmpty ? 'None' : _selectedConditions.join(', '),
+    );
+  }
+
+  String _monthName(int month) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[month - 1];
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -125,7 +140,6 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
           ),
         ],
       ),
-      // Wrapped the entire scrollable area in a Form
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -202,7 +216,7 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.start, // Align to top for error text
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(child: _buildTextField(
                           "Height (cm)", 
@@ -279,7 +293,7 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
     if (value == null || value.isEmpty) return "Required";
     final number = double.tryParse(value);
     if (number == null || number <= 0) return "Invalid";
-    return null; // Passes validation
+    return null;
   }
 
   // --- UI HELPER WIDGETS ---
@@ -294,7 +308,6 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
     );
   }
 
-  // ADDED: validator parameter
   Widget _buildTextField(String label, TextEditingController controller, {bool isNumber = false, String? Function(String?)? validator}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -306,7 +319,7 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
           enabled: _isEditing,
           keyboardType: isNumber ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
           style: const TextStyle(color: Colors.white, fontSize: 16),
-          validator: validator, // Triggered by _formKey
+          validator: validator,
           decoration: InputDecoration(
             isDense: true,
             contentPadding: const EdgeInsets.symmetric(vertical: 8),
@@ -350,7 +363,6 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
   }
 
   Widget _buildDateField(String label, String value) {
-    // ... [Same as previous implementation] ...
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -377,25 +389,23 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
     );
   }
 
-  // --- 4. MULTI-SELECT BOTTOM SHEET ---
+  // --- MULTI-SELECT BOTTOM SHEET ---
   void _showHealthConditionsBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent, // Transparent so we can apply our own styling
-      isScrollControlled: true, // Allows sheet to take up more screen space if needed
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (BuildContext context) {
-        // StatefulBuilder allows the bottom sheet to rebuild its checkboxes without rebuilding the whole page
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
             return Container(
-              height: MediaQuery.of(context).size.height * 0.6, // Take up 60% of screen
+              height: MediaQuery.of(context).size.height * 0.6,
               decoration: const BoxDecoration(
                 color: Color(0xff1A3F6B),
                 borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
               ),
               child: Column(
                 children: [
-                  // Bottom sheet drag handle
                   Container(
                     margin: const EdgeInsets.only(top: 15, bottom: 10),
                     height: 5,
@@ -413,8 +423,6 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
                     ),
                   ),
                   Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
-                  
-                  // Scrollable list of checkboxes
                   Expanded(
                     child: ListView.builder(
                       itemCount: _availableConditions.length,
@@ -426,7 +434,7 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
                           title: Text(condition, style: const TextStyle(color: Colors.white)),
                           value: isSelected,
                           activeColor: const Color(0xff00E5FF),
-                          checkColor: const Color(0xff040F31), // Dark checkmark
+                          checkColor: const Color(0xff040F31),
                           side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
                           onChanged: (bool? checked) {
                             setModalState(() {
@@ -436,15 +444,12 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
                                 _selectedConditions.remove(condition);
                               }
                             });
-                            // We also need to update the main page's state so the UI reflects changes when we close the sheet
                             setState(() {}); 
                           },
                         );
                       },
                     ),
                   ),
-                  
-                  // Done Button
                   Padding(
                     padding: const EdgeInsets.all(20.0),
                     child: SizedBox(
