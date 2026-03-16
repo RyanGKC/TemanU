@@ -1,23 +1,17 @@
 import 'dart:ui';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:temanu/heartRateChartPainter.dart'; // Make sure this matches your file name!
+import 'package:temanu/heartRateChartPainter.dart';
 import 'package:temanu/assistantpage.dart';
+import 'package:temanu/fitbitService.dart';
+import 'package:temanu/mockHrData.dart';
 
-// --- MOCK DATA GENERATOR ---
+// HrReading is defined here so both heartrate.dart and mockHrData.dart can use it
 class HrReading {
   final DateTime time;
   final int bpm;
   HrReading(this.time, this.bpm);
 }
-
-class MockHrData {
-  static List<HrReading> allReadings = List.generate(
-    150, 
-    (i) => HrReading(DateTime.now().subtract(Duration(hours: i * 2)), 60 + Random().nextInt(45))
-  );
-}
-// ----------------------------
 
 class HeartRatePage extends StatefulWidget {
   const HeartRatePage({super.key});
@@ -27,8 +21,10 @@ class HeartRatePage extends StatefulWidget {
 }
 
 class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProviderStateMixin {
-  int currentHr = 72;
-  int restingHr = 64;
+  int currentHr  = 0;
+  int restingHr  = 0;
+  bool _isLoadingFitbit = true;
+
   String selectedRange = "D";
   int? touchedIndex;
   int dateOffset = 0;
@@ -36,75 +32,80 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
   late AnimationController _animationController;
   late Animation<double> _animation;
 
+  // The active dataset — either Fitbit-sourced or mock
+  List<HrReading> _activeReadings = [];
+
+  List<DateTime> aggTimes  = [];
+  List<int>      aggMinBpm = [];
+  List<int>      aggMaxBpm = [];
+
+  // ─── Date range helpers ───────────────────────────────────────────────────
+
   DateTime get _startTime {
     final now = DateTime.now();
     switch (selectedRange) {
-      case "D": return DateTime(now.year, now.month, now.day + dateOffset);
-      case "W": 
-        int daysToMonday = now.weekday - 1; 
+      case "D":  return DateTime(now.year, now.month, now.day + dateOffset);
+      case "W":
+        int daysToMonday = now.weekday - 1;
         return DateTime(now.year, now.month, now.day - daysToMonday + (dateOffset * 7));
-      case "M": return DateTime(now.year, now.month + dateOffset, 1);
+      case "M":  return DateTime(now.year, now.month + dateOffset, 1);
       case "3M": return DateTime(now.year, now.month - 2 + (dateOffset * 3), 1);
       case "6M": return DateTime(now.year, now.month - 5 + (dateOffset * 6), 1);
-      case "Y": return DateTime(now.year + dateOffset, 1, 1);
-      default: return DateTime(now.year, now.month, now.day);
+      case "Y":  return DateTime(now.year + dateOffset, 1, 1);
+      default:   return DateTime(now.year, now.month, now.day);
     }
   }
 
   DateTime get _endTime {
     final now = DateTime.now();
     switch (selectedRange) {
-      case "D": return DateTime(now.year, now.month, now.day + dateOffset + 1);
-      case "W": 
+      case "D":  return DateTime(now.year, now.month, now.day + dateOffset + 1);
+      case "W":
         int daysToMonday = now.weekday - 1;
         return DateTime(now.year, now.month, now.day - daysToMonday + 7 + (dateOffset * 7));
-      case "M": return DateTime(now.year, now.month + dateOffset + 1, 1);
+      case "M":  return DateTime(now.year, now.month + dateOffset + 1, 1);
       case "3M": return DateTime(now.year, now.month + 1 + (dateOffset * 3), 1);
       case "6M": return DateTime(now.year, now.month + 1 + (dateOffset * 6), 1);
-      case "Y": return DateTime(now.year + dateOffset + 1, 1, 1);
-      default: return DateTime(now.year, now.month, now.day + 1);
+      case "Y":  return DateTime(now.year + dateOffset + 1, 1, 1);
+      default:   return DateTime(now.year, now.month, now.day + 1);
     }
   }
 
   String get dateRangeLabel {
-    final start = _startTime;
-    final visualEnd = _endTime.subtract(const Duration(days: 1)); 
-    const List<String> months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
+    final start    = _startTime;
+    final visualEnd = _endTime.subtract(const Duration(days: 1));
+    const months   = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     switch (selectedRange) {
-      case "D": return "${start.day} ${months[start.month - 1]} ${start.year}";
-      case "W": return "${start.day} ${months[start.month - 1]} - ${visualEnd.day} ${months[visualEnd.month - 1]}";
-      case "M": return "${months[start.month - 1]} ${start.year}";
+      case "D":  return "${start.day} ${months[start.month - 1]} ${start.year}";
+      case "W":  return "${start.day} ${months[start.month - 1]} – ${visualEnd.day} ${months[visualEnd.month - 1]}";
+      case "M":  return "${months[start.month - 1]} ${start.year}";
       case "3M":
-      case "6M": return "${months[start.month - 1]} - ${months[visualEnd.month - 1]} ${visualEnd.year}";
-      case "Y": return "${start.year}";
-      default: return "";
+      case "6M": return "${months[start.month - 1]} – ${months[visualEnd.month - 1]} ${visualEnd.year}";
+      case "Y":  return "${start.year}";
+      default:   return "";
     }
   }
 
   String get fullRangeName {
     switch (selectedRange) {
-      case "D": return "Day";
-      case "W": return "Week";
-      case "M": return "Month";
+      case "D":  return "Day";
+      case "W":  return "Week";
+      case "M":  return "Month";
       case "3M": return "3 Months";
       case "6M": return "6 Months";
-      case "Y": return "Year";
-      default: return "Day";
+      case "Y":  return "Year";
+      default:   return "Day";
     }
   }
 
-  List<DateTime> aggTimes = [];
-  List<int> aggMinBpm = [];
-  List<int> aggMaxBpm = [];
+  // ─── Lifecycle ────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
-    _aggregateData(); 
-    _animationController.forward();
+    _loadData();
   }
 
   @override
@@ -113,15 +114,78 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     super.dispose();
   }
 
+  // ─── Data loading ─────────────────────────────────────────────────────────
+
+  /// Tries Fitbit first. Falls back to MockHrData if no token or no data returned.
+  Future<void> _loadData() async {
+    setState(() => _isLoadingFitbit = true);
+
+    bool fitbitSuccess = false;
+
+    final token = await FitbitService.getSilentToken();
+    if (token != null) {
+      final restingResult = await FitbitService.getHeartRate(token);
+
+      if (restingResult != null && restingResult != '--') {
+        final parsed = int.tryParse(restingResult);
+        if (parsed != null) {
+          fitbitSuccess = true;
+          if (mounted) {
+            setState(() {
+              restingHr  = parsed;
+              currentHr  = parsed; // Use resting HR as the "current" display value
+              // Fitbit only returns a scalar for resting HR, not a full time series.
+              // We seed the graph with the mock dataset and update today's latest
+              // reading to reflect the real Fitbit value.
+              _activeReadings = List.from(MockHrData.allReadings);
+              _activeReadings.add(HrReading(DateTime.now(), parsed));
+            });
+          }
+        }
+      }
+    }
+
+    // Fallback: use the full mock dataset
+    if (!fitbitSuccess && mounted) {
+      setState(() {
+        _activeReadings = MockHrData.allReadings;
+        // Derive currentHr and restingHr from the mock data
+        final todayReadings = _activeReadings.where((r) {
+          final now = DateTime.now();
+          return r.time.year == now.year &&
+                 r.time.month == now.month &&
+                 r.time.day   == now.day;
+        }).toList();
+
+        if (todayReadings.isNotEmpty) {
+          currentHr = todayReadings.last.bpm;
+          // Resting HR = minimum reading today (approximation)
+          restingHr = todayReadings.map((r) => r.bpm).reduce(min);
+        } else if (_activeReadings.isNotEmpty) {
+          currentHr = _activeReadings.last.bpm;
+          restingHr = _activeReadings.map((r) => r.bpm).reduce(min);
+        }
+      });
+    }
+
+    if (mounted) {
+      setState(() => _isLoadingFitbit = false);
+      _aggregateData();
+      _animationController.forward();
+    }
+  }
+
+  // ─── Aggregation ──────────────────────────────────────────────────────────
+
   void _aggregateData() {
-    final rawData = MockHrData.allReadings; 
+    final rawData  = _activeReadings;
+    final startTime = _startTime;
+    final endTime   = _endTime;
+
     Map<DateTime, List<HrReading>> grouped = {};
 
-    final startTime = _startTime;
-    final endTime = _endTime;
-
     for (var reading in rawData) {
-      if (reading.time.isBefore(startTime) || reading.time.isAfter(endTime)) continue; 
+      if (reading.time.isBefore(startTime) || reading.time.isAfter(endTime)) continue;
 
       DateTime bucket;
       if (selectedRange == "D") {
@@ -137,80 +201,79 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
       grouped.putIfAbsent(bucket, () => []).add(reading);
     }
 
-    var sortedKeys = grouped.keys.toList()..sort();
+    final sortedKeys = grouped.keys.toList()..sort();
 
     aggTimes.clear();
     aggMinBpm.clear();
     aggMaxBpm.clear();
 
     for (var key in sortedKeys) {
-      var readings = grouped[key]!;
-      aggTimes.add(key); 
-      
-      int minBpm = readings.map((e) => e.bpm).reduce(min);
-      int maxBpm = readings.map((e) => e.bpm).reduce(max);
-
-      aggMinBpm.add(minBpm);
-      aggMaxBpm.add(maxBpm);
+      final readings = grouped[key]!;
+      aggTimes.add(key);
+      aggMinBpm.add(readings.map((e) => e.bpm).reduce(min));
+      aggMaxBpm.add(readings.map((e) => e.bpm).reduce(max));
     }
   }
 
+  // ─── Zone helpers ─────────────────────────────────────────────────────────
+
   String get zoneText {
-    if (currentHr < 60) return "Low"; // Bradycardia
-    if (currentHr <= 100) return "Normal";
-    if (currentHr <= 120) return "Elevated";
-    return "High"; // Tachycardia
+    if (currentHr == 0)    return "–";
+    if (currentHr < 60)    return "Low";
+    if (currentHr <= 100)  return "Normal";
+    if (currentHr <= 120)  return "Elevated";
+    return "High";
   }
 
   Color get zoneColor {
     switch (zoneText) {
-      case "Normal": return const Color(0xff4DA5E0);
-      case "Low": return Colors.deepPurple;
+      case "Normal":   return const Color(0xff4DA5E0);
+      case "Low":      return Colors.deepPurple;
       case "Elevated": return Colors.orange;
-      case "High": return Colors.red;
-      default: return const Color(0xff4DA5E0);
+      case "High":     return Colors.red;
+      default:         return Colors.grey;
     }
   }
 
   String get aiTips {
     switch (zoneText) {
-      case "Normal": return "Your heart rate is in a healthy resting range (60-100 bpm). Keep maintaining your healthy lifestyle!";
-      case "Low": return "Your heart rate is below average. This is completely normal if you are athletic, but monitor for dizziness or fatigue.";
+      case "Normal":   return "Your heart rate is in a healthy resting range (60–100 bpm). Keep maintaining your healthy lifestyle!";
+      case "Low":      return "Your heart rate is below average. This is completely normal if you are athletic, but monitor for dizziness or fatigue.";
       case "Elevated": return "Your heart rate is slightly elevated. Try taking a few deep breaths and relaxing for a few minutes.";
-      case "High": return "Your heart rate is high for a resting state. Avoid strenuous activities right now and consult a doctor if it doesn't lower.";
-      default: return "Monitor your heart rate regularly.";
+      case "High":     return "Your heart rate is high for a resting state. Avoid strenuous activities right now and consult a doctor if it doesn't lower.";
+      default:         return "Connect Fitbit or add data manually to see personalised tips.";
     }
   }
 
+  // ─── Chart interaction ────────────────────────────────────────────────────
+
   void _handleChartTap(TapUpDetails details, double width) {
-    const double leftPadding = 55.0;
-    final double usableWidth = width - leftPadding - 20.0;
-    final double dx = details.localPosition.dx;
+    const double leftPadding  = 55.0;
+    final double usableWidth  = width - leftPadding - 20.0;
+    final double dx           = details.localPosition.dx;
 
     if (dx < leftPadding - 15 || dx > width - 5) {
       setState(() => touchedIndex = null);
       return;
     }
 
-    final timeData = aggTimes;
-    if (timeData.isEmpty) return;
+    if (aggTimes.isEmpty) return;
 
-    final startTime = _startTime;
-    final endTime = _endTime;
+    final startTime   = _startTime;
+    final endTime     = _endTime;
     final totalMillis = endTime.difference(startTime).inMilliseconds;
-    
-    int? closestIndex;
+
+    int?   closestIndex;
     double minDistance = double.infinity;
 
-    for (int i = 0; i < timeData.length; i++) {
-      final elapsedMillis = timeData[i].difference(startTime).inMilliseconds;
-      double timeRatio = elapsedMillis / (totalMillis > 0 ? totalMillis : 1);
-      timeRatio = timeRatio.clamp(0.0, 1.0);
-      final x = leftPadding + (usableWidth * timeRatio);
-      
-      final distance = (x - dx).abs();
-      if (distance < 20 && distance < minDistance) { 
-        minDistance = distance;
+    for (int i = 0; i < aggTimes.length; i++) {
+      final elapsedMillis = aggTimes[i].difference(startTime).inMilliseconds;
+      double timeRatio    = elapsedMillis / (totalMillis > 0 ? totalMillis : 1);
+      timeRatio           = timeRatio.clamp(0.0, 1.0);
+      final x             = leftPadding + (usableWidth * timeRatio);
+      final distance      = (x - dx).abs();
+      if (distance < 20 && distance < minDistance) {
+        minDistance  = distance;
         closestIndex = i;
       }
     }
@@ -218,49 +281,46 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     setState(() => touchedIndex = closestIndex);
   }
 
-  void addHrData(int bpm) {
+  // ─── Manual data entry ────────────────────────────────────────────────────
+
+  void _addHrReading(int bpm) {
     setState(() {
       currentHr = bpm;
-      MockHrData.allReadings.add(HrReading(DateTime.now(), bpm));
-      _aggregateData(); 
+      _activeReadings = List.from(_activeReadings)
+        ..add(HrReading(DateTime.now(), bpm));
+      _aggregateData();
     });
     _animationController.reset();
     _animationController.forward();
   }
 
-  void showAddDataDialog() {
-    final bpmController = TextEditingController();
-
+  void _showAddDataDialog() {
+    final controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Add Heart Rate Data"),
-          content: TextField(
-            controller: bpmController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: "Heart Rate (BPM)"),
+      builder: (context) => AlertDialog(
+        title: const Text("Add Heart Rate Data"),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: "Heart Rate (BPM)"),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () {
+              final bpm = int.tryParse(controller.text);
+              if (bpm != null) _addHrReading(bpm);
+              Navigator.pop(context);
+            },
+            child: const Text("Save"),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final bpm = int.tryParse(bpmController.text);
-                if (bpm != null) {
-                  addHrData(bpm);
-                }
-                Navigator.pop(context);
-              },
-              child: const Text("Save"),
-            ),
-          ],
-        );
-      },
+        ],
+      ),
     );
   }
+
+  // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -273,221 +333,204 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
         centerTitle: false,
         title: const Text(
           "Heart Rate",
-          style: TextStyle(
-            color: Color(0xff35E0FF),
-            fontSize: 25,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(color: Color(0xff35E0FF), fontSize: 25, fontWeight: FontWeight.w600),
         ),
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(color: Colors.white.withValues(alpha: 0.25))
-          )
+            child: Container(color: Colors.white.withValues(alpha: 0.25)),
+          ),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xff35E0FF)),
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("Current", style: TextStyle(color: Colors.white, fontSize: 16)),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Text(
-                          "$currentHr",
-                          style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
+      body: _isLoadingFitbit
+          ? const Center(child: CircularProgressIndicator(color: Color(0xff35E0FF)))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  // ── Header row ──
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("Current", style: TextStyle(color: Colors.white, fontSize: 16)),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              Text(
+                                currentHr > 0 ? "$currentHr" : "–",
+                                style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(width: 4),
+                              const Text("bpm", style: TextStyle(color: Colors.white70, fontSize: 20)),
+                            ],
+                          ),
+                          Text(zoneText, style: const TextStyle(color: Colors.white70, fontSize: 16)),
+                        ],
+                      ),
+                      InkWell(
+                        onTap: _showAddDataDialog,
+                        child: const Row(
+                          children: [
+                            Icon(Icons.add_box_outlined, color: Colors.white),
+                            SizedBox(width: 6),
+                            Text("Add data", style: TextStyle(color: Colors.white, fontSize: 18)),
+                          ],
                         ),
-                        const SizedBox(width: 4),
-                        const Text(
-                          "bpm",
-                          style: TextStyle(color: Colors.white70, fontSize: 20),
-                        ),
-                      ],
-                    ),
-                    Text(zoneText, style: const TextStyle(color: Colors.white70, fontSize: 16)),
-                  ],
-                ),
-                InkWell(
-                  onTap: showAddDataDialog,
-                  child: Row(
-                    children: const [
-                      Icon(Icons.add_box_outlined, color: Colors.white),
-                      SizedBox(width: 6),
-                      Text("Add data", style: TextStyle(color: Colors.white, fontSize: 18)),
+                      ),
                     ],
                   ),
-                ),
-              ],
-            ),
 
-            const SizedBox(height: 18),
+                  const SizedBox(height: 18),
 
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                "$fullRangeName Overview",
-                style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-            ),
-
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
-                  onPressed: () {
-                    setState(() {
-                      dateOffset--; 
-                      touchedIndex = null;
-                      _aggregateData();
-                    });
-                    _animationController.reset();
-                    _animationController.forward();
-                  },
-                ),
-                Text(
-                  dateRangeLabel, 
-                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                IconButton(
-                  icon: Icon(
-                    Icons.chevron_right, 
-                    color: dateOffset < 0 ? Colors.white : Colors.white38, 
-                    size: 30
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      "$fullRangeName Overview",
+                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                    ),
                   ),
-                  onPressed: dateOffset < 0 ? () {
-                    setState(() {
-                      dateOffset++; 
-                      touchedIndex = null;
-                      _aggregateData();
-                    });
-                    _animationController.reset();
-                    _animationController.forward();
-                  } : null, 
-                ),
-              ],
-            ),
 
-            const SizedBox(height: 10),
+                  const SizedBox(height: 10),
 
-            // Chart
-            Container(
-              height: 300,
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xff59A2DD),
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: AnimatedBuilder(
-                animation: _animation,
-                builder: (context, child) {
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      return GestureDetector(
-                        onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
-                        child: CustomPaint(
-                          size: Size(constraints.maxWidth, constraints.maxHeight),
-                          painter: HeartRateChartPainter(
-                            timeData: aggTimes,
-                            minBpmData: aggMinBpm,
-                            maxBpmData: aggMaxBpm,
-                            rangeLabel: selectedRange,
-                            touchedIndex: touchedIndex,
-                            dateOffset: dateOffset,
-                            progress: _animation.value, 
+                  // ── Date navigator ──
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
+                        onPressed: () {
+                          setState(() { dateOffset--; touchedIndex = null; _aggregateData(); });
+                          _animationController.reset();
+                          _animationController.forward();
+                        },
+                      ),
+                      Text(dateRangeLabel,
+                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                      IconButton(
+                        icon: Icon(Icons.chevron_right,
+                          color: dateOffset < 0 ? Colors.white : Colors.white38, size: 30),
+                        onPressed: dateOffset < 0 ? () {
+                          setState(() { dateOffset++; touchedIndex = null; _aggregateData(); });
+                          _animationController.reset();
+                          _animationController.forward();
+                        } : null,
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // ── Chart ──
+                  Container(
+                    height: 300,
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xff59A2DD),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: AnimatedBuilder(
+                      animation: _animation,
+                      builder: (context, child) {
+                        return LayoutBuilder(
+                          builder: (context, constraints) {
+                            return GestureDetector(
+                              onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
+                              child: CustomPaint(
+                                size: Size(constraints.maxWidth, constraints.maxHeight),
+                                painter: HeartRateChartPainter(
+                                  timeData:     aggTimes,
+                                  minBpmData:   aggMinBpm,
+                                  maxBpmData:   aggMaxBpm,
+                                  rangeLabel:   selectedRange,
+                                  touchedIndex: touchedIndex,
+                                  dateOffset:   dateOffset,
+                                  progress:     _animation.value,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // ── Range filter ──
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade600,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: ["D","W","M","3M","6M","Y"].map(_filterButton).toList(),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // ── Info cards ──
+                  Row(
+                    children: [
+                      Expanded(child: _infoCard("Current HR",  currentHr > 0 ? "$currentHr\nbpm" : "–")),
+                      const SizedBox(width: 8),
+                      Expanded(child: _infoCard("Resting HR",  restingHr > 0 ? "$restingHr\nbpm" : "–")),
+                      const SizedBox(width: 8),
+                      Expanded(child: _zoneCard("Zone", zoneText)),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ── AI Tips ──
+                  InkWell(
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AssistantPage())),
+                    borderRadius: BorderRadius.circular(22),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xff375B86),
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: const [
+                              Text("💡 AI Tips", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                              Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
+                            ],
                           ),
-                        ),
-                      );
-                    },
-                  );
-                }
-              ),
-            ),
+                          const SizedBox(height: 8),
+                          Text(aiTips, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
+                        ],
+                      ),
+                    ),
+                  ),
 
-            const SizedBox(height: 14),
-
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade600,
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  filterButton("D"),
-                  filterButton("W"),
-                  filterButton("M"),
-                  filterButton("3M"),
-                  filterButton("6M"),
-                  filterButton("Y"),
+                  const SizedBox(height: 80),
                 ],
               ),
             ),
-            
-            const SizedBox(height: 24),
-
-            Row(
-              children: [
-                Expanded(child: infoCard("Current HR", "$currentHr\nbpm")), 
-                const SizedBox(width: 8),
-                Expanded(child: infoCard("Resting HR", "$restingHr\nbpm")),
-                const SizedBox(width: 8),
-                Expanded(child: zoneCard("Zone", zoneText)),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            InkWell(
-              onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const AssistantPage()));
-              },
-              borderRadius: BorderRadius.circular(22), 
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xff375B86),
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
-                        Text("💡 AI Tips", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                        Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18), 
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(aiTips, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
-  Widget infoCard(String title, String value) {
+  // ─── Small widgets ────────────────────────────────────────────────────────
+
+  Widget _infoCard(String title, String value) {
     return Container(
       height: 95,
       decoration: BoxDecoration(color: const Color(0xff4DA5E0), borderRadius: BorderRadius.circular(24)),
@@ -496,13 +539,14 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
         children: [
           Text(title, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 16)),
           const SizedBox(height: 8),
-          Text(value, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(value, textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
 
-  Widget zoneCard(String title, String value) {
+  Widget _zoneCard(String title, String value) {
     return Container(
       height: 95,
       decoration: BoxDecoration(color: zoneColor, borderRadius: BorderRadius.circular(24)),
@@ -511,35 +555,29 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
         children: [
           Text(title, style: const TextStyle(color: Colors.white, fontSize: 16)),
           const SizedBox(height: 8),
-          Text(value, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(value, textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
 
-  Widget filterButton(String label) {
+  Widget _filterButton(String label) {
     final selected = selectedRange == label;
     return InkWell(
       onTap: () {
-        setState(() {
-          selectedRange = label;
-          touchedIndex = null;
-          dateOffset = 0;
-          _aggregateData();
-        });
+        setState(() { selectedRange = label; touchedIndex = null; dateOffset = 0; _aggregateData(); });
         _animationController.reset();
         _animationController.forward();
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xff6CE5FF) : Colors.transparent, // Highlight matches graph color
+          color: selected ? const Color(0xff6CE5FF) : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Text(
-          label,
-          style: TextStyle(color: selected ? Colors.white : Colors.white70, fontSize: 15),
-        ),
+        child: Text(label,
+          style: TextStyle(color: selected ? Colors.white : Colors.white70, fontSize: 15)),
       ),
     );
   }
