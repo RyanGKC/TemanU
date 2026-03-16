@@ -95,23 +95,23 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
     height: '180', weight: '75', bloodType: 'O+', conditions: 'None',
   );
 
-  final List<Map<String, dynamic>> _metricsData = [
-    { "icon": Icons.water_drop, "title": "Blood Glucose Level", "value": "110", "unit": "mg/dl", "destination": const HomePage(), "isVisible": true, "isShareSelected": true },
-    { "icon": Icons.directions_run, "title": "Activity", "value": "--", "unit": "steps", "destination": const Activity(), "isVisible": true, "isShareSelected": true },
-    { "icon": Icons.favorite, "title": "Heart Rate", "value": "--", "unit": "bpm", "destination": const HeartRatePage(), "isVisible": true, "isShareSelected": true },
-    { "icon": Icons.opacity, "title": "Oxygen Saturation", "value": "98", "unit": "%", "destination": const OxygenSaturationPage(), "isVisible": true, "isShareSelected": true },
-    { "icon": Icons.monitor_heart, "title": "Blood Pressure", "value": "118/76", "unit": "mmHg", "destination": const BloodPressurePage(), "isVisible": true, "isShareSelected": true },
-    { "icon": Icons.local_fire_department, "title": "Calories", "value": "1900", "unit": "kcal", "destination": const CaloriesMain(), "isVisible": true, "isShareSelected": true },
-    { "icon": Icons.monitor_weight, "title": "Body Weight", "value": "80.5", "unit": "kg", "destination": const BodyWeightPage(), "isVisible": true, "isShareSelected": true },
-  ];
-
   Timer? _backgroundSyncTimer;
+  late List<Map<String, dynamic>> _metricsData;
 
   @override
   void initState() {
     super.initState();
+    _metricsData = [
+      { "icon": Icons.water_drop,          "title": "Blood Glucose Level", "value": "110",    "unit": "mg/dl", "destination": const HomePage(),                         "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.directions_run,      "title": "Activity",            "value": "--",     "unit": "steps", "destination": const Activity(),                          "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.favorite,            "title": "Heart Rate",          "value": "--",     "unit": "bpm",   "destination": const HeartRatePage(),                     "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.opacity,             "title": "Oxygen Saturation",   "value": "98",     "unit": "%",     "destination": const OxygenSaturationPage(),              "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.monitor_heart,       "title": "Blood Pressure",      "value": "118/76", "unit": "mmHg",  "destination": const BloodPressurePage(),                 "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.local_fire_department, "title": "Calories",          "value": "1900",   "unit": "kcal",  "destination": CaloriesMain(patientData: _patientData),   "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.monitor_weight,      "title": "Body Weight",         "value": "80.5",   "unit": "kg",    "destination": const BodyWeightPage(),                    "isVisible": true, "isShareSelected": true },
+    ];
     _loadPreferences();
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkInitialFitbitSync();
     });
@@ -370,7 +370,12 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
       MaterialPageRoute(builder: (_) => const ProfileInformationPage()),
     );
     if (result != null) {
-      setState(() => _patientData = result);
+      setState(() {
+        _patientData = result;
+        // Keep the Calories destination in sync with the updated profile
+        _metricsData.firstWhere((m) => m['title'] == 'Calories')['destination'] =
+            CaloriesMain(patientData: _patientData);
+      });
     }
   }
 
