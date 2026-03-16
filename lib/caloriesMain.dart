@@ -6,6 +6,7 @@ import 'package:temanu/cameraCapture.dart';
 import 'package:temanu/fitbitService.dart';
 import 'package:temanu/patientData.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class CaloriesMain extends StatefulWidget {
   // PatientData is passed in from HomePage so we can read height, weight, age, gender
@@ -18,19 +19,19 @@ class CaloriesMain extends StatefulWidget {
 }
 
 class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderStateMixin {
-  double caloriesConsumed = 1450;
+  double caloriesConsumed = 0;
 
   // Both targets are DERIVED from BMR/TDEE — never set directly by the user
   double caloriesIntakeTarget = 2200; // What they should EAT
   double caloriesBurnedTarget = 2200; // What they should BURN (= TDEE)
 
-  double proteinConsumed = 85;
+  double proteinConsumed = 0;
   final double proteinTarget = 140;
 
-  double carbsConsumed = 150;
+  double carbsConsumed = 0;
   final double carbsTarget = 250;
 
-  double fatsConsumed = 45;
+  double fatsConsumed = 0;
   final double fatsTarget = 70;
 
   // Fitbit calories burned
@@ -40,6 +41,8 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
   // Goal settings
   String _bodyGoal   = 'maintain'; // 'deficit' | 'maintain' | 'surplus'
   int    _goalOffset = 500;        // Always positive; applied as ± against TDEE
+
+  List<Map<String, dynamic>> trackedMealsList = [];
 
   // Activity level multipliers (Mifflin-St Jeor standard)
   String _activityLevel = 'sedentary';
@@ -66,13 +69,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
   };
 
   late AnimationController _controller;
-  late Animation<double> _animation;
-
-  final List<Map<String, dynamic>> trackedMealsList = [
-    {"name": "Oats and Honey",        "calories": 450, "protein": 15, "carbs": 65, "fats": 8},
-    {"name": "Grilled Chicken Salad", "calories": 600, "protein": 45, "carbs": 20, "fats": 25},
-    {"name": "Salmon and Quinoa",     "calories": 400, "protein": 35, "carbs": 40, "fats": 12},
-  ];
+  late Animation<double> _animation; 
 
   final String aiTips =
       "You've hit 60% of your protein goal but only 30% of your calories. Great lean eating! Consider a balanced dinner to hit your energy targets.";
@@ -141,14 +138,45 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
   }
 
   // ─── Persistence ──────────────────────────────────────────────────────────
-
   Future<void> _loadGoalSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _bodyGoal      = prefs.getString('body_goal')      ?? 'maintain';
-      _goalOffset    = prefs.getInt('goal_offset')       ?? 500;
+      _bodyGoal      = prefs.getString('body_goal') ?? 'maintain';
+      _goalOffset    = prefs.getInt('goal_offset') ?? 500;
       _activityLevel = prefs.getString('activity_level') ?? 'sedentary';
-      _recalculateTargets();
+      
+      // 1. Load the actual list of tracked meals!
+      final String? mealsJson = prefs.getString('tracked_meals');
+
+      if (mealsJson != null) {
+        // If meals exist in storage, decode them
+        final List<dynamic> decoded = jsonDecode(mealsJson);
+        trackedMealsList = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+      } else {
+        // If it's the very first time opening the app, use the mock data as a starter
+        trackedMealsList = [
+          {"name": "Oats and Honey",        "calories": 450, "protein": 15, "carbs": 65, "fats": 8},
+          {"name": "Grilled Chicken Salad", "calories": 600, "protein": 45, "carbs": 20, "fats": 25},
+          {"name": "Salmon and Quinoa",     "calories": 400, "protein": 35, "carbs": 40, "fats": 12},
+        ];
+        // Save these starter meals to storage immediately so the homepage sees them
+        prefs.setString('tracked_meals', jsonEncode(trackedMealsList));
+      }
+
+      // 2. Dynamically calculate ALL totals by looping through the actual meals
+      caloriesConsumed = 0;
+      proteinConsumed = 0;
+      carbsConsumed = 0;
+      fatsConsumed = 0;
+
+      for (var meal in trackedMealsList) {
+        caloriesConsumed += (meal['calories'] as num).toDouble();
+        proteinConsumed  += (meal['protein']  as num).toDouble();
+        carbsConsumed    += (meal['carbs']    as num).toDouble();
+        fatsConsumed     += (meal['fats']     as num).toDouble();
+      }
+
+      _recalculateTargets(); 
     });
   }
 
@@ -928,6 +956,11 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
             carbsConsumed    += (newMeal["carbs"]    as num).toDouble();
             fatsConsumed     += (newMeal["fats"]     as num).toDouble();
           });
+          
+          // NEW: Encode and save the entire list to storage!
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('tracked_meals', jsonEncode(trackedMealsList));
+
           _controller.forward(from: 0.0);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Meal tracked successfully!"), backgroundColor: Color(0xff00E676)));

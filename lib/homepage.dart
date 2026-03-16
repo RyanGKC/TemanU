@@ -15,6 +15,7 @@ import 'package:temanu/patientData.dart';
 import 'package:temanu/pdfGenerator.dart';
 import 'package:temanu/profileInformation.dart';
 import 'package:temanu/fitbitService.dart';
+import 'dart:convert';
 
 class HomePage extends StatefulWidget {
   final GlobalKey<HealthDashboardContentState> dashboardKey;
@@ -377,10 +378,30 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
+      // 1. Load the visibility preferences for the dashboard cards
       for (var metric in _metricsData) {
         metric['isVisible'] = prefs.getBool(metric['title']) ?? true;
       }
 
+      // 2. Load the JSON list of tracked meals and calculate the total dynamically
+      final String? mealsJson = prefs.getString('tracked_meals');
+      double dynamicallyCalculatedCalories = 0;
+
+      if (mealsJson != null) {
+        // Decode the saved list and sum up the calories
+        final List<dynamic> decoded = jsonDecode(mealsJson);
+        for (var meal in decoded) {
+          dynamicallyCalculatedCalories += (meal['calories'] as num).toDouble();
+        }
+      } else {
+        // Fallback to your mock data total if the app is freshly installed
+        dynamicallyCalculatedCalories = 1450; 
+      }
+
+      // 3. Inject the perfectly synced total into the Calories card
+      _metricsData.firstWhere((m) => m['title'] == 'Calories')['value'] = dynamicallyCalculatedCalories.toInt().toString();
+
+      // 4. Load the user's goals and calculate the burn target
       _bodyGoal = prefs.getString('body_goal') ?? 'maintain';
       _caloriesTarget = prefs.getDouble('calories_intake_target') ?? 2200;
       int goalOffset = prefs.getInt('goal_offset') ?? 500;
@@ -683,11 +704,13 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
 
   Widget healthCard(BuildContext context, IconData icon, String title, String value, String unit, Widget destinationPage) {
     return GestureDetector(
-      onTap: () {
+      onTap: () async{
         if (destinationPage is ProfileInformationPage) {
-          _navigateToProfile();
+          await _navigateToProfile();
         } else {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => destinationPage));
+          await Navigator.push(context, MaterialPageRoute(builder: (context) => destinationPage));
+
+          _loadPreferences();
         }
       },
       child: Container(
