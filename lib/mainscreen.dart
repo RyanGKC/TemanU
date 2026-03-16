@@ -13,13 +13,22 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+  
+  // 1. Create the GlobalKey to access the dashboard state
+  final GlobalKey<HealthDashboardContentState> _dashboardKey = GlobalKey();
+
+  // 2. Store the latest health data to pass to the Assistant
+  Map<String, dynamic> _latestHealthData = {};
 
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [
-      const HomePage(),
+      // 3. Pass the key to HomePage
+      HomePage(dashboardKey: _dashboardKey),
       const SettingsPage(), 
+      // 4. Pass the data to AssistantPage
       AssistantPage(
+        userData: _latestHealthData,
         onBackTabPressed: () {
           setState(() {
             _currentIndex = 0; 
@@ -40,6 +49,12 @@ class _MainScreenState extends State<MainScreen> {
           : CustomBottomNavBar(
               currentIndex: _currentIndex,
               onTap: (index) {
+                // 5. Intercept the tap to grab data before switching to the Assistant (Index 2)
+                if (index == 2) {
+                  if (_dashboardKey.currentState != null) {
+                    _latestHealthData = _dashboardKey.currentState!.gatherDataForAI();
+                  }
+                }
                 setState(() {
                   _currentIndex = index;
                 });

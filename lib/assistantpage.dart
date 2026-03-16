@@ -1,18 +1,29 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 class ChatMessage {
   final String text;
   final bool isUser;
+  final XFile? image;
 
-  ChatMessage({required this.text, required this.isUser});
+  ChatMessage({required this.text, required this.isUser, this.image});
 }
 
 class AssistantPage extends StatefulWidget {
-  // ADDED: An optional function to handle tab navigation
   final VoidCallback? onBackTabPressed;
+  final Map<String, dynamic> userData;
 
-  const AssistantPage({super.key, this.onBackTabPressed});
+  const AssistantPage({
+    super.key, 
+    this.onBackTabPressed, 
+    this.userData = const {}, 
+  });
 
   @override
   State<AssistantPage> createState() => _AssistantPageState();
@@ -21,37 +32,159 @@ class AssistantPage extends StatefulWidget {
 class _AssistantPageState extends State<AssistantPage> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final ImagePicker _picker = ImagePicker(); // Image picker instance
   
-  final List<ChatMessage> _messages = [
+  XFile? _selectedImage; // State to hold the currently selected image
+
+  late final List<ChatMessage> _messages = [
     ChatMessage(
-      text: "Hi James! I'm your health assistant. What can I help you with today?", 
+      text: "Hi ${widget.userData['name'] ?? 'there'}! I'm your health assistant. What can I help you with today?", 
       isUser: false
     )
   ];
   
   bool _isTyping = false;
 
-  void _handleSubmitted(String text) async {
-    if (text.trim().isEmpty) return;
+  static String get _geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
+
+  late final GenerativeModel _model;
+  late final ChatSession _chatSession;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeChat();
+  }
+
+  void _initializeChat() {
+    // 1. Extract the passed data safely
+    final name = widget.userData['name'] ?? 'the user';
+    final age = widget.userData['age'] ?? 'unknown';
+    final gender = widget.userData['gender'] ?? 'unknown';
+    final height = widget.userData['height'] ?? 'unknown';
+    final weight = widget.userData['weight'] ?? 'unknown';
+    final bloodType = widget.userData['bloodType'] ?? 'unknown';
+    final conditions = widget.userData['healthConditions'] ?? 'None reported';
+    
+    final steps = widget.userData['steps'] ?? 'unknown';
+    final heartRate = widget.userData['heartRate'] ?? 'unknown';
+    final oxygen = widget.userData['oxygenSaturation'] ?? 'unknown';
+    final calories = widget.userData['calories'] ?? 'unknown';
+    final bloodPressure = widget.userData['bloodPressure'] ?? 'unknown';
+    final bloodGlucose = widget.userData['bloodGlucose'] ?? 'unknown';
+
+    // 2. Build the nameless persona and inject the live metrics
+    final systemPrompt = '''
+      You are a helpful, concise health and fitness AI assistant. You do not have a personal name. 
+      You are speaking directly to $name. Keep your answers relatively short and suitable for a mobile chat interface.
+      You can analyze images of food, workout gear, or nutrition labels if $name shares them with you.
+      
+      Here is the current health and biometric profile for $name:
+      - Age: $age
+      - Gender: $gender
+      - Height: $height cm
+      - Weight: $weight kg
+      - Blood Type: $bloodType
+      - Health Conditions: $conditions
+      
+      Today's Live Metrics:
+      - Steps Taken: $steps steps
+      - Heart Rate: $heartRate bpm
+      - Oxygen Saturation (SpO2): $oxygen%
+      - Calories: $calories kcal
+      - Blood Pressure: $bloodPressure mmHg
+      - Blood Glucose: $bloodGlucose mg/dl
+      
+      Use this data to provide highly personalized, context-aware advice. 
+      If the user asks about a metric that is 'unknown' or '--', kindly inform them that the data hasn't been synced or tracked yet today.
+    ''';
+
+    _model = GenerativeModel(
+      model: 'gemini-2.5-flash',
+      apiKey: _geminiApiKey,
+      systemInstruction: Content.system(systemPrompt),
+    );
+    
+    _chatSession = _model.startChat();
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImage = pickedFile;
+        });
+      }
+    } catch (e) {
+      debugPrint("Failed to pick image: $e");
+    }
+  }
+
+  void _handleSubmitted() async {
+    final text = _textController.text.trim();
+    
+    // Don't send if both text and image are empty
+    if (text.isEmpty && _selectedImage == null) return;
+
+    final currentText = text;
+    final currentImage = _selectedImage;
 
     _textController.clear();
     
     setState(() {
-      _messages.add(ChatMessage(text: text, isUser: true));
+      _selectedImage = null; // Clear preview
+      _messages.add(ChatMessage(text: currentText, isUser: true, image: currentImage));
       _isTyping = true;
     });
     
     _scrollToBottom();
 
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      late final GenerateContentResponse response;
+      
+      if (currentImage != null) {
+        // Send Multimodal Message
+        final imageBytes = await currentImage.readAsBytes();
+        
+        response = await _chatSession.sendMessage(
+          Content.multi([
+            TextPart(currentText.isNotEmpty ? currentText : "Please analyze this image."),
+            DataPart('image/jpeg', imageBytes),
+          ])
+        );
+      } else {
+        // Send Text-Only Message
+        response = await _chatSession.sendMessage(Content.text(currentText));
+      }
 
-    setState(() {
-      _isTyping = false;
-      _messages.add(ChatMessage(
-        text: "That's a great question! I am a simulated AI right now, but once you connect me to an API, I'll be able to give you real insights about your health data.", 
-        isUser: false
-      ));
-    });
+      final responseText = response.text;
+
+      if (responseText != null) {
+        setState(() {
+          _isTyping = false;
+          _messages.add(ChatMessage(text: responseText, isUser: false));
+        });
+      } else {
+        throw Exception("Gemini returned an empty response.");
+      }
+    } catch (e) {
+      setState(() {
+        _isTyping = false;
+        _messages.add(ChatMessage(
+          text: "Sorry, I had trouble processing that. Please try again.", 
+          isUser: false
+        ));
+      });
+      debugPrint('Chat error: $e');
+    }
 
     _scrollToBottom();
   }
@@ -82,8 +215,6 @@ class _AssistantPageState extends State<AssistantPage> {
             icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
             onPressed: () {
               FocusScope.of(context).unfocus();
-              
-              // NEW LOGIC: If it's a tab, switch back to home. Otherwise, pop the page!
               if (widget.onBackTabPressed != null) {
                 widget.onBackTabPressed!();
               } else {
@@ -122,7 +253,7 @@ class _AssistantPageState extends State<AssistantPage> {
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      "Assistant is typing...",
+                      "Assistant is typing...", // <-- Changed here
                       style: TextStyle(
                         color: Colors.white54, 
                         fontStyle: FontStyle.italic
@@ -130,6 +261,7 @@ class _AssistantPageState extends State<AssistantPage> {
                     ),
                   ),
                 ),
+                
               _buildMessageInput(),
               const SizedBox(height: 10), 
             ],
@@ -159,12 +291,45 @@ class _AssistantPageState extends State<AssistantPage> {
             bottomRight: isUser ? const Radius.circular(0) : const Radius.circular(20),
           ),
         ),
-        child: Text(
-          message.text,
-          style: TextStyle(
-            color: isUser ? const Color(0xff040F31) : Colors.white, 
-            fontSize: 16,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Display Image if it exists
+            if (message.image != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: kIsWeb
+                      ? Image.network(message.image!.path, fit: BoxFit.cover)
+                      : Image.file(File(message.image!.path), fit: BoxFit.cover),
+                ),
+              ),
+            
+            // Display Text if it's not empty
+            if (message.text.isNotEmpty)
+              MarkdownBody(
+                data: message.text,
+                styleSheet: MarkdownStyleSheet(
+                  // Default text style (paragraphs)
+                  p: TextStyle(
+                    color: isUser ? const Color(0xff040F31) : Colors.white, 
+                    fontSize: 16,
+                  ),
+                  // Bold text style (strong)
+                  strong: TextStyle(
+                    color: isUser ? const Color(0xff040F31) : Colors.white, 
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  // List item styles
+                  listBullet: TextStyle(
+                    color: isUser ? const Color(0xff040F31) : Colors.white,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -173,81 +338,124 @@ class _AssistantPageState extends State<AssistantPage> {
   Widget _buildMessageInput() {
     return Padding(
       padding: const EdgeInsets.only(left: 15, right: 15, bottom: 10, top: 10), 
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20), 
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1), 
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.2), 
-                width: 1.5
-              ), 
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end, 
-              children: [
-                // THE PLUS BUTTON
-                Padding(
-                  // FIXED: Changed bottom to 4.0 for perfect mathematical centering
-                  padding: const EdgeInsets.only(bottom: 4.0, left: 6.0),
-                  child: IconButton(
-                    icon: const Icon(Icons.add, color: Color(0xff00E5FF), size: 28),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 40, minHeight: 40), 
-                    onPressed: () {
-                      FocusScope.of(context).unfocus(); 
-                      print("Plus button pressed");
-                    },
-                  ),
-                ),
-                
-                // THE TEXT FIELD 
-                Expanded(
-                  child: TextField(
-                    controller: _textController,
-                    minLines: 1, 
-                    maxLines: 5, 
-                    keyboardType: TextInputType.multiline, 
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
-                      hintText: "Message...",
-                      hintStyle: TextStyle(color: Colors.white54),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      filled: true,
-                      fillColor: Colors.transparent,
-                      isDense: true,
-                      // The vertical: 14 here dictates the overall height (approx 48px)
-                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // IMAGE PREVIEW AREA
+          if (_selectedImage != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10, left: 10),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    height: 80,
+                    width: 80,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(color: const Color(0xff00E5FF), width: 2),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(13),
+                      child: kIsWeb
+                          ? Image.network(_selectedImage!.path, fit: BoxFit.cover)
+                          : Image.file(File(_selectedImage!.path), fit: BoxFit.cover),
                     ),
                   ),
-                ),
-                
-                // THE SEND BUTTON
-                Padding(
-                  // FIXED: Changed bottom to 4.0 for perfect mathematical centering
-                  padding: const EdgeInsets.only(bottom: 4.0, right: 6.0, left: 4.0),
-                  child: GestureDetector(
-                    onTap: () => _handleSubmitted(_textController.text),
-                    child: SizedBox(
-                      height: 40,
-                      width: 40,
-                      child: const Icon(
-                        Icons.send, 
-                        color: Color(0xff00E5FF), 
-                        size: 18
+                  Positioned(
+                    top: -8,
+                    right: -8,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedImage = null),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.redAccent,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.close, color: Colors.white, size: 14),
                       ),
                     ),
-                  ),
+                  )
+                ],
+              ),
+            ),
+            
+          // TEXT INPUT BAR
+          ClipRRect(
+            borderRadius: BorderRadius.circular(30),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20), 
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.1), 
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2), 
+                    width: 1.5
+                  ), 
                 ),
-              ],
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end, 
+                  children: [
+                    // THE PLUS BUTTON (Now wires up to Image Picker)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4.0, left: 6.0),
+                      child: IconButton(
+                        icon: const Icon(Icons.add_photo_alternate_outlined, color: Color(0xff00E5FF), size: 26),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40), 
+                        onPressed: () {
+                          FocusScope.of(context).unfocus(); 
+                          _pickImage();
+                        },
+                      ),
+                    ),
+                    
+                    // THE TEXT FIELD 
+                    Expanded(
+                      child: TextField(
+                        controller: _textController,
+                        minLines: 1, 
+                        maxLines: 5, 
+                        keyboardType: TextInputType.multiline, 
+                        style: const TextStyle(color: Colors.white),
+                        decoration: const InputDecoration(
+                          hintText: "Message...",
+                          hintStyle: TextStyle(color: Colors.white54),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          filled: true,
+                          fillColor: Colors.transparent,
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+                        ),
+                      ),
+                    ),
+                    
+                    // THE SEND BUTTON
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4.0, right: 6.0, left: 4.0),
+                      child: GestureDetector(
+                        onTap: _handleSubmitted,
+                        child: const SizedBox(
+                          height: 40,
+                          width: 40,
+                          child: Icon(
+                            Icons.send, 
+                            color: Color(0xff00E5FF), 
+                            size: 18
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

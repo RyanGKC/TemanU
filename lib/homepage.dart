@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:temanu/activity.dart';
+import 'package:temanu/bloodGlucose.dart';
 import 'package:temanu/bloodpressure.dart';
 import 'package:temanu/bodyweight.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,15 +17,14 @@ import 'package:temanu/profileInformation.dart';
 import 'package:temanu/fitbitService.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final GlobalKey<HealthDashboardContentState> dashboardKey;
+  const HomePage({super.key, required this.dashboardKey});
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  // --- NEW: GlobalKey to let the pull-to-refresh talk to the dashboard ---
-  final GlobalKey<HealthDashboardContentState> _dashboardKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
@@ -54,20 +54,15 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: const Color(0xff040F31),
       // --- NEW: RefreshIndicator for Pull-to-Refresh ---
       body: RefreshIndicator(
-        color: const Color(0xff040F31),
-        backgroundColor: const Color(0xff00E5FF),
         onRefresh: () async {
-          // Triggers the sync function inside the dashboard widget
-          await _dashboardKey.currentState?.forceSyncFitbit();
+          await widget.dashboardKey.currentState?.forceSyncFitbit();
         },
         child: SingleChildScrollView(
-          // AlwaysScrollableScrollPhysics ensures the pull-to-refresh works even if the screen isn't completely full
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Pass the key to the dashboard!
-              HealthDashboardContent(key: _dashboardKey),
+              // Pass the key to the dashboard content
+              HealthDashboardContent(key: widget.dashboardKey),
               const Padding(
                 padding: EdgeInsets.only(left: 20.0, right: 20.0, top: 10.0),
                 child: MedicationLog(),
@@ -102,7 +97,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   void initState() {
     super.initState();
     _metricsData = [
-      { "icon": Icons.water_drop,          "title": "Blood Glucose Level", "value": "110",    "unit": "mg/dl", "destination": const HomePage(),                         "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.water_drop,          "title": "Blood Glucose Level", "value": "110",    "unit": "mg/dl", "destination": const BloodGlucose(),                         "isVisible": true, "isShareSelected": true },
       { "icon": Icons.directions_run,      "title": "Activity",            "value": "--",     "unit": "steps", "destination": const Activity(),                          "isVisible": true, "isShareSelected": true },
       { "icon": Icons.favorite,            "title": "Heart Rate",          "value": "--",     "unit": "bpm",   "destination": const HeartRatePage(),                     "isVisible": true, "isShareSelected": true },
       { "icon": Icons.opacity,             "title": "Oxygen Saturation",   "value": "98",     "unit": "%",     "destination": const OxygenSaturationPage(),              "isVisible": true, "isShareSelected": true },
@@ -129,6 +124,29 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   void dispose() {
     _backgroundSyncTimer?.cancel();
     super.dispose();
+  }
+
+  // Helper method to gather all data for the AI
+  Map<String, dynamic> gatherDataForAI() {
+    String getMetricValue(String title) {
+      return _metricsData.firstWhere((m) => m['title'] == title, orElse: () => {'value': '--'})['value'];
+    }
+
+    return {
+      'name': _patientData.name,
+      'age': _patientData.age,
+      'gender': _patientData.gender,
+      'height': _patientData.height,
+      'weight': _patientData.weight,
+      'bloodType': _patientData.bloodType,
+      'healthConditions': _patientData.conditions,
+      'bloodGlucose': getMetricValue('Blood Glucose Level'),
+      'steps': getMetricValue('Activity'),
+      'heartRate': getMetricValue('Heart Rate'),
+      'oxygenSaturation': getMetricValue('Oxygen Saturation'),
+      'bloodPressure': getMetricValue('Blood Pressure'),
+      'calories': getMetricValue('Calories'), 
+    };
   }
 
   Future<void> _checkInitialFitbitSync() async {

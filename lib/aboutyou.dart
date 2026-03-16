@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:temanu/button.dart';
-import 'package:temanu/homepage.dart';
+import 'package:temanu/mainscreen.dart';
 
 class AboutYou extends StatefulWidget {
   const AboutYou({super.key});
@@ -161,7 +161,7 @@ class AboutYouState extends State <AboutYou> {
                       onPressed: () {
                         Navigator.pop(
                           context, 
-                          MaterialPageRoute(builder: (context) => const HomePage())
+                          MaterialPageRoute(builder: (context) => const MainScreen())
                         );
                       }
                     ),
