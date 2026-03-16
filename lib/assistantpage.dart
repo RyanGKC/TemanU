@@ -72,31 +72,36 @@ class _AssistantPageState extends State<AssistantPage> {
     final calories = widget.userData['calories'] ?? 'unknown';
     final bloodPressure = widget.userData['bloodPressure'] ?? 'unknown';
     final bloodGlucose = widget.userData['bloodGlucose'] ?? 'unknown';
+    final bodyGoal = widget.userData['bodyGoal'] ?? 'maintain';
+    final targetIntake = widget.userData['caloriesIntakeTarget'] ?? 'unknown';
+    final targetBurn = widget.userData['caloriesBurnTarget'] ?? 'unknown';
 
-    // 2. Build the nameless persona and inject the live metrics
     final systemPrompt = '''
       You are a helpful, concise health and fitness AI assistant. You do not have a personal name. 
       You are speaking directly to $name. Keep your answers relatively short and suitable for a mobile chat interface.
-      You can analyze images of food, workout gear, or nutrition labels if $name shares them with you.
       
       Here is the current health and biometric profile for $name:
       - Age: $age
       - Gender: $gender
       - Height: $height cm
       - Weight: $weight kg
-      - Blood Type: $bloodType
+      - Blood type: $bloodType
       - Health Conditions: $conditions
+
+      
+      CURRENT CALORIC GOAL: $bodyGoal
+      - Daily Intake Target: $targetIntake kcal
+      - Daily Burn Target: $targetBurn kcal
       
       Today's Live Metrics:
+      - Calories Eaten: $calories kcal (Target: $targetIntake kcal)
       - Steps Taken: $steps steps
       - Heart Rate: $heartRate bpm
       - Oxygen Saturation (SpO2): $oxygen%
-      - Calories: $calories kcal
       - Blood Pressure: $bloodPressure mmHg
       - Blood Glucose: $bloodGlucose mg/dl
       
-      Use this data to provide highly personalized, context-aware advice. 
-      If the user asks about a metric that is 'unknown' or '--', kindly inform them that the data hasn't been synced or tracked yet today.
+      Use this data to provide highly personalized advice. Compare their "Calories Eaten" against their "Daily Intake Target" and their goal to $bodyGoal to tell them if they are on track today.
     ''';
 
     _model = GenerativeModel(

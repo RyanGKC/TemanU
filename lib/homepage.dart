@@ -92,6 +92,9 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
 
   Timer? _backgroundSyncTimer;
   late List<Map<String, dynamic>> _metricsData;
+  String _bodyGoal = 'maintain';
+  double _caloriesTarget = 2200;
+  double _caloriesBurnTarget = 2200;
 
   @override
   void initState() {
@@ -146,6 +149,9 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
       'oxygenSaturation': getMetricValue('Oxygen Saturation'),
       'bloodPressure': getMetricValue('Blood Pressure'),
       'calories': getMetricValue('Calories'), 
+      'bodyGoal': _bodyGoal,
+      'caloriesIntakeTarget': _caloriesTarget,
+      'caloriesBurnTarget': _caloriesBurnTarget,
     };
   }
 
@@ -374,6 +380,15 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
       for (var metric in _metricsData) {
         metric['isVisible'] = prefs.getBool(metric['title']) ?? true;
       }
+
+      _bodyGoal = prefs.getString('body_goal') ?? 'maintain';
+      _caloriesTarget = prefs.getDouble('calories_intake_target') ?? 2200;
+      int goalOffset = prefs.getInt('goal_offset') ?? 500;
+
+      int signedOffset = 0;
+      if (_bodyGoal == 'deficit') signedOffset = goalOffset;
+      if (_bodyGoal == 'surplus') signedOffset = -goalOffset;
+      _caloriesBurnTarget = (_caloriesTarget + signedOffset).clamp(500, 9999).toDouble();
     });
   }
 
