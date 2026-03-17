@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // <-- NEW
+import 'package:temanu/api_service.dart'; // <-- NEW
 import 'package:temanu/button.dart';
 import 'package:temanu/mainscreen.dart';
 
@@ -11,14 +13,16 @@ class AboutYou extends StatefulWidget {
 }
 
 class AboutYouState extends State <AboutYou> {
-
   String? selectedGender;
   final List<String> genderOptions = ['Male', 'Female'];
   DateTime? selectedDate;
+  
   final dateOfBirthcontroller = TextEditingController();
   final heightController = TextEditingController();
   final weightController = TextEditingController();
   final bloodTypeController = TextEditingController();
+
+  bool _isLoading = false; // <-- NEW: Loading spinner state
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -30,15 +34,62 @@ class AboutYouState extends State <AboutYou> {
 
     if (picked != null && picked != selectedDate) {
       setState(() {
-        selectedDate = picked; // Save the object here!
+        selectedDate = picked; 
         dateOfBirthcontroller.text = "${picked.day}/${picked.month}/${picked.year}";
       });
     }
   }
 
+  // <-- NEW: The function that saves the data
+  Future<void> _submitData() async {
+    if (selectedGender == null || 
+        dateOfBirthcontroller.text.isEmpty || 
+        heightController.text.isEmpty || 
+        weightController.text.isEmpty || 
+        bloodTypeController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill out all fields.')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    // 1. Save to SharedPreferences for local app / AI use
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('gender', selectedGender!);
+    await prefs.setString('dob', dateOfBirthcontroller.text);
+    await prefs.setString('height', heightController.text);
+    await prefs.setString('weight', weightController.text);
+    await prefs.setDouble('latest_weight', double.parse(weightController.text));
+    await prefs.setString('blood_type', bloodTypeController.text);
+
+    // 2. Push the Height and Weight to the Railway Database!
+    await ApiService.saveHealthMetric(
+      metricType: "Height", 
+      value: heightController.text, 
+      unit: "cm"
+    );
+    await ApiService.saveHealthMetric(
+      metricType: "Body Weight", 
+      value: weightController.text, 
+      unit: "kg"
+    );
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+      
+      // 3. Clear the navigation history and go straight to the Main Dashboard
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const MainScreen()),
+        (Route<dynamic> route) => false, // This destroys the back button history
+      );
+    }
+  }
+
   @override
   void dispose() {
-    // Always dispose your controllers!
     dateOfBirthcontroller.dispose();
     heightController.dispose();
     weightController.dispose();
@@ -74,7 +125,7 @@ class AboutYouState extends State <AboutYou> {
                         fontWeight: FontWeight.w600
                       )
                     ),
-                    SizedBox(height: 30),
+                    const SizedBox(height: 30),
                     DropdownButtonFormField<String>(
                       initialValue: selectedGender,
                       hint: const Text(
@@ -95,9 +146,7 @@ class AboutYouState extends State <AboutYou> {
                           value: value,
                           child: Text(
                             value,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w200
-                            ),
+                            style: TextStyle(fontWeight: FontWeight.w200),
                           ),
                         );
                       }).toList(),
@@ -113,9 +162,7 @@ class AboutYouState extends State <AboutYou> {
                     TextFormField(
                       controller: heightController,
                       keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: myInput('Height (cm)'),
                     ),
                     const SizedBox(height: 15),
@@ -123,7 +170,7 @@ class AboutYouState extends State <AboutYou> {
                       controller: weightController,
                       keyboardType: TextInputType.number,
                       inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,1}')), // Allows decimals for weight!
                       ],
                       decoration: myInput('Weight (kg)'),
                     ),
@@ -142,9 +189,7 @@ class AboutYouState extends State <AboutYou> {
                             value: label, 
                             child: Text(
                               label,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w200
-                              ),
+                              style: const TextStyle(fontWeight: FontWeight.w200),
                             )))
                           .toList(),
                       onChanged: (value) {
@@ -153,34 +198,33 @@ class AboutYouState extends State <AboutYou> {
                         });
                       },
                     ),
-                    const SizedBox(height: 15),
-                    MyRoundedButton(
-                      text: 'Register', 
-                      backgroundColor: Color(0xff3183BE), 
-                      textColor: Colors.white, 
-                      onPressed: () {
-                        Navigator.pop(
-                          context, 
-                          MaterialPageRoute(builder: (context) => const MainScreen())
-                        );
-                      }
-                    ),
+                    const SizedBox(height: 25),
+                    
+                    // <-- NEW: Show spinner while saving data
+                    _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : MyRoundedButton(
+                          text: 'Complete Registration', 
+                          backgroundColor: const Color(0xff3183BE), 
+                          textColor: Colors.white, 
+                          onPressed: _submitData, // <-- Trigger the save function
+                        ),
                   ],
                 )
               )
             )
           ),
           Positioned(
-            bottom: 20, // Distance from bottom
-            left: 20,   // Distance from left
+            bottom: 20, 
+            left: 20,   
             child: IconButton(
               onPressed: () {
-                Navigator.pop(context); // Goes back to the previous screen
+                Navigator.pop(context); 
               },
               icon: const Icon(Icons.arrow_back_ios_new),
               color: Colors.white,
               style: IconButton.styleFrom(
-                backgroundColor: Colors.black26, // Semi-transparent circle
+                backgroundColor: Colors.black26, 
                 padding: const EdgeInsets.all(12),
               ),
             ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:temanu/api_service.dart'; // <-- MAKE SURE TO IMPORT YOUR API SERVICE
 import 'package:temanu/button.dart';
 import 'package:temanu/forgotPassword.dart';
 import 'package:temanu/mainscreen.dart';
@@ -15,15 +16,55 @@ class LoginDetails extends StatefulWidget {
 class _LoginDetailsState extends State<LoginDetails> {
   final usernameController = TextEditingController();
   final passwordController = TextEditingController();
+  
   bool _isPasswordVisible = false;
+  bool _isLoading = false; // <-- NEW: Track loading state
 
   void _showForgotPasswordDialog() {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.6), // Matches your sleek styling
+      barrierColor: Colors.black.withValues(alpha: 0.6), 
       barrierDismissible: false, 
       builder: (context) => const ForgotPasswordDialog(),
     );
+  }
+
+  // <-- NEW: The function that talks to your backend
+  Future<void> _handleLogin() async {
+    final username = usernameController.text.trim();
+    final password = passwordController.text.trim();
+
+    // 1. Basic validation
+    if (username.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter both username and password.')),
+      );
+      return;
+    }
+
+    // 2. Start loading
+    setState(() => _isLoading = true);
+
+    // 3. Call the API
+    bool success = await ApiService.login(username, password);
+
+    // 4. Stop loading
+    if (mounted) {
+      setState(() => _isLoading = false);
+
+      if (success) {
+        // Boom! JWT is securely saved, go to the dashboard
+        Navigator.pushReplacement(
+          context, 
+          MaterialPageRoute(builder: (context) => const MainScreen())
+        );
+      } else {
+        // Wrong password or user doesn't exist
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid username or password.')),
+        );
+      }
+    }
   }
 
   @override
@@ -82,7 +123,6 @@ class _LoginDetailsState extends State<LoginDetails> {
                     ),
                     const SizedBox(height: 15),
                     
-                    // FORGOT PASSWORD TRIGGER ADDED HERE
                     Align(
                       alignment: Alignment.topRight,
                       child: GestureDetector(
@@ -93,24 +133,24 @@ class _LoginDetailsState extends State<LoginDetails> {
                             fontSize: 13,
                             fontWeight: FontWeight.w400,
                             color: Colors.white,
-                            decoration: TextDecoration.underline, // Visual cue that it's clickable
+                            decoration: TextDecoration.underline,
                           )
                         ),
                       )
                     ),
 
                     const SizedBox(height: 30),
-                    MyRoundedButton(
-                      text: 'Login',
-                      backgroundColor: const Color(0xff3183BE),
-                      textColor: Colors.white,
-                      onPressed: () {
-                        Navigator.pushReplacement(
-                          context, 
-                          MaterialPageRoute(builder: (context) => MainScreen())
-                        );
-                      },
-                    ),
+                    
+                    // <-- NEW: Show a spinner if loading, otherwise show the Login button
+                    _isLoading 
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : MyRoundedButton(
+                          text: 'Login',
+                          backgroundColor: const Color(0xff3183BE),
+                          textColor: Colors.white,
+                          onPressed: _handleLogin, // Trigger the API call here
+                        ),
+
                     const SizedBox(height: 20),
                     const Row(
                       children: [

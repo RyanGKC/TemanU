@@ -1,13 +1,14 @@
 import 'dart:ui';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // NEW
-import 'package:google_generative_ai/google_generative_ai.dart'; // NEW
-import 'package:shared_preferences/shared_preferences.dart'; // NEW
+import 'package:flutter_dotenv/flutter_dotenv.dart'; 
+import 'package:google_generative_ai/google_generative_ai.dart'; 
+import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:temanu/heartRateChartPainter.dart';
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/fitbitService.dart';
 import 'package:temanu/mockHrData.dart';
+import 'package:temanu/api_service.dart';
 
 // HrReading is defined here so both heartrate.dart and mockHrData.dart can use it
 class HrReading {
@@ -345,20 +346,32 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
 
   // ─── Manual data entry ────────────────────────────────────────────────────
 
-  void _addHrReading(int bpm) async { // <-- Make it async
-    setState(() {
-      currentHr = bpm;
-      _activeReadings = List.from(_activeReadings)..add(HrReading(DateTime.now(), bpm));
-      _aggregateData();
-    });
-    
-    // NEW: Save to SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('latest_hr', currentHr);
+  void _addHrReading(int bpm) async {
+    // 1. Send it to the backend!
+    bool success = await ApiService.saveHealthMetric(
+      metricType: "Heart Rate",
+      value: bpm.toString(),
+      unit: "bpm",
+    );
 
-    _generateAITip(forceRefresh: true);
-    _animationController.reset();
-    _animationController.forward();
+    if (success) {
+      setState(() {
+        currentHr = bpm;
+        MockHrData.allReadings.add(HrReading(DateTime.now(), bpm));
+        _aggregateData();
+      });
+      
+      // Update local storage for the dashboard
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('latest_hr', currentHr);
+
+      _generateAITip(forceRefresh: true);
+      _animationController.reset();
+      _animationController.forward();
+    } else {
+      // You could show a SnackBar here saying "Failed to sync to server"
+      print("Failed to save heart rate to database");
+    }
   }
 
   void _showAddDataDialog() {
