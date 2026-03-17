@@ -96,6 +96,8 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   String _bodyGoal = 'maintain';
   double _caloriesTarget = 2200;
   double _caloriesBurnTarget = 2200;
+  double _proteinTarget = 140, _carbsTarget = 250, _fatsTarget = 70;
+  double _proteinConsumed = 0, _carbsConsumed = 0, _fatsConsumed = 0;
 
   @override
   void initState() {
@@ -103,11 +105,11 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
     _metricsData = [
       { "icon": Icons.water_drop,          "title": "Blood Glucose Level", "value": "110",    "unit": "mg/dl", "destination": const BloodGlucose(),                         "isVisible": true, "isShareSelected": true },
       { "icon": Icons.directions_run,      "title": "Activity",            "value": "--",     "unit": "steps", "destination": const Activity(),                          "isVisible": true, "isShareSelected": true },
-      { "icon": Icons.favorite,            "title": "Heart Rate",          "value": "--",     "unit": "bpm",   "destination": const HeartRatePage(),                     "isVisible": true, "isShareSelected": true },
-      { "icon": Icons.opacity,             "title": "Oxygen Saturation",   "value": "98",     "unit": "%",     "destination": const OxygenSaturationPage(),              "isVisible": true, "isShareSelected": true },
-      { "icon": Icons.monitor_heart,       "title": "Blood Pressure",      "value": "118/76", "unit": "mmHg",  "destination": const BloodPressurePage(),                 "isVisible": true, "isShareSelected": true },
-      { "icon": Icons.local_fire_department, "title": "Calories",          "value": "1900",   "unit": "kcal",  "destination": CaloriesMain(patientData: _patientData),   "isVisible": true, "isShareSelected": true },
-      { "icon": Icons.monitor_weight,      "title": "Body Weight",         "value": "80.5",   "unit": "kg",    "destination": const BodyWeightPage(),                    "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.favorite, "title": "Heart Rate", "value": "--", "unit": "bpm", "destination": const SizedBox(), "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.opacity,             "title": "Oxygen Saturation",   "value": "98",     "unit": "%",     "destination": const SizedBox(),              "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.monitor_heart,       "title": "Blood Pressure",      "value": "118/76", "unit": "mmHg",  "destination": const SizedBox(),                 "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.local_fire_department, "title": "Calories",          "value": "1900",   "unit": "kcal",  "destination": const SizedBox(),   "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.monitor_weight,      "title": "Body Weight",         "value": "80.5",   "unit": "kg",    "destination": const SizedBox(),                    "isVisible": true, "isShareSelected": true },
     ];
     _loadPreferences();
 
@@ -153,6 +155,12 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
       'bodyGoal': _bodyGoal,
       'caloriesIntakeTarget': _caloriesTarget,
       'caloriesBurnTarget': _caloriesBurnTarget,
+      'proteinConsumed': _proteinConsumed,
+      'carbsConsumed': _carbsConsumed,
+      'fatsConsumed': _fatsConsumed,
+      'proteinTarget': _proteinTarget,
+      'carbsTarget': _carbsTarget,
+      'fatsTarget': _fatsTarget,
     };
   }
 
@@ -378,30 +386,43 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      // 1. Load the visibility preferences for the dashboard cards
+      // 1. Dashboard visibility
       for (var metric in _metricsData) {
         metric['isVisible'] = prefs.getBool(metric['title']) ?? true;
       }
 
-      // 2. Load the JSON list of tracked meals and calculate the total dynamically
+      // 2. Calories (Dynamic List Calculation)
       final String? mealsJson = prefs.getString('tracked_meals');
       double dynamicallyCalculatedCalories = 0;
-
       if (mealsJson != null) {
-        // Decode the saved list and sum up the calories
         final List<dynamic> decoded = jsonDecode(mealsJson);
         for (var meal in decoded) {
           dynamicallyCalculatedCalories += (meal['calories'] as num).toDouble();
         }
       } else {
-        // Fallback to your mock data total if the app is freshly installed
         dynamicallyCalculatedCalories = 1450; 
       }
-
-      // 3. Inject the perfectly synced total into the Calories card
       _metricsData.firstWhere((m) => m['title'] == 'Calories')['value'] = dynamicallyCalculatedCalories.toInt().toString();
 
-      // 4. Load the user's goals and calculate the burn target
+      // 3. FETCH THE REST OF THE LIVE DATA!
+      
+      // Heart Rate
+      int latestHr = prefs.getInt('latest_hr') ?? 0; 
+      _metricsData.firstWhere((m) => m['title'] == 'Heart Rate')['value'] = latestHr > 0 ? latestHr.toString() : '--';
+
+      // Blood Pressure
+      String latestBp = prefs.getString('latest_bp') ?? '118/76';
+      _metricsData.firstWhere((m) => m['title'] == 'Blood Pressure')['value'] = latestBp;
+
+      // Oxygen Saturation
+      int latestSpo2 = prefs.getInt('latest_spo2') ?? 98;
+      _metricsData.firstWhere((m) => m['title'] == 'Oxygen Saturation')['value'] = latestSpo2.toString();
+
+      // Body Weight
+      double latestWeight = prefs.getDouble('latest_weight') ?? 80.5;
+      _metricsData.firstWhere((m) => m['title'] == 'Body Weight')['value'] = latestWeight.toStringAsFixed(1);
+
+      // 4. Goals and Targets
       _bodyGoal = prefs.getString('body_goal') ?? 'maintain';
       _caloriesTarget = prefs.getDouble('calories_intake_target') ?? 2200;
       int goalOffset = prefs.getInt('goal_offset') ?? 500;
@@ -426,9 +447,6 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
     if (result != null) {
       setState(() {
         _patientData = result;
-        // Keep the Calories destination in sync with the updated profile
-        _metricsData.firstWhere((m) => m['title'] == 'Calories')['destination'] =
-            CaloriesMain(patientData: _patientData);
       });
     }
   }
@@ -704,13 +722,47 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
 
   Widget healthCard(BuildContext context, IconData icon, String title, String value, String unit, Widget destinationPage) {
     return GestureDetector(
-      onTap: () async{
-        if (destinationPage is ProfileInformationPage) {
+      onTap: () async {
+        if (title == 'Calories') {
+          // Intercept the Calories tap to pass the fresh data map
+          await Navigator.push(context, MaterialPageRoute(
+            builder: (context) => CaloriesMain(
+              patientData: _patientData,
+              baseUserData: gatherDataForAI(), // Pass the baton!
+            )
+          ));
+          _loadPreferences();
+        } else if (title == 'Heart Rate') {
+          // NEW: Intercept the Heart Rate tap to pass the fresh data map
+          await Navigator.push(context, MaterialPageRoute(
+            builder: (context) => HeartRatePage(
+              baseUserData: gatherDataForAI(), // Pass the baton!
+            )
+          ));
+          _loadPreferences();
+        } else if (title == 'Oxygen Saturation') {
+          // NEW: Intercept Oxygen Saturation tap!
+          await Navigator.push(context, MaterialPageRoute(
+            builder: (context) => OxygenSaturationPage(baseUserData: gatherDataForAI())
+          ));
+          _loadPreferences();
+        } else if (title == 'Blood Pressure') {
+          // NEW INTERCEPT: Hand off the data!
+          await Navigator.push(context, MaterialPageRoute(
+            builder: (context) => BloodPressurePage(baseUserData: gatherDataForAI())
+          ));
+          _loadPreferences();
+        } else if (title == 'Body Weight') {
+          // NEW INTERCEPT: Hand off the data!
+          await Navigator.push(context, MaterialPageRoute(
+            builder: (context) => BodyWeightPage(baseUserData: gatherDataForAI())
+          ));
+          _loadPreferences();
+        } else if (destinationPage is ProfileInformationPage) {
           await _navigateToProfile();
         } else {
           await Navigator.push(context, MaterialPageRoute(builder: (context) => destinationPage));
-
-          _loadPreferences();
+          _loadPreferences(); 
         }
       },
       child: Container(

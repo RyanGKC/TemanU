@@ -1,6 +1,9 @@
 import 'dart:ui';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // NEW
+import 'package:google_generative_ai/google_generative_ai.dart'; // NEW
+import 'package:shared_preferences/shared_preferences.dart'; // NEW
 import 'package:temanu/oxygenSaturationChartPainter.dart'; // Ensure this matches your file name!
 import 'package:temanu/assistantpage.dart';
 
@@ -21,7 +24,10 @@ class MockSpO2Data {
 // ----------------------------
 
 class OxygenSaturationPage extends StatefulWidget {
-  const OxygenSaturationPage({super.key});
+  // NEW: Catch the data map from the homepage
+  final Map<String, dynamic> baseUserData;
+
+  const OxygenSaturationPage({super.key, required this.baseUserData});
 
   @override
   State<OxygenSaturationPage> createState() => _OxygenSaturationPageState();
@@ -36,6 +42,10 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
 
   late AnimationController _animationController;
   late Animation<double> _animation;
+
+  // NEW: State variables for the dynamic tip
+  String _dynamicAiTip = "Analyzing your oxygen data...";
+  bool _isLoadingTip = true;
 
   DateTime get _startTime {
     final now = DateTime.now();
@@ -106,12 +116,75 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
     _aggregateData(); 
     _animationController.forward();
+    
+    // NEW: Generate the tip when the page loads
+    _generateAITip();
   }
 
   @override
   void dispose() {
     _animationController.dispose();
     super.dispose();
+  }
+
+  // ─── AI Tip Generator ─────────────────────────────────────────────────────
+
+  Future<void> _generateAITip({bool forceRefresh = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (!forceRefresh) {
+      final cachedTip = prefs.getString('ai_tip_cached_spo2'); // Unique key for SpO2!
+      if (cachedTip != null && cachedTip.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _dynamicAiTip = cachedTip;
+            _isLoadingTip = false;
+          });
+        }
+        return; 
+      }
+    }
+
+    if (mounted) setState(() => _isLoadingTip = true);
+
+    try {
+      final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+      if (apiKey.isEmpty) return;
+
+      final model = GenerativeModel(
+        model: 'gemini-2.5-flash', 
+        apiKey: apiKey,
+        generationConfig: GenerationConfig(temperature: 0.4),
+      );
+
+      final userName = widget.baseUserData['name'] ?? 'the user';
+
+      final prompt = '''
+        You are a concise health AI assistant. The user, $userName, has a current blood oxygen saturation (SpO2) of $currentSpO2% and a daily average of $avgSpO2%.
+        
+        Write a SHORT, 2-sentence encouraging insight or safety tip based exactly on these numbers. 
+        Keep it under 120 characters. Do not use asterisks or markdown formatting.
+      ''';
+
+      final response = await model.generateContent([Content.text(prompt)]);
+      
+      if (mounted && response.text != null) {
+        final newTip = response.text!.trim();
+        await prefs.setString('ai_tip_cached_spo2', newTip);
+
+        setState(() {
+          _dynamicAiTip = newTip;
+          _isLoadingTip = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _dynamicAiTip = "Keep up the great work today! Tap here to chat for more insights.";
+          _isLoadingTip = false;
+        });
+      }
+    }
   }
 
   void _aggregateData() {
@@ -172,15 +245,6 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     }
   }
 
-  String get aiTips {
-    switch (zoneText) {
-      case "Normal": return "Your blood oxygen is excellent (95-100%). Your lungs and circulatory system are distributing oxygen efficiently.";
-      case "Borderline": return "Your oxygen level is slightly lower than average. Consider taking some deep breaths or standing up and moving around.";
-      case "Low": return "Your blood oxygen is considered low. If this persists, or if you feel short of breath, please consult a healthcare professional immediately.";
-      default: return "Monitor your oxygen saturation regularly.";
-    }
-  }
-
   void _handleChartTap(TapUpDetails details, double width) {
     const double leftPadding = 55.0;
     final double usableWidth = width - leftPadding - 20.0;
@@ -217,12 +281,18 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     setState(() => touchedIndex = closestIndex);
   }
 
-  void addSpO2Data(int spo2) {
+  void addSpO2Data(int spo2) async { // <-- Make it async
     setState(() {
       currentSpO2 = spo2;
       MockSpO2Data.allReadings.add(SpO2Reading(DateTime.now(), spo2));
       _aggregateData(); 
     });
+    
+    // NEW: Save to SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('latest_spo2', currentSpO2);
+
+    _generateAITip(forceRefresh: true);
     _animationController.reset();
     _animationController.forward();
   }
@@ -452,9 +522,22 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
 
             const SizedBox(height: 16),
 
+            // ─── AI Tips Widget (Updated with Relay Race) ───
             InkWell(
               onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const AssistantPage()));
+                // 1. Copy the base data
+                final updatedData = Map<String, dynamic>.from(widget.baseUserData);
+                
+                // 2. Overwrite with fresh, live SpO2 data
+                updatedData['oxygenSaturation'] = currentSpO2.toString();
+                
+                // 3. Hand the baton to the Assistant!
+                Navigator.push(
+                  context, 
+                  MaterialPageRoute(
+                    builder: (_) => AssistantPage(userData: updatedData)
+                  )
+                );
               },
               borderRadius: BorderRadius.circular(22), 
               child: Container(
@@ -474,8 +557,27 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
                         Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18), 
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(aiTips, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
+                    const SizedBox(height: 12),
+                    
+                    // Show loader or dynamic tip with overflow protection
+                    _isLoadingTip 
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.only(top: 2.0),
+                              child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                "Analyzing your oxygen data...", 
+                                style: const TextStyle(color: Colors.white70, fontSize: 14)
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
                   ],
                 ),
               ),

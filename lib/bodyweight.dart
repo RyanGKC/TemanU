@@ -1,12 +1,18 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // NEW
+import 'package:google_generative_ai/google_generative_ai.dart'; // NEW
+import 'package:shared_preferences/shared_preferences.dart'; // NEW
 import 'package:temanu/MockBwData.dart'; // Make sure this file name matches exactly
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/shareWeightHighlightPage.dart';
 import 'package:temanu/weightLineChartPainter.dart';
 
 class BodyWeightPage extends StatefulWidget {
-  const BodyWeightPage({super.key});
+  // NEW: Catch the data map from the homepage
+  final Map<String, dynamic> baseUserData;
+
+  const BodyWeightPage({super.key, required this.baseUserData});
 
   @override
   State<BodyWeightPage> createState() => _BodyWeightPageState();
@@ -23,6 +29,10 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
 
   late AnimationController _animationController;
   late Animation<double> _animation;
+
+  // NEW: State variables for the dynamic tip
+  String _dynamicAiTip = "Analyzing your body weight data...";
+  bool _isLoadingTip = true;
 
   // Master lists for the graph
   List<DateTime> aggTimes = [];
@@ -93,8 +103,88 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     super.initState();
     _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
+    
+    // Sync starting values with the base user data if available
+    final heightParsed = double.tryParse(widget.baseUserData['height'] ?? '');
+    if (heightParsed != null) heightCm = heightParsed;
+    
+    final weightParsed = double.tryParse(widget.baseUserData['weight'] ?? '');
+    if (weightParsed != null) currentWeight = weightParsed;
+
     _aggregateData(); 
     _animationController.forward();
+
+    // NEW: Generate the tip when the page loads
+    _generateAITip();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  // ─── AI Tip Generator ─────────────────────────────────────────────────────
+
+  Future<void> _generateAITip({bool forceRefresh = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (!forceRefresh) {
+      final cachedTip = prefs.getString('ai_tip_cached_bw'); // Unique key for BW!
+      if (cachedTip != null && cachedTip.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _dynamicAiTip = cachedTip;
+            _isLoadingTip = false;
+          });
+        }
+        return; 
+      }
+    }
+
+    if (mounted) setState(() => _isLoadingTip = true);
+
+    try {
+      final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+      if (apiKey.isEmpty) return;
+
+      final model = GenerativeModel(
+        model: 'gemini-2.5-flash', 
+        apiKey: apiKey,
+        generationConfig: GenerationConfig(temperature: 0.4),
+      );
+
+      final userName = widget.baseUserData['name'] ?? 'the user';
+      final bodyGoal = widget.baseUserData['bodyGoal'] ?? 'maintain';
+
+      final prompt = '''
+        You are a concise health AI assistant. The user, $userName, has a current weight of ${currentWeight.toStringAsFixed(1)} kg and a BMI of ${bmi.toStringAsFixed(1)}. 
+        Their overall goal is to $bodyGoal their weight.
+        In the selected time period, their weight has changed by ${changeWeight > 0 ? '+' : ''}${changeWeight.toStringAsFixed(1)} kg.
+        
+        Write a SHORT, 2-sentence encouraging insight or tip based exactly on these numbers and their goal. 
+        Keep it under 120 characters. Do not use asterisks or markdown formatting.
+      ''';
+
+      final response = await model.generateContent([Content.text(prompt)]);
+      
+      if (mounted && response.text != null) {
+        final newTip = response.text!.trim();
+        await prefs.setString('ai_tip_cached_bw', newTip);
+
+        setState(() {
+          _dynamicAiTip = newTip;
+          _isLoadingTip = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _dynamicAiTip = "Keep up the great work today! Tap here to chat for more insights.";
+          _isLoadingTip = false;
+        });
+      }
+    }
   }
 
   void _aggregateData() {
@@ -131,12 +221,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
       double sum = readings.map((e) => e.weight).reduce((a, b) => a + b);
       aggWeights.add(sum / readings.length);
     }
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
   }
 
   void _handleChartTap(TapUpDetails details, double width) {
@@ -186,24 +270,18 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     return aggWeights.last - aggWeights.first;
   }
 
-  String get aiTips {
-    if (changeWeight < 0) {
-      return "You've done well, losing ${changeWeight.abs().toStringAsFixed(1)} kg and getting close to your goal. "
-          "Now is the time to focus on steady, lasting progress. Keep your meals balanced, stay hydrated, and prioritize good rest.";
-    } else if (changeWeight > 0) {
-      return "Your weight has increased slightly. Try improving your diet, increase activity, and stay consistent with healthy habits.";
-    } else {
-      return "Your weight is stable. Keep maintaining your current healthy routine.";
-    }
-  }
-
-  void addWeightData(double value) {
+  void addWeightData(double value) async { // <-- Make it async
     setState(() {
       currentWeight = value;
-      // Add dynamic data to master list!
       MockWeightData.allReadings.add(WeightReading(DateTime.now(), value));
       _aggregateData();
     });
+    
+    // NEW: Save to SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('latest_weight', currentWeight);
+
+    _generateAITip(forceRefresh: true);
     _animationController.reset();
     _animationController.forward();
   }
@@ -456,15 +534,24 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
 
             const SizedBox(height: 16),
 
-            // AI Tips (Clickable to Assistant just like BP Page)
+            // ─── AI Tips Widget (Updated with Relay Race) ───
             InkWell(
               onTap: () {
+                // 1. Copy the base data
+                final updatedData = Map<String, dynamic>.from(widget.baseUserData);
+                
+                // 2. Overwrite with fresh, live Body Weight data
+                updatedData['weight'] = currentWeight.toString();
+                
+                // 3. Hand the baton to the Assistant!
                 Navigator.push(
                   context, 
-                  MaterialPageRoute(builder: (context) => const AssistantPage())
+                  MaterialPageRoute(
+                    builder: (_) => AssistantPage(userData: updatedData)
+                  )
                 );
               },
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(22), 
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
@@ -478,76 +565,37 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: const [
-                        Text(
-                          "💡 AI Tips",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        Text("💡 AI Tips", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
                         Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18), 
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      aiTips,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        height: 1.5,
-                      ),
-                    ),
+                    const SizedBox(height: 12),
+                    
+                    // Show loader or dynamic tip with overflow protection
+                    _isLoadingTip 
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.only(top: 2.0),
+                              child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                "Analyzing your body weight trends...", 
+                                style: const TextStyle(color: Colors.white70, fontSize: 14)
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 24),
           ],
-        ),
-      ),
-      // Left the Bottom Nav Bar here as requested, though you can delete it if you prefer!
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(left:20, right: 20, bottom: 30),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 100),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(30),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                    child: Container(
-                      width: double.infinity,
-                      height: 70,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1), 
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5), 
-                      ),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context, 
-                            MaterialPageRoute(builder: (context) => const AssistantPage())
-                          );
-                        },
-                        child: const Center(
-                          child: Icon(
-                            Icons.auto_awesome,
-                            size: 28,
-                            color: Colors.white70
-                          ),
-                        )
-                      )
-                    )
-                  )
-                )
-              ),
-            ]
-          )
         ),
       ),
     );
@@ -594,6 +642,10 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
           dateOffset = 0; // Reset offset when switching tabs!
           _aggregateData(); 
         });
+        
+        // NEW: Refresh the AI tip when the user changes the time range to analyze the new trend!
+        _generateAITip(forceRefresh: true);
+        
         _animationController.reset();
         _animationController.forward();
       },

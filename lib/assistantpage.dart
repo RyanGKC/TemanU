@@ -75,6 +75,12 @@ class _AssistantPageState extends State<AssistantPage> {
     final bodyGoal = widget.userData['bodyGoal'] ?? 'maintain';
     final targetIntake = widget.userData['caloriesIntakeTarget'] ?? 'unknown';
     final targetBurn = widget.userData['caloriesBurnTarget'] ?? 'unknown';
+    final pConsumed = widget.userData['proteinConsumed']?.toInt() ?? 0;
+    final cConsumed = widget.userData['carbsConsumed']?.toInt() ?? 0;
+    final fConsumed = widget.userData['fatsConsumed']?.toInt() ?? 0;
+    final pTarget   = widget.userData['proteinTarget']?.toInt() ?? 'unknown';
+    final cTarget   = widget.userData['carbsTarget']?.toInt() ?? 'unknown';
+    final fTarget   = widget.userData['fatsTarget']?.toInt() ?? 'unknown';
 
     final systemPrompt = '''
       You are a helpful, concise health and fitness AI assistant. You do not have a personal name. 
@@ -87,7 +93,6 @@ class _AssistantPageState extends State<AssistantPage> {
       - Weight: $weight kg
       - Blood type: $bloodType
       - Health Conditions: $conditions
-
       
       CURRENT CALORIC GOAL: $bodyGoal
       - Daily Intake Target: $targetIntake kcal
@@ -95,13 +100,14 @@ class _AssistantPageState extends State<AssistantPage> {
       
       Today's Live Metrics:
       - Calories Eaten: $calories kcal (Target: $targetIntake kcal)
+      - Macros Eaten: Protein: ${pConsumed}g (Target: ${pTarget}g), Carbs: ${cConsumed}g (Target: ${cTarget}g), Fats: ${fConsumed}g (Target: ${fTarget}g)
       - Steps Taken: $steps steps
       - Heart Rate: $heartRate bpm
       - Oxygen Saturation (SpO2): $oxygen%
       - Blood Pressure: $bloodPressure mmHg
       - Blood Glucose: $bloodGlucose mg/dl
       
-      Use this data to provide highly personalized advice. Compare their "Calories Eaten" against their "Daily Intake Target" and their goal to $bodyGoal to tell them if they are on track today.
+      Use this data to provide highly personalized advice. If the user asks about their diet, compare their eaten macros and calories against their targets, taking into account their goal to $bodyGoal.
     ''';
 
     _model = GenerativeModel(

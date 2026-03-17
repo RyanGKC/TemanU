@@ -1,6 +1,9 @@
 import 'dart:ui';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // NEW
+import 'package:google_generative_ai/google_generative_ai.dart'; // NEW
+import 'package:shared_preferences/shared_preferences.dart'; // NEW
 import 'package:temanu/heartRateChartPainter.dart';
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/fitbitService.dart';
@@ -14,7 +17,10 @@ class HrReading {
 }
 
 class HeartRatePage extends StatefulWidget {
-  const HeartRatePage({super.key});
+  // NEW: Catch the data map from the homepage
+  final Map<String, dynamic> baseUserData;
+
+  const HeartRatePage({super.key, required this.baseUserData});
 
   @override
   State<HeartRatePage> createState() => _HeartRatePageState();
@@ -38,6 +44,10 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
   List<DateTime> aggTimes  = [];
   List<int>      aggMinBpm = [];
   List<int>      aggMaxBpm = [];
+
+  // NEW: State variables for the dynamic tip
+  String _dynamicAiTip = "Analyzing your heart rate data...";
+  bool _isLoadingTip = true;
 
   // ─── Date range helpers ───────────────────────────────────────────────────
 
@@ -116,7 +126,6 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
 
   // ─── Data loading ─────────────────────────────────────────────────────────
 
-  /// Tries Fitbit first. Falls back to MockHrData if no token or no data returned.
   Future<void> _loadData() async {
     setState(() => _isLoadingFitbit = true);
 
@@ -133,10 +142,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
           if (mounted) {
             setState(() {
               restingHr  = parsed;
-              currentHr  = parsed; // Use resting HR as the "current" display value
-              // Fitbit only returns a scalar for resting HR, not a full time series.
-              // We seed the graph with the mock dataset and update today's latest
-              // reading to reflect the real Fitbit value.
+              currentHr  = parsed; 
               _activeReadings = List.from(MockHrData.allReadings);
               _activeReadings.add(HrReading(DateTime.now(), parsed));
             });
@@ -145,11 +151,9 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
       }
     }
 
-    // Fallback: use the full mock dataset
     if (!fitbitSuccess && mounted) {
       setState(() {
         _activeReadings = MockHrData.allReadings;
-        // Derive currentHr and restingHr from the mock data
         final todayReadings = _activeReadings.where((r) {
           final now = DateTime.now();
           return r.time.year == now.year &&
@@ -159,7 +163,6 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
 
         if (todayReadings.isNotEmpty) {
           currentHr = todayReadings.last.bpm;
-          // Resting HR = minimum reading today (approximation)
           restingHr = todayReadings.map((r) => r.bpm).reduce(min);
         } else if (_activeReadings.isNotEmpty) {
           currentHr = _activeReadings.last.bpm;
@@ -172,6 +175,75 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
       setState(() => _isLoadingFitbit = false);
       _aggregateData();
       _animationController.forward();
+      
+      // NEW: Save the currentHr to storage, regardless of whether it 
+      // came from Fitbit or the mock fallback!
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('latest_hr', currentHr);
+      
+      // Generate the tip once the data is loaded!
+      _generateAITip();
+    }
+  }
+
+  // ─── AI Tip Generator ─────────────────────────────────────────────────────
+  
+  // NEW: The dynamic AI tip generator
+  Future<void> _generateAITip({bool forceRefresh = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (!forceRefresh) {
+      final cachedTip = prefs.getString('ai_tip_cached_hr'); // Unique key for HR!
+      if (cachedTip != null && cachedTip.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _dynamicAiTip = cachedTip;
+            _isLoadingTip = false;
+          });
+        }
+        return; 
+      }
+    }
+
+    if (mounted) setState(() => _isLoadingTip = true);
+
+    try {
+      final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+      if (apiKey.isEmpty) return;
+
+      final model = GenerativeModel(
+        model: 'gemini-2.5-flash', 
+        apiKey: apiKey,
+        generationConfig: GenerationConfig(temperature: 0.4),
+      );
+
+      final userName = widget.baseUserData['name'] ?? 'the user';
+
+      final prompt = '''
+        You are a concise health AI assistant. The user, $userName, has a current heart rate of $currentHr bpm and a resting heart rate of $restingHr bpm.
+        
+        Write a SHORT, 2-sentence encouraging insight or safety tip based exactly on these numbers. 
+        Keep it under 120 characters. Do not use asterisks or markdown formatting.
+      ''';
+
+      final response = await model.generateContent([Content.text(prompt)]);
+      
+      if (mounted && response.text != null) {
+        final newTip = response.text!.trim();
+        await prefs.setString('ai_tip_cached_hr', newTip);
+
+        setState(() {
+          _dynamicAiTip = newTip;
+          _isLoadingTip = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _dynamicAiTip = "Keep up the great work today! Tap here to chat for more insights.";
+          _isLoadingTip = false;
+        });
+      }
     }
   }
 
@@ -235,16 +307,6 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     }
   }
 
-  String get aiTips {
-    switch (zoneText) {
-      case "Normal":   return "Your heart rate is in a healthy resting range (60–100 bpm). Keep maintaining your healthy lifestyle!";
-      case "Low":      return "Your heart rate is below average. This is completely normal if you are athletic, but monitor for dizziness or fatigue.";
-      case "Elevated": return "Your heart rate is slightly elevated. Try taking a few deep breaths and relaxing for a few minutes.";
-      case "High":     return "Your heart rate is high for a resting state. Avoid strenuous activities right now and consult a doctor if it doesn't lower.";
-      default:         return "Connect Fitbit or add data manually to see personalised tips.";
-    }
-  }
-
   // ─── Chart interaction ────────────────────────────────────────────────────
 
   void _handleChartTap(TapUpDetails details, double width) {
@@ -283,13 +345,18 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
 
   // ─── Manual data entry ────────────────────────────────────────────────────
 
-  void _addHrReading(int bpm) {
+  void _addHrReading(int bpm) async { // <-- Make it async
     setState(() {
       currentHr = bpm;
-      _activeReadings = List.from(_activeReadings)
-        ..add(HrReading(DateTime.now(), bpm));
+      _activeReadings = List.from(_activeReadings)..add(HrReading(DateTime.now(), bpm));
       _aggregateData();
     });
+    
+    // NEW: Save to SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('latest_hr', currentHr);
+
+    _generateAITip(forceRefresh: true);
     _animationController.reset();
     _animationController.forward();
   }
@@ -493,9 +560,23 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
 
                   const SizedBox(height: 16),
 
-                  // ── AI Tips ──
+                  // ── AI Tips (Updated with the Relay Race and Expanded text) ──
                   InkWell(
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AssistantPage())),
+                    onTap: () {
+                      // 1. Copy the base data
+                      final updatedData = Map<String, dynamic>.from(widget.baseUserData);
+                      
+                      // 2. Overwrite with fresh, live HR data
+                      updatedData['heartRate'] = currentHr.toString();
+                      
+                      // 3. Hand the baton to the Assistant!
+                      Navigator.push(
+                        context, 
+                        MaterialPageRoute(
+                          builder: (_) => AssistantPage(userData: updatedData)
+                        )
+                      );
+                    },
                     borderRadius: BorderRadius.circular(22),
                     child: Container(
                       width: double.infinity,
@@ -514,8 +595,27 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
                               Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          Text(aiTips, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
+                          const SizedBox(height: 12),
+                          
+                          // Show loader or dynamic tip with overflow protection
+                          _isLoadingTip 
+                            ? Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 2.0),
+                                    child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2)),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      "Analyzing your heart rate data...", 
+                                      style: const TextStyle(color: Colors.white70, fontSize: 14)
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
                         ],
                       ),
                     ),

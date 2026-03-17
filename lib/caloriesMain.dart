@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/cameraCapture.dart';
 import 'package:temanu/fitbitService.dart';
@@ -11,8 +13,9 @@ import 'dart:convert';
 class CaloriesMain extends StatefulWidget {
   // PatientData is passed in from HomePage so we can read height, weight, age, gender
   final PatientData patientData;
+  final Map<String, dynamic> baseUserData;
 
-  const CaloriesMain({super.key, required this.patientData});
+  const CaloriesMain({super.key, required this.patientData, required this.baseUserData,});
 
   @override
   State<CaloriesMain> createState() => _CaloriesMainState();
@@ -26,13 +29,13 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
   double caloriesBurnedTarget = 2200; // What they should BURN (= TDEE)
 
   double proteinConsumed = 0;
-  final double proteinTarget = 140;
+  double proteinTarget = 140;
 
   double carbsConsumed = 0;
-  final double carbsTarget = 250;
+  double carbsTarget = 250;
 
   double fatsConsumed = 0;
-  final double fatsTarget = 70;
+  double fatsTarget = 70;
 
   // Fitbit calories burned
   double caloriesBurned = 0;
@@ -71,8 +74,8 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
   late AnimationController _controller;
   late Animation<double> _animation; 
 
-  final String aiTips =
-      "You've hit 60% of your protein goal but only 30% of your calories. Great lean eating! Consider a balanced dinner to hit your energy targets.";
+  String _dynamicAiTip = "Analyzing your nutrition...";
+  bool _isLoadingTip = true;
 
   @override
   void initState() {
@@ -128,12 +131,26 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     switch (_bodyGoal) {
       case 'deficit':
         caloriesIntakeTarget = (tdee - _goalOffset).clamp(500, 9999);
+        // Deficit Split: 35% Protein, 35% Carbs, 30% Fats
+        proteinTarget = (caloriesIntakeTarget * 0.35) / 4;
+        carbsTarget   = (caloriesIntakeTarget * 0.35) / 4;
+        fatsTarget    = (caloriesIntakeTarget * 0.30) / 9;
         break;
+        
       case 'surplus':
         caloriesIntakeTarget = (tdee + _goalOffset).clamp(500, 9999);
+        // Surplus Split: 30% Protein, 50% Carbs, 20% Fats
+        proteinTarget = (caloriesIntakeTarget * 0.30) / 4;
+        carbsTarget   = (caloriesIntakeTarget * 0.50) / 4;
+        fatsTarget    = (caloriesIntakeTarget * 0.20) / 9;
         break;
+        
       default: // maintain
         caloriesIntakeTarget = tdee.clamp(500, 9999);
+        // Maintain Split: 30% Protein, 40% Carbs, 30% Fats
+        proteinTarget = (caloriesIntakeTarget * 0.30) / 4;
+        carbsTarget   = (caloriesIntakeTarget * 0.40) / 4;
+        fatsTarget    = (caloriesIntakeTarget * 0.30) / 9;
     }
   }
 
@@ -178,6 +195,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
       _recalculateTargets(); 
     });
+    _generateAITip();
   }
 
   Future<void> _saveGoalSettings() async {
@@ -185,6 +203,11 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     await prefs.setString('body_goal',      _bodyGoal);
     await prefs.setInt('goal_offset',       _goalOffset);
     await prefs.setString('activity_level', _activityLevel);
+    
+    // NEW: Save the calculated macro targets!
+    await prefs.setDouble('protein_target', proteinTarget);
+    await prefs.setDouble('carbs_target', carbsTarget);
+    await prefs.setDouble('fats_target', fatsTarget);
   }
 
   // ─── Fitbit ───────────────────────────────────────────────────────────────
@@ -540,6 +563,10 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                             _recalculateTargets();
                           });
                           _saveGoalSettings();
+
+                          // FORCE A FRESH TIP because the targets changed!
+                          _generateAITip(forceRefresh: true);
+
                           Navigator.pop(context);
                           _controller.forward(from: 0.0);
                         },
@@ -640,6 +667,71 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     );
   }
 
+  Future<void> _generateAITip({bool forceRefresh = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // 1. Check the cache first if we aren't forcing a refresh
+    if (!forceRefresh) {
+      final cachedTip = prefs.getString('ai_tip_cached');
+      if (cachedTip != null && cachedTip.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _dynamicAiTip = cachedTip;
+            _isLoadingTip = false;
+          });
+        }
+        return; // Exit early! No API call needed.
+      }
+    }
+
+    // 2. If we need a new tip, show the loader and call Gemini
+    if (mounted) setState(() => _isLoadingTip = true);
+
+    try {
+      final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+      if (apiKey.isEmpty) return;
+
+      final model = GenerativeModel(
+        model: 'gemini-2.5-flash', 
+        apiKey: apiKey,
+        generationConfig: GenerationConfig(temperature: 0.4),
+      );
+
+      final prompt = '''
+        You are a concise health AI assistant. The user, ${widget.patientData.name}, is aiming to $_bodyGoal their weight.
+        Today's Progress:
+        - Calories: ${caloriesConsumed.toInt()} / ${caloriesIntakeTarget.toInt()} kcal
+        - Protein: ${proteinConsumed.toInt()}g / ${proteinTarget.toInt()}g
+        - Carbs: ${carbsConsumed.toInt()}g / ${carbsTarget.toInt()}g
+        - Fats: ${fatsConsumed.toInt()}g / ${fatsTarget.toInt()}g
+        
+        Write a SHORT, 2-sentence encouraging insight or tip based exactly on these numbers. 
+        Keep it under 120 characters. Do not use asterisks or markdown formatting.
+      ''';
+
+      final response = await model.generateContent([Content.text(prompt)]);
+      
+      if (mounted && response.text != null) {
+        final newTip = response.text!.trim();
+        
+        // 3. Save the brand new tip to the cache!
+        await prefs.setString('ai_tip_cached', newTip);
+
+        setState(() {
+          _dynamicAiTip = newTip;
+          _isLoadingTip = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _dynamicAiTip = "Keep up the great work today! Tap here to chat for more insights.";
+          _isLoadingTip = false;
+        });
+      }
+    }
+  }
+
   // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
@@ -690,8 +782,31 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
               const SizedBox(height: 15),
               _buildCombinedMacrosCard(),
               const SizedBox(height: 15),
+              // ── AI Tips ──
               InkWell(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AssistantPage())),
+                onTap: () {
+                  // 1. Copy the base data from the homepage
+                  final updatedData = Map<String, dynamic>.from(widget.baseUserData);
+                  
+                  // 2. Overwrite it with the hyper-accurate live data from this page
+                  updatedData['caloriesEaten'] = caloriesConsumed;
+                  updatedData['proteinConsumed'] = proteinConsumed;
+                  updatedData['carbsConsumed'] = carbsConsumed;
+                  updatedData['fatsConsumed'] = fatsConsumed;
+                  
+                  updatedData['caloriesIntakeTarget'] = caloriesIntakeTarget;
+                  updatedData['proteinTarget'] = proteinTarget;
+                  updatedData['carbsTarget'] = carbsTarget;
+                  updatedData['fatsTarget'] = fatsTarget;
+
+                  // 3. Hand the baton to the Assistant!
+                  Navigator.push(
+                    context, 
+                    MaterialPageRoute(
+                      builder: (_) => AssistantPage(userData: updatedData)
+                    )
+                  );
+                },
                 borderRadius: BorderRadius.circular(22),
                 child: Container(
                   width: double.infinity,
@@ -707,8 +822,27 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                           Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(aiTips, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
+                      const SizedBox(height: 12),
+                      
+                      // THE FIX: Wrapped the loading text in an Expanded widget
+                      _isLoadingTip 
+                        ? Row(
+                            crossAxisAlignment: CrossAxisAlignment.start, // Keeps the spinner at the top if text wraps
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.only(top: 2.0),
+                                child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2)),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded( // <--- This prevents the overflow!
+                                child: Text(
+                                  "Analyzing your latest data...", 
+                                  style: const TextStyle(color: Colors.white70, fontSize: 14)
+                                ),
+                              ),
+                            ],
+                          )
+                        : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
                     ],
                   ),
                 ),
@@ -957,13 +1091,16 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
             fatsConsumed     += (newMeal["fats"]     as num).toDouble();
           });
           
-          // NEW: Encode and save the entire list to storage!
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('tracked_meals', jsonEncode(trackedMealsList));
 
+          // FORCE A FRESH TIP! 
+          _generateAITip(forceRefresh: true);
+
           _controller.forward(from: 0.0);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Meal tracked successfully!"), backgroundColor: Color(0xff00E676)));
+            const SnackBar(content: Text("Meal tracked successfully!"), backgroundColor: Color(0xff00E676))
+          );
         }
       },
       child: Container(

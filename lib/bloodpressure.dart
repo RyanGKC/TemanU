@@ -1,7 +1,10 @@
 import 'dart:ui';
 import 'dart:math';
-import 'package:temanu/MockBpData.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // NEW
+import 'package:google_generative_ai/google_generative_ai.dart'; // NEW
+import 'package:shared_preferences/shared_preferences.dart'; // NEW
+import 'package:temanu/MockBpData.dart';
 import 'package:temanu/bloodPressureSharePage.dart';
 import 'package:temanu/bloodPresureChartPainter.dart';
 import 'package:temanu/assistantpage.dart';
@@ -14,7 +17,10 @@ class BpReading {
 }
 
 class BloodPressurePage extends StatefulWidget {
-  const BloodPressurePage({super.key});
+  // NEW: Catch the data map from the homepage
+  final Map<String, dynamic> baseUserData;
+
+  const BloodPressurePage({super.key, required this.baseUserData});
 
   @override
   State<BloodPressurePage> createState() => _BloodPressurePageState();
@@ -27,6 +33,10 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
   String selectedRange = "D";
   int? touchedIndex;
   int dateOffset = 0;
+
+  // NEW: State variables for the dynamic tip
+  String _dynamicAiTip = "Analyzing your blood pressure data...";
+  bool _isLoadingTip = true;
 
   // 2. ADDED ANIMATION CONTROLLERS
   late AnimationController _animationController;
@@ -104,12 +114,76 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
     _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
     _aggregateData(); 
     _animationController.forward();
+    
+    // NEW: Generate the tip when the page loads
+    _generateAITip();
   }
 
   @override
   void dispose() {
     _animationController.dispose();
     super.dispose();
+  }
+
+  // ─── AI Tip Generator ─────────────────────────────────────────────────────
+
+  Future<void> _generateAITip({bool forceRefresh = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (!forceRefresh) {
+      final cachedTip = prefs.getString('ai_tip_cached_bp'); // Unique key for BP!
+      if (cachedTip != null && cachedTip.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _dynamicAiTip = cachedTip;
+            _isLoadingTip = false;
+          });
+        }
+        return; 
+      }
+    }
+
+    if (mounted) setState(() => _isLoadingTip = true);
+
+    try {
+      final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+      if (apiKey.isEmpty) return;
+
+      final model = GenerativeModel(
+        model: 'gemini-2.5-flash', 
+        apiKey: apiKey,
+        generationConfig: GenerationConfig(temperature: 0.4),
+      );
+
+      final userName = widget.baseUserData['name'] ?? 'the user';
+
+      final prompt = '''
+        You are a concise health AI assistant. The user, $userName, has a current blood pressure of $systolic/$diastolic mmHg.
+        This reading falls into the "$zoneText" category.
+        
+        Write a SHORT, 2-sentence encouraging insight or safety tip based exactly on these numbers. 
+        Keep it under 120 characters. Do not use asterisks or markdown formatting.
+      ''';
+
+      final response = await model.generateContent([Content.text(prompt)]);
+      
+      if (mounted && response.text != null) {
+        final newTip = response.text!.trim();
+        await prefs.setString('ai_tip_cached_bp', newTip);
+
+        setState(() {
+          _dynamicAiTip = newTip;
+          _isLoadingTip = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _dynamicAiTip = "Keep up the great work today! Tap here to chat for more insights.";
+          _isLoadingTip = false;
+        });
+      }
+    }
   }
 
   void _aggregateData() {
@@ -179,17 +253,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
     }
   }
 
-  String get aiTips {
-    switch (zoneText) {
-      case "Healthy": return "Your blood pressure is in a healthy range. Keep maintaining your healthy lifestyle.";
-      case "Elevated": return "Your blood pressure is slightly elevated. Reduce salt intake and monitor regularly.";
-      case "Stage 1": return "Your blood pressure is in Stage 1 hypertension range. Consider lifestyle changes and regular monitoring.";
-      case "High": return "Your blood pressure is high. Please reduce stress, improve diet, and consult a healthcare professional if needed.";
-      case "Crisis": return "Your reading is in hypertensive crisis range. Seek medical attention immediately.";
-      default: return "Monitor your blood pressure regularly.";
-    }
-  }
-
   void _handleChartTap(TapUpDetails details, double width) {
     final double leftPadding = 55.0;
     final double usableWidth = width - leftPadding - 20.0;
@@ -226,14 +289,19 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
     setState(() => touchedIndex = closestIndex);
   }
 
-  void addBpData(int sys, int dia) {
+  void addBpData(int sys, int dia) async { // <-- Make it async
     setState(() {
       systolic = sys;
       diastolic = dia;
       MockBpData.allReadings.add(BpReading(DateTime.now(), sys, dia));
       _aggregateData(); 
     });
-    // 4. ANIMATE ON NEW DATA
+    
+    // NEW: Save to SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('latest_bp', "$sys/$dia");
+
+    _generateAITip(forceRefresh: true);
     _animationController.reset();
     _animationController.forward();
   }
@@ -512,9 +580,22 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
 
             const SizedBox(height: 16),
 
+            // ─── AI Tips Widget (Updated with Relay Race) ───
             InkWell(
               onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const AssistantPage()));
+                // 1. Copy the base data
+                final updatedData = Map<String, dynamic>.from(widget.baseUserData);
+                
+                // 2. Overwrite with fresh, live BP data
+                updatedData['bloodPressure'] = "$systolic/$diastolic";
+                
+                // 3. Hand the baton to the Assistant!
+                Navigator.push(
+                  context, 
+                  MaterialPageRoute(
+                    builder: (_) => AssistantPage(userData: updatedData)
+                  )
+                );
               },
               borderRadius: BorderRadius.circular(22), 
               child: Container(
@@ -534,8 +615,27 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
                         Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18), 
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(aiTips, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
+                    const SizedBox(height: 12),
+                    
+                    // Show loader or dynamic tip with overflow protection
+                    _isLoadingTip 
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.only(top: 2.0),
+                              child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                "Analyzing your blood pressure data...", 
+                                style: const TextStyle(color: Colors.white70, fontSize: 14)
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
                   ],
                 ),
               ),
