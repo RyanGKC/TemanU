@@ -26,6 +26,20 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  String _firstName = "User"; // Default fallback
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _firstName = prefs.getString('user_name') ?? "User";
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,9 +49,9 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
-        title: const Text(
-          'Hi, James',
-          style: TextStyle(
+        title: Text(
+          'Hi, $_firstName', // <-- NEW: Dynamic name!
+          style: const TextStyle(
             fontSize: 25,
             fontWeight: FontWeight.w600,
             color: Color(0xff00E5FF),

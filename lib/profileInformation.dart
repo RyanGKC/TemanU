@@ -1,5 +1,10 @@
 import 'dart:ui';
+import 'dart:convert';           // Image Base64 Encoding
+import 'dart:typed_data';        // Byte data handling
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; 
+import 'package:image_picker/image_picker.dart'; // Image Picker
+import 'package:temanu/api_service.dart'; 
 import 'package:temanu/patientData.dart';
 
 class ProfileInformationPage extends StatefulWidget {
@@ -11,17 +16,22 @@ class ProfileInformationPage extends StatefulWidget {
 
 class _ProfileInformationPageState extends State<ProfileInformationPage> {
   bool _isEditing = false;
+  bool _isLoading = true; 
   
   final _formKey = GlobalKey<FormState>();
 
   late TextEditingController _fullNameController;
   late TextEditingController _preferredNameController;
+  late TextEditingController _usernameController;
   late TextEditingController _heightController;
   late TextEditingController _weightController;
 
   String _gender = "Male";
   String _bloodType = "O+";
   DateTime _dateOfBirth = DateTime(1990, 5, 15);
+
+  Uint8List? _profileImageBytes; // Holds image in memory
+  String? _base64Image;          // Holds image to save
 
   final List<String> _availableConditions = [
     "Asthma", "Diabetes Type 1", "Diabetes Type 2", 
@@ -33,29 +43,113 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
   @override
   void initState() {
     super.initState();
-    _fullNameController = TextEditingController(text: "James Alexander Doe");
-    _preferredNameController = TextEditingController(text: "James");
-    _heightController = TextEditingController(text: "180");
-    _weightController = TextEditingController(text: "75");
+    _fullNameController = TextEditingController();
+    _preferredNameController = TextEditingController();
+    _usernameController = TextEditingController();
+    _heightController = TextEditingController();
+    _weightController = TextEditingController();
+    
+    _loadProfileData(); 
+  }
+
+  Future<void> _loadProfileData() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    if (mounted) {
+      setState(() {
+        _fullNameController.text = prefs.getString('full_name') ?? ""; 
+        _preferredNameController.text = prefs.getString('user_name') ?? "User";
+        _usernameController.text = prefs.getString('username') ?? ""; 
+        
+        _heightController.text = prefs.getString('height') ?? "180";
+        
+        double latestWeight = prefs.getDouble('latest_weight') ?? double.tryParse(prefs.getString('weight') ?? '75') ?? 75.0;
+        _weightController.text = latestWeight.toStringAsFixed(1);
+        
+        _gender = prefs.getString('gender') ?? "Male";
+        _bloodType = prefs.getString('blood_type') ?? "O+";
+        
+        String dobStr = prefs.getString('dob') ?? "15/5/1990";
+        try {
+          List<String> parts = dobStr.split('/');
+          if (parts.length == 3) {
+            _dateOfBirth = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+          }
+        } catch (e) {
+          _dateOfBirth = DateTime(1990, 5, 15);
+        }
+
+        // Load existing profile image
+        _base64Image = prefs.getString('profile_image_base64');
+        if (_base64Image != null && _base64Image!.isNotEmpty) {
+          _profileImageBytes = base64Decode(_base64Image!);
+        }
+
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Image Picker Function
+  Future<void> _pickImage() async {
+    if (!_isEditing) return; // Only allow picking when editing
+    
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery, 
+      imageQuality: 50, // Compress slightly for storage
+    ); 
+    
+    if (image != null) {
+      final bytes = await image.readAsBytes();
+      setState(() {
+        _profileImageBytes = bytes;
+        _base64Image = base64Encode(bytes); // Ready to save to SharedPreferences
+      });
+    }
   }
 
   @override
   void dispose() {
     _fullNameController.dispose();
     _preferredNameController.dispose();
+    _usernameController.dispose();
     _heightController.dispose();
     _weightController.dispose();
     super.dispose();
   }
 
-  void _toggleEdit() {
+  Future<void> _toggleEdit() async {
     if (_isEditing) {
       if (_formKey.currentState!.validate()) {
-        setState(() => _isEditing = false);
-        // Return the updated PatientData back to the calling page
-        Navigator.pop(context, toPatientData());
-      } else {
-        print("Validation failed.");
+        setState(() => _isLoading = true);
+        
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('user_name', _preferredNameController.text);
+        await prefs.setString('full_name', _fullNameController.text);
+        await prefs.setString('gender', _gender);
+        await prefs.setString('dob', _formattedDob);
+        await prefs.setString('blood_type', _bloodType);
+        await prefs.setString('height', _heightController.text);
+
+        // Save the base64 image string locally
+        if (_base64Image != null) {
+          await prefs.setString('profile_image_base64', _base64Image!);
+        }
+        
+        final newWeight = double.tryParse(_weightController.text) ?? 0.0;
+        await prefs.setDouble('latest_weight', newWeight);
+
+        await ApiService.saveHealthMetric(metricType: "Height", value: _heightController.text, unit: "cm");
+        await ApiService.saveHealthMetric(metricType: "Body Weight", value: _weightController.text, unit: "kg");
+
+        if (mounted) {
+          setState(() {
+            _isEditing = false;
+            _isLoading = false;
+          });
+          Navigator.pop(context, toPatientData());
+        }
       }
     } else {
       setState(() => _isEditing = true);
@@ -90,7 +184,6 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
     }
   }
 
-  // Builds a PatientData object from current form state
   PatientData toPatientData() {
     final dob = _dateOfBirth;
     final age = DateTime.now().year - dob.year;
@@ -131,172 +224,184 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: _toggleEdit,
-            child: Text(
-              _isEditing ? "Save" : "Edit",
-              style: const TextStyle(color: Color(0xff00E5FF), fontSize: 16, fontWeight: FontWeight.bold),
+          if (!_isLoading) 
+            TextButton(
+              onPressed: _toggleEdit,
+              child: Text(
+                _isEditing ? "Save" : "Edit",
+                style: const TextStyle(color: Color(0xff00E5FF), fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ),
-          ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // PROFILE PICTURE
-              Center(
-                child: Stack(
-                  alignment: Alignment.bottomRight,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: const BoxDecoration(color: Color(0xff00E5FF), shape: BoxShape.circle),
-                      child: const CircleAvatar(
-                        radius: 50,
-                        backgroundColor: Color(0xff1A3F6B),
-                        child: Icon(Icons.person, size: 50, color: Colors.white),
-                      ),
-                    ),
-                    if (_isEditing)
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(color: Color(0xff00E5FF), shape: BoxShape.circle),
-                        child: const Icon(Icons.camera_alt, color: Color(0xff040F31), size: 20),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 30),
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator(color: Color(0xff00E5FF)))
+        : Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
 
-              // PERSONAL DETAILS CARD
-              _buildSectionHeader("Personal Details"),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xff1A3F6B),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildTextField(
-                      "Full Name", 
-                      _fullNameController,
-                      validator: (value) => value!.isEmpty ? "Full name is required" : null,
-                    ),
-                    const SizedBox(height: 15),
-                    _buildTextField(
-                      "Preferred Name", 
-                      _preferredNameController,
-                      validator: (value) => value!.isEmpty ? "Preferred name is required" : null,
-                    ),
-                    const SizedBox(height: 15),
-                    _buildDropdownField("Gender", ["Male", "Female", "Non-binary", "Prefer not to say"], _gender, (val) => setState(() => _gender = val!)),
-                    const SizedBox(height: 15),
-                    _buildDateField("Date of Birth", _formattedDob),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              // HEALTH & METRICS CARD
-              _buildSectionHeader("Health & Metrics"),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xff1A3F6B),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                // PROFILE PICTURE SECTION
+                Center(
+                  child: GestureDetector(
+                    onTap: _pickImage, // Trigger image picker on tap
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
                       children: [
-                        Expanded(child: _buildTextField(
-                          "Height (cm)", 
-                          _heightController, 
-                          isNumber: true,
-                          validator: _validateNumber,
-                        )),
-                        const SizedBox(width: 15),
-                        Expanded(child: _buildTextField(
-                          "Weight (kg)", 
-                          _weightController, 
-                          isNumber: true,
-                          validator: _validateNumber,
-                        )),
-                      ],
-                    ),
-                    const SizedBox(height: 15),
-                    _buildDropdownField("Blood Type", ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Unknown"], _bloodType, (val) => setState(() => _bloodType = val!)),
-                    const SizedBox(height: 25),
-                    
-                    // HEALTH CONDITIONS MULTI-SELECT
-                    const Text("Health Conditions", style: TextStyle(color: Colors.white54, fontSize: 13)),
-                    const SizedBox(height: 10),
-                    
-                    if (_isEditing)
-                      GestureDetector(
-                        onTap: () => _showHealthConditionsBottomSheet(context),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xff00E5FF).withValues(alpha: 0.5)),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                _selectedConditions.isEmpty 
-                                  ? "Select Conditions" 
-                                  : "${_selectedConditions.length} Selected",
-                                style: const TextStyle(color: Colors.white, fontSize: 16),
-                              ),
-                              const Icon(Icons.arrow_drop_down, color: Color(0xff00E5FF)),
-                            ],
+                        Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(color: Color(0xff00E5FF), shape: BoxShape.circle),
+                          child: CircleAvatar(
+                            radius: 50,
+                            backgroundColor: const Color(0xff1A3F6B),
+                            backgroundImage: _profileImageBytes != null 
+                              ? MemoryImage(_profileImageBytes!) 
+                              : null,
+                            child: _profileImageBytes == null 
+                              ? const Icon(Icons.person, size: 50, color: Colors.white) 
+                              : null,
                           ),
                         ),
-                      )
-                    else
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _selectedConditions.isEmpty 
-                          ? [const Text("None reported", style: TextStyle(color: Colors.white, fontSize: 16))]
-                          : _selectedConditions.map((condition) => Chip(
-                              label: Text(condition, style: const TextStyle(color: Colors.white)),
-                              backgroundColor: const Color(0xff040F31),
-                              side: const BorderSide(color: Color(0xff00E5FF), width: 1),
-                            )).toList(),
-                      ),
-                  ],
+                        if (_isEditing)
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: const BoxDecoration(color: Color(0xff00E5FF), shape: BoxShape.circle),
+                            child: const Icon(Icons.camera_alt, color: Color(0xff040F31), size: 20),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 40),
-            ],
+                const SizedBox(height: 30),
+
+                _buildSectionHeader("Personal Details"),
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xff1A3F6B),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildTextField(
+                        "Full Name", 
+                        _fullNameController,
+                        validator: (value) => value!.isEmpty ? "Full name is required" : null,
+                      ),
+                      const SizedBox(height: 15),
+                      _buildTextField(
+                        "Preferred Name", 
+                        _preferredNameController,
+                        validator: (value) => value!.isEmpty ? "Preferred name is required" : null,
+                      ),
+                      const SizedBox(height: 15),
+                      _buildTextField(
+                        "Username", 
+                        _usernameController,
+                        isReadOnly: true,
+                      ),
+                      const SizedBox(height: 15),
+                      _buildDropdownField("Gender", ["Male", "Female", "Non-binary", "Prefer not to say"], _gender, (val) => setState(() => _gender = val!)),
+                      const SizedBox(height: 15),
+                      _buildDateField("Date of Birth", _formattedDob),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 30),
+
+                _buildSectionHeader("Health & Metrics"),
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xff1A3F6B),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: _buildTextField(
+                            "Height (cm)", 
+                            _heightController, 
+                            isNumber: true,
+                            validator: _validateNumber,
+                          )),
+                          const SizedBox(width: 15),
+                          Expanded(child: _buildTextField(
+                            "Weight (kg)", 
+                            _weightController, 
+                            isNumber: true,
+                            validator: _validateNumber,
+                          )),
+                        ],
+                      ),
+                      const SizedBox(height: 15),
+                      _buildDropdownField("Blood Type", ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Unknown"], _bloodType, (val) => setState(() => _bloodType = val!)),
+                      const SizedBox(height: 25),
+                      
+                      const Text("Health Conditions", style: TextStyle(color: Colors.white54, fontSize: 13)),
+                      const SizedBox(height: 10),
+                      
+                      if (_isEditing)
+                        GestureDetector(
+                          onTap: () => _showHealthConditionsBottomSheet(context),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xff00E5FF).withValues(alpha: 0.5)),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  _selectedConditions.isEmpty 
+                                    ? "Select Conditions" 
+                                    : "${_selectedConditions.length} Selected",
+                                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                                ),
+                                const Icon(Icons.arrow_drop_down, color: Color(0xff00E5FF)),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _selectedConditions.isEmpty 
+                            ? [const Text("None reported", style: TextStyle(color: Colors.white, fontSize: 16))]
+                            : _selectedConditions.map((condition) => Chip(
+                                label: Text(condition, style: const TextStyle(color: Colors.white)),
+                                backgroundColor: const Color(0xff040F31),
+                                side: const BorderSide(color: Color(0xff00E5FF), width: 1),
+                              )).toList(),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 40),
+              ],
+            ),
           ),
         ),
-      ),
     );
   }
 
-  // --- VALIDATION HELPER ---
   String? _validateNumber(String? value) {
     if (value == null || value.isEmpty) return "Required";
     final number = double.tryParse(value);
     if (number == null || number <= 0) return "Invalid";
     return null;
   }
-
-  // --- UI HELPER WIDGETS ---
 
   Widget _buildSectionHeader(String title) {
     return Padding(
@@ -308,7 +413,7 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, {bool isNumber = false, String? Function(String?)? validator}) {
+  Widget _buildTextField(String label, TextEditingController controller, {bool isNumber = false, String? Function(String?)? validator, bool isReadOnly = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -316,18 +421,18 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
         const SizedBox(height: 5),
         TextFormField(
           controller: controller,
-          enabled: _isEditing,
+          enabled: isReadOnly ? false : _isEditing,
           keyboardType: isNumber ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-          style: const TextStyle(color: Colors.white, fontSize: 16),
+          style: TextStyle(color: isReadOnly ? Colors.white54 : Colors.white, fontSize: 16),
           validator: validator,
-          decoration: InputDecoration(
+          decoration: const InputDecoration(
             isDense: true,
-            contentPadding: const EdgeInsets.symmetric(vertical: 8),
-            disabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.transparent)),
-            enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xff00E5FF))),
-            errorStyle: const TextStyle(color: Colors.redAccent),
-            errorBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.redAccent)),
+            contentPadding: EdgeInsets.symmetric(vertical: 8),
+            disabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.transparent)),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xff00E5FF))),
+            errorStyle: TextStyle(color: Colors.redAccent),
+            errorBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.redAccent)),
           ),
         ),
       ],
@@ -389,7 +494,6 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
     );
   }
 
-  // --- MULTI-SELECT BOTTOM SHEET ---
   void _showHealthConditionsBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,

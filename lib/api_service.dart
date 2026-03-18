@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   // Grab the URL from your .env file (e.g., http://10.0.2.2:8000)
@@ -71,6 +72,69 @@ class ApiService {
       return null;
     }
   }
+
+  // 1. Request the OTP (Requires the user's JWT Token)
+  static Future<Map<String, dynamic>> requestChangePasswordOTP() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('jwt_token');
+      
+      if (token == null) return {'success': false, 'message': 'Not logged in'};
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/change-password/request-otp'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token', // <-- Backend reads this to know who to email!
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': 'OTP sent to your email'};
+      } else {
+        final data = jsonDecode(response.body);
+        return {'success': false, 'message': data['detail'] ?? 'Failed to send OTP'};
+      }
+    } catch (e) {
+      print("OTP Request Error: $e");
+      return {'success': false, 'message': 'Network error. Please try again.'};
+    }
+  }
+
+  // 2. Verify the OTP and save the new password
+  static Future<Map<String, dynamic>> verifyChangePassword({
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('jwt_token');
+      
+      if (token == null) return {'success': false, 'message': 'Not logged in'};
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/change-password/verify'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token', 
+        },
+        body: jsonEncode({
+          'code': code,
+          'new_password': newPassword,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': 'Password changed successfully'};
+      } else {
+        final data = jsonDecode(response.body);
+        return {'success': false, 'message': data['detail'] ?? 'Invalid or expired OTP'};
+      }
+    } catch (e) {
+      print("Verify Password Error: $e");
+      return {'success': false, 'message': 'Network error. Please try again.'};
+    }
+  }
   
   static Future<bool> login(String username, String password) async {
     try {
@@ -85,7 +149,15 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        await _storage.write(key: 'jwt_token', value: data['access_token']); 
+        final prefs = await SharedPreferences.getInstance();
+        
+        await prefs.setString('jwt_token', data['access_token']);
+        await prefs.setString('user_name', data['name'] ?? 'User');
+        await prefs.setString('user_email', data['email'] ?? '');
+        
+        await prefs.setString('full_name', data['full_name'] ?? '');
+        await prefs.setString('username', data['username'] ?? '');
+        
         return true;
       } else {
         print('Login Failed: ${response.body}');
