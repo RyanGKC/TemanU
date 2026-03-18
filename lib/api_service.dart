@@ -42,6 +42,30 @@ class ApiService {
     }
   }
   
+  static Future<Map<String, dynamic>?> fetchFitbitData(String date, String fitbitAccessToken) async {
+    try {
+      // Notice we are calling YOUR backend, not api.fitbit.com!
+      final response = await http.get(
+        Uri.parse('$_baseUrl/fitbit/activity/$date'), 
+        headers: {
+          'Content-Type': 'application/json',
+          // We pass the Fitbit token in a custom header so Python can use it
+          'fitbit-token': fitbitAccessToken, 
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        print('Backend proxy failed with status: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      print('Proxy connection error: $e');
+      return null;
+    }
+  }
+  
   static Future<bool> login(String username, String password) async {
     try {
       final response = await http.post(
@@ -105,6 +129,45 @@ class ApiService {
     } catch (e) {
       print("Error saving $metricType: $e");
       return false;
+    }
+  }
+
+  /// Fetches health metrics, optionally filtered by type (e.g., 'Body Weight')
+  static Future<List<Map<String, dynamic>>> getHealthMetrics({String? metricType}) async {
+    try {
+      final token = await _getToken();
+      if (token == null) {
+        print("No token found. User might not be logged in.");
+        return [];
+      }
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/health'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token', // <-- Proves who the user is
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> decodedData = jsonDecode(response.body);
+        
+        // Convert the dynamic list to a strongly typed list of maps
+        List<Map<String, dynamic>> metrics = List<Map<String, dynamic>>.from(decodedData);
+
+        // If we only want Body Weight, filter the list before returning it
+        if (metricType != null) {
+          metrics = metrics.where((m) => m['metric_type'] == metricType).toList();
+        }
+
+        return metrics;
+      } else {
+        print('Failed to fetch metrics. Status: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print("Error fetching metrics: $e");
+      return [];
     }
   }
 

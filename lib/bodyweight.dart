@@ -1,15 +1,21 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // NEW
-import 'package:google_generative_ai/google_generative_ai.dart'; // NEW
-import 'package:shared_preferences/shared_preferences.dart'; // NEW
-import 'package:temanu/MockBwData.dart'; // Make sure this file name matches exactly
+import 'package:flutter_dotenv/flutter_dotenv.dart'; 
+import 'package:google_generative_ai/google_generative_ai.dart'; 
+import 'package:shared_preferences/shared_preferences.dart'; 
+import 'package:temanu/api_service.dart'; // <-- NEW: Import your API service
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/shareWeightHighlightPage.dart';
 import 'package:temanu/weightLineChartPainter.dart';
 
+// <-- NEW: We define WeightReading here so we don't need the Mock file anymore!
+class WeightReading {
+  final DateTime time;
+  final double weight;
+  WeightReading(this.time, this.weight);
+}
+
 class BodyWeightPage extends StatefulWidget {
-  // NEW: Catch the data map from the homepage
   final Map<String, dynamic> baseUserData;
 
   const BodyWeightPage({super.key, required this.baseUserData});
@@ -19,7 +25,7 @@ class BodyWeightPage extends StatefulWidget {
 }
 
 class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProviderStateMixin {
-  double currentWeight = 80.5;
+  double currentWeight = 0.0; // Will be overwritten by DB
   double goalWeight = 80.0;
   double heightCm = 186.0;
   String selectedRange = "W";
@@ -30,11 +36,12 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
   late AnimationController _animationController;
   late Animation<double> _animation;
 
-  // NEW: State variables for the dynamic tip
   String _dynamicAiTip = "Analyzing your body weight data...";
   bool _isLoadingTip = true;
+  bool _isLoadingChart = true; // <-- NEW: Track when the chart is fetching data
 
   // Master lists for the graph
+  List<WeightReading> _liveReadings = []; // <-- NEW: Holds data from Railway
   List<DateTime> aggTimes = [];
   List<double> aggWeights = [];
 
@@ -50,7 +57,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     }
   }
 
-  // Beautiful UI Label for the time travel arrows
   String get dateRangeLabel {
     final start = _startTime;
     final visualEnd = _endTime.subtract(const Duration(days: 1)); 
@@ -67,7 +73,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     }
   }
 
-  // Time Boundary Math
   DateTime get _startTime {
     final now = DateTime.now();
     switch (selectedRange) {
@@ -104,17 +109,14 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
     
-    // Sync starting values with the base user data if available
     final heightParsed = double.tryParse(widget.baseUserData['height'] ?? '');
     if (heightParsed != null) heightCm = heightParsed;
     
     final weightParsed = double.tryParse(widget.baseUserData['weight'] ?? '');
     if (weightParsed != null) currentWeight = weightParsed;
 
-    _aggregateData(); 
-    _animationController.forward();
-
-    // NEW: Generate the tip when the page loads
+    // <-- NEW: Fetch live data when the page opens
+    _fetchWeightData(); 
     _generateAITip();
   }
 
@@ -124,13 +126,47 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     super.dispose();
   }
 
-  // ─── AI Tip Generator ─────────────────────────────────────────────────────
+  // ─── NEW: Fetch data from Railway ─────────────────────────────────────────
+  Future<void> _fetchWeightData() async {
+    setState(() => _isLoadingChart = true);
 
+    final rawMetrics = await ApiService.getHealthMetrics(metricType: 'Body Weight');
+
+    List<WeightReading> fetchedData = [];
+    for (var m in rawMetrics) {
+      // 🎯 CHANGED THIS LINE to match your database exactly:
+      String dateStr = m['timestamp'] ?? DateTime.now().toIso8601String();
+      
+      if (!dateStr.endsWith('Z')) dateStr += 'Z'; 
+      DateTime date = DateTime.parse(dateStr).toLocal();
+      double weight = double.tryParse(m['value'].toString()) ?? 0.0;
+      
+      fetchedData.add(WeightReading(date, weight));
+    }
+
+    if (mounted) {
+      setState(() {
+        _liveReadings = fetchedData;
+        
+        if (_liveReadings.isNotEmpty) {
+          _liveReadings.sort((a, b) => a.time.compareTo(b.time));
+          currentWeight = _liveReadings.last.weight;
+        }
+
+        _isLoadingChart = false;
+        _aggregateData(); 
+      });
+      _animationController.reset();
+      _animationController.forward();
+    }
+  }
+
+  // ─── AI Tip Generator ─────────────────────────────────────────────────────
   Future<void> _generateAITip({bool forceRefresh = false}) async {
     final prefs = await SharedPreferences.getInstance();
 
     if (!forceRefresh) {
-      final cachedTip = prefs.getString('ai_tip_cached_bw'); // Unique key for BW!
+      final cachedTip = prefs.getString('ai_tip_cached_bw'); 
       if (cachedTip != null && cachedTip.isNotEmpty) {
         if (mounted) {
           setState(() {
@@ -188,12 +224,12 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
   }
 
   void _aggregateData() {
-    final rawData = MockWeightData.allReadings; 
+    // <-- NEW: Use the live readings instead of the Mock file
+    final rawData = _liveReadings; 
     Map<DateTime, List<WeightReading>> grouped = {};
     final startTime = _startTime;
     final endTime = _endTime;
 
-    // 1. Group the data 
     for (var reading in rawData) {
       if (reading.time.isBefore(startTime) || reading.time.isAfter(endTime)) continue; 
 
@@ -214,7 +250,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     aggTimes.clear();
     aggWeights.clear();
 
-    // 2. Calculate the Average Weight for each bucket
     for (var key in sortedKeys) {
       var readings = grouped[key]!;
       aggTimes.add(key); 
@@ -243,7 +278,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     int? closestIndex;
     double minDistance = double.infinity;
 
-    // Find proportional tap zones just like BP chart
     for (int i = 0; i < aggTimes.length; i++) {
       final elapsedMillis = aggTimes[i].difference(startTime).inMilliseconds;
       double timeRatio = elapsedMillis / (totalMillis > 0 ? totalMillis : 1);
@@ -262,6 +296,7 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
 
   double get bmi {
     final h = heightCm / 100;
+    if (h == 0) return 0;
     return currentWeight / (h * h);
   }
 
@@ -270,20 +305,31 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     return aggWeights.last - aggWeights.first;
   }
 
-  void addWeightData(double value) async { // <-- Make it async
-    setState(() {
-      currentWeight = value;
-      MockWeightData.allReadings.add(WeightReading(DateTime.now(), value));
-      _aggregateData();
-    });
+  // ─── NEW: Send data to Railway ──────────────────────────────────────────
+  void addWeightData(double value) async { 
+    setState(() => _isLoadingChart = true); // Show loading spinner
     
-    // NEW: Save to SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('latest_weight', currentWeight);
+    // 1. Send it to the backend
+    bool success = await ApiService.saveHealthMetric(
+      metricType: "Body Weight", 
+      value: value.toString(), 
+      unit: "kg"
+    );
 
-    _generateAITip(forceRefresh: true);
-    _animationController.reset();
-    _animationController.forward();
+    if (success) {
+      // 2. Save it locally so the AI Assistant knows immediately
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('latest_weight', value);
+
+      // 3. Re-fetch the data to rebuild the graph and generate a new tip
+      await _fetchWeightData();
+      _generateAITip(forceRefresh: true);
+    } else {
+      setState(() => _isLoadingChart = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to save weight data. Check your connection.')),
+      );
+    }
   }
 
   void showAddDataDialog() {
@@ -373,7 +419,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Current + Add data
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -433,14 +478,14 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
                     setState(() {
                       dateOffset--;
                       touchedIndex = null;
-                      _aggregateData(); // Calculate the new dates
+                      _aggregateData(); 
                     });
                     _animationController.reset();
                     _animationController.forward();
                   },
                 ),
                 Text(
-                  dateRangeLabel, // Now it shows the beautiful date range!
+                  dateRangeLabel, 
                   style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 IconButton(
@@ -453,7 +498,7 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
                     setState(() {
                       dateOffset++;
                       touchedIndex = null;
-                      _aggregateData(); // Calculate the new dates
+                      _aggregateData(); 
                     });
                     _animationController.reset();
                     _animationController.forward();
@@ -463,7 +508,7 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
             ),
             const SizedBox(height: 10),
             
-            // Chart
+            // Chart Container
             Container(
               height: 300,
               width: double.infinity,
@@ -472,28 +517,29 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
                 color: const Color(0xff59A2DD),
                 borderRadius: BorderRadius.circular(30),
               ),
-              child: AnimatedBuilder(
-                animation: _animation,
-                builder: (context, child) {
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      return GestureDetector(
-                        onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
-                        child: CustomPaint(
-                          size: Size(constraints.maxWidth, constraints.maxHeight),
-                          // Updated with the correct variables!
-                          painter: WeightLineChartPainter(aggTimes, aggWeights, selectedRange, touchedIndex, _animation.value, dateOffset)
-                        ),
+              // <-- NEW: Show a spinner while the graph data is loading
+              child: _isLoadingChart 
+                ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                : AnimatedBuilder(
+                    animation: _animation,
+                    builder: (context, child) {
+                      return LayoutBuilder(
+                        builder: (context, constraints) {
+                          return GestureDetector(
+                            onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
+                            child: CustomPaint(
+                              size: Size(constraints.maxWidth, constraints.maxHeight),
+                              painter: WeightLineChartPainter(aggTimes, aggWeights, selectedRange, touchedIndex, _animation.value, dateOffset)
+                            ),
+                          );
+                        },
                       );
-                    },
-                  );
-                }
-              ),
+                    }
+                  ),
             ),
 
             const SizedBox(height: 16),
 
-            // Time filter
             Container(
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
               decoration: BoxDecoration(
@@ -503,7 +549,7 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  filterButton("D"), // Added Day filter back!
+                  filterButton("D"), 
                   filterButton("W"),
                   filterButton("M"),
                   filterButton("3M"),
@@ -515,40 +561,26 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
 
             const SizedBox(height: 16),
 
-            // Goal / Change / BMI
             Row(
               children: [
-                Expanded(
-                  child: infoCard("Goal", goalWeight.toStringAsFixed(0)),
-                ),
+                Expanded(child: infoCard("Goal", goalWeight.toStringAsFixed(0))),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: infoCard("Change", "${changeWeight.toStringAsFixed(1)}kg"),
-                ),
+                Expanded(child: infoCard("Change", "${changeWeight.toStringAsFixed(1)}kg")),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: infoCard("BMI", bmi.toStringAsFixed(1)),
-                ),
+                Expanded(child: infoCard("BMI", bmi.toStringAsFixed(1))),
               ],
             ),
 
             const SizedBox(height: 16),
 
-            // ─── AI Tips Widget (Updated with Relay Race) ───
             InkWell(
               onTap: () {
-                // 1. Copy the base data
                 final updatedData = Map<String, dynamic>.from(widget.baseUserData);
-                
-                // 2. Overwrite with fresh, live Body Weight data
                 updatedData['weight'] = currentWeight.toString();
                 
-                // 3. Hand the baton to the Assistant!
                 Navigator.push(
                   context, 
-                  MaterialPageRoute(
-                    builder: (_) => AssistantPage(userData: updatedData)
-                  )
+                  MaterialPageRoute(builder: (_) => AssistantPage(userData: updatedData))
                 );
               },
               borderRadius: BorderRadius.circular(22), 
@@ -571,7 +603,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
                     ),
                     const SizedBox(height: 12),
                     
-                    // Show loader or dynamic tip with overflow protection
                     _isLoadingTip 
                       ? Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -611,22 +642,9 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-            ),
-          ),
+          Text(title, style: const TextStyle(color: Colors.white, fontSize: 18)),
           const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -639,11 +657,10 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
         setState(() {
           selectedRange = label;
           touchedIndex = null;
-          dateOffset = 0; // Reset offset when switching tabs!
+          dateOffset = 0; 
           _aggregateData(); 
         });
         
-        // NEW: Refresh the AI tip when the user changes the time range to analyze the new trend!
         _generateAITip(forceRefresh: true);
         
         _animationController.reset();
@@ -655,13 +672,7 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
           color: selected ? const Color(0xff6CE5FF) : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? Colors.white : Colors.white70,
-            fontSize: 15,
-          ),
-        ),
+        child: Text(label, style: TextStyle(color: selected ? Colors.white : Colors.white70, fontSize: 15)),
       ),
     );
   }

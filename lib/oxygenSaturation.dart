@@ -1,30 +1,22 @@
 import 'dart:ui';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // NEW
-import 'package:google_generative_ai/google_generative_ai.dart'; // NEW
-import 'package:shared_preferences/shared_preferences.dart'; // NEW
-import 'package:temanu/oxygenSaturationChartPainter.dart'; // Ensure this matches your file name!
+import 'package:flutter_dotenv/flutter_dotenv.dart'; 
+import 'package:google_generative_ai/google_generative_ai.dart'; 
+import 'package:shared_preferences/shared_preferences.dart'; 
+import 'package:temanu/api_service.dart'; // <-- NEW: Import API Service
+import 'package:temanu/oxygenSaturationChartPainter.dart'; 
 import 'package:temanu/assistantpage.dart';
 
-// --- MOCK DATA GENERATOR ---
+// <-- Removed the MockSpO2Data import!
+
 class SpO2Reading {
   final DateTime time;
   final int spo2;
   SpO2Reading(this.time, this.spo2);
 }
 
-class MockSpO2Data {
-  // Generates realistic oxygen levels mostly between 94% and 100%
-  static List<SpO2Reading> allReadings = List.generate(
-    150, 
-    (i) => SpO2Reading(DateTime.now().subtract(Duration(hours: i * 2)), 94 + Random().nextInt(7))
-  );
-}
-// ----------------------------
-
 class OxygenSaturationPage extends StatefulWidget {
-  // NEW: Catch the data map from the homepage
   final Map<String, dynamic> baseUserData;
 
   const OxygenSaturationPage({super.key, required this.baseUserData});
@@ -34,8 +26,8 @@ class OxygenSaturationPage extends StatefulWidget {
 }
 
 class _OxygenSaturationPageState extends State<OxygenSaturationPage> with SingleTickerProviderStateMixin {
-  int currentSpO2 = 98;
-  int avgSpO2 = 97;
+  int currentSpO2 = 0; // Will be populated by DB
+  int avgSpO2 = 0;     // Will be calculated from DB
   String selectedRange = "D";
   int? touchedIndex;
   int dateOffset = 0;
@@ -43,9 +35,12 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
   late AnimationController _animationController;
   late Animation<double> _animation;
 
-  // NEW: State variables for the dynamic tip
   String _dynamicAiTip = "Analyzing your oxygen data...";
   bool _isLoadingTip = true;
+  bool _isLoadingChart = true; // <-- NEW: Track loading state for the chart
+
+  // <-- NEW: Holds the live data from your Railway backend
+  List<SpO2Reading> _liveReadings = []; 
 
   DateTime get _startTime {
     final now = DateTime.now();
@@ -114,10 +109,9 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     super.initState();
     _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
-    _aggregateData(); 
-    _animationController.forward();
     
-    // NEW: Generate the tip when the page loads
+    // <-- NEW: Fetch live data on load
+    _fetchSpO2Data();
     _generateAITip();
   }
 
@@ -127,13 +121,62 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     super.dispose();
   }
 
+  // ─── NEW: Fetch data from Railway ─────────────────────────────────────────
+  Future<void> _fetchSpO2Data() async {
+    setState(() => _isLoadingChart = true);
+
+    final rawMetrics = await ApiService.getHealthMetrics(metricType: 'Oxygen Saturation');
+
+    List<SpO2Reading> fetchedData = [];
+    int sumForToday = 0;
+    int countForToday = 0;
+
+    for (var m in rawMetrics) {
+      String dateStr = m['timestamp'] ?? DateTime.now().toIso8601String();
+      if (!dateStr.endsWith('Z')) dateStr += 'Z'; 
+      DateTime date = DateTime.parse(dateStr).toLocal();
+      int spo2Value = int.tryParse(m['value'].toString()) ?? 0;
+      
+      fetchedData.add(SpO2Reading(date, spo2Value));
+
+      // Quick calculation for the "Daily Avg" box
+      if (date.year == DateTime.now().year && 
+          date.month == DateTime.now().month && 
+          date.day == DateTime.now().day) {
+        sumForToday += spo2Value;
+        countForToday++;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _liveReadings = fetchedData;
+        
+        if (_liveReadings.isNotEmpty) {
+          _liveReadings.sort((a, b) => a.time.compareTo(b.time));
+          currentSpO2 = _liveReadings.last.spo2;
+          avgSpO2 = countForToday > 0 ? (sumForToday / countForToday).round() : currentSpO2;
+        } else {
+          // Fallback if the user has no data yet
+          currentSpO2 = 98;
+          avgSpO2 = 98;
+        }
+
+        _isLoadingChart = false;
+        _aggregateData(); 
+      });
+      _animationController.reset();
+      _animationController.forward();
+    }
+  }
+
   // ─── AI Tip Generator ─────────────────────────────────────────────────────
 
   Future<void> _generateAITip({bool forceRefresh = false}) async {
     final prefs = await SharedPreferences.getInstance();
 
     if (!forceRefresh) {
-      final cachedTip = prefs.getString('ai_tip_cached_spo2'); // Unique key for SpO2!
+      final cachedTip = prefs.getString('ai_tip_cached_spo2'); 
       if (cachedTip != null && cachedTip.isNotEmpty) {
         if (mounted) {
           setState(() {
@@ -188,7 +231,8 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
   }
 
   void _aggregateData() {
-    final rawData = MockSpO2Data.allReadings; 
+    // <-- NEW: Use live readings instead of Mock data
+    final rawData = _liveReadings; 
     Map<DateTime, List<SpO2Reading>> grouped = {};
 
     final startTime = _startTime;
@@ -229,7 +273,6 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     }
   }
 
-  // --- SPO2 SPECIFIC ZONES ---
   String get zoneText {
     if (currentSpO2 >= 95) return "Normal";
     if (currentSpO2 >= 90) return "Borderline";
@@ -281,20 +324,28 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     setState(() => touchedIndex = closestIndex);
   }
 
-  void addSpO2Data(int spo2) async { // <-- Make it async
-    setState(() {
-      currentSpO2 = spo2;
-      MockSpO2Data.allReadings.add(SpO2Reading(DateTime.now(), spo2));
-      _aggregateData(); 
-    });
+  // ─── NEW: Send data to Railway ──────────────────────────────────────────
+  void addSpO2Data(int spo2) async { 
+    setState(() => _isLoadingChart = true);
     
-    // NEW: Save to SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('latest_spo2', currentSpO2);
+    bool success = await ApiService.saveHealthMetric(
+      metricType: "Oxygen Saturation", 
+      value: spo2.toString(), 
+      unit: "%"
+    );
 
-    _generateAITip(forceRefresh: true);
-    _animationController.reset();
-    _animationController.forward();
+    if (success) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('latest_spo2', spo2);
+
+      await _fetchSpO2Data();
+      _generateAITip(forceRefresh: true);
+    } else {
+      setState(() => _isLoadingChart = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to save data. Check your connection.')),
+      );
+    }
   }
 
   void showAddDataDialog() {
@@ -452,7 +503,7 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
 
             const SizedBox(height: 10),
 
-            // Chart
+            // Chart Container
             Container(
               height: 300,
               width: double.infinity,
@@ -461,30 +512,32 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
                 color: const Color(0xff59A2DD),
                 borderRadius: BorderRadius.circular(30),
               ),
-              child: AnimatedBuilder(
-                animation: _animation,
-                builder: (context, child) {
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      return GestureDetector(
-                        onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
-                        child: CustomPaint(
-                          size: Size(constraints.maxWidth, constraints.maxHeight),
-                          painter: OxygenSaturationChartPainter(
-                            timeData: aggTimes,
-                            minSpO2Data: aggMinSpO2,
-                            maxSpO2Data: aggMaxSpO2,
-                            rangeLabel: selectedRange,
-                            touchedIndex: touchedIndex,
-                            dateOffset: dateOffset,
-                            progress: _animation.value, 
-                          ),
-                        ),
+              child: _isLoadingChart 
+                ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                : AnimatedBuilder(
+                    animation: _animation,
+                    builder: (context, child) {
+                      return LayoutBuilder(
+                        builder: (context, constraints) {
+                          return GestureDetector(
+                            onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
+                            child: CustomPaint(
+                              size: Size(constraints.maxWidth, constraints.maxHeight),
+                              painter: OxygenSaturationChartPainter(
+                                timeData: aggTimes,
+                                minSpO2Data: aggMinSpO2,
+                                maxSpO2Data: aggMaxSpO2,
+                                rangeLabel: selectedRange,
+                                touchedIndex: touchedIndex,
+                                dateOffset: dateOffset,
+                                progress: _animation.value, 
+                              ),
+                            ),
+                          );
+                        },
                       );
-                    },
-                  );
-                }
-              ),
+                    }
+                  ),
             ),
 
             const SizedBox(height: 14),
@@ -522,21 +575,14 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
 
             const SizedBox(height: 16),
 
-            // ─── AI Tips Widget (Updated with Relay Race) ───
             InkWell(
               onTap: () {
-                // 1. Copy the base data
                 final updatedData = Map<String, dynamic>.from(widget.baseUserData);
-                
-                // 2. Overwrite with fresh, live SpO2 data
                 updatedData['oxygenSaturation'] = currentSpO2.toString();
                 
-                // 3. Hand the baton to the Assistant!
                 Navigator.push(
                   context, 
-                  MaterialPageRoute(
-                    builder: (_) => AssistantPage(userData: updatedData)
-                  )
+                  MaterialPageRoute(builder: (_) => AssistantPage(userData: updatedData))
                 );
               },
               borderRadius: BorderRadius.circular(22), 
@@ -559,7 +605,6 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
                     ),
                     const SizedBox(height: 12),
                     
-                    // Show loader or dynamic tip with overflow protection
                     _isLoadingTip 
                       ? Row(
                           crossAxisAlignment: CrossAxisAlignment.start,

@@ -6,11 +6,8 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:temanu/heartRateChartPainter.dart';
 import 'package:temanu/assistantpage.dart';
-import 'package:temanu/fitbitService.dart';
-import 'package:temanu/mockHrData.dart';
-import 'package:temanu/api_service.dart';
+import 'package:temanu/api_service.dart'; // <-- API Service is all we need now!
 
-// HrReading is defined here so both heartrate.dart and mockHrData.dart can use it
 class HrReading {
   final DateTime time;
   final int bpm;
@@ -18,7 +15,6 @@ class HrReading {
 }
 
 class HeartRatePage extends StatefulWidget {
-  // NEW: Catch the data map from the homepage
   final Map<String, dynamic> baseUserData;
 
   const HeartRatePage({super.key, required this.baseUserData});
@@ -30,7 +26,7 @@ class HeartRatePage extends StatefulWidget {
 class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProviderStateMixin {
   int currentHr  = 0;
   int restingHr  = 0;
-  bool _isLoadingFitbit = true;
+  bool _isLoadingChart = true; // <-- Replaced Fitbit loader with Chart loader
 
   String selectedRange = "D";
   int? touchedIndex;
@@ -39,14 +35,13 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
   late AnimationController _animationController;
   late Animation<double> _animation;
 
-  // The active dataset — either Fitbit-sourced or mock
-  List<HrReading> _activeReadings = [];
+  // <-- NEW: Holds the live data from your Railway backend
+  List<HrReading> _liveReadings = [];
 
   List<DateTime> aggTimes  = [];
   List<int>      aggMinBpm = [];
   List<int>      aggMaxBpm = [];
 
-  // NEW: State variables for the dynamic tip
   String _dynamicAiTip = "Analyzing your heart rate data...";
   bool _isLoadingTip = true;
 
@@ -116,7 +111,10 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     super.initState();
     _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
-    _loadData();
+    
+    // <-- NEW: Fetch live data on load
+    _fetchHrData();
+    _generateAITip();
   }
 
   @override
@@ -125,76 +123,69 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     super.dispose();
   }
 
-  // ─── Data loading ─────────────────────────────────────────────────────────
+  // ─── NEW: Fetch data from Railway ─────────────────────────────────────────
 
-  Future<void> _loadData() async {
-    setState(() => _isLoadingFitbit = true);
+  Future<void> _fetchHrData() async {
+    setState(() => _isLoadingChart = true);
 
-    bool fitbitSuccess = false;
+    final rawMetrics = await ApiService.getHealthMetrics(metricType: 'Heart Rate');
 
-    final token = await FitbitService.getSilentToken();
-    if (token != null) {
-      final restingResult = await FitbitService.getHeartRate(token);
-
-      if (restingResult != null && restingResult != '--') {
-        final parsed = int.tryParse(restingResult);
-        if (parsed != null) {
-          fitbitSuccess = true;
-          if (mounted) {
-            setState(() {
-              restingHr  = parsed;
-              currentHr  = parsed; 
-              _activeReadings = List.from(MockHrData.allReadings);
-              _activeReadings.add(HrReading(DateTime.now(), parsed));
-            });
-          }
-        }
-      }
-    }
-
-    if (!fitbitSuccess && mounted) {
-      setState(() {
-        _activeReadings = MockHrData.allReadings;
-        final todayReadings = _activeReadings.where((r) {
-          final now = DateTime.now();
-          return r.time.year == now.year &&
-                 r.time.month == now.month &&
-                 r.time.day   == now.day;
-        }).toList();
-
-        if (todayReadings.isNotEmpty) {
-          currentHr = todayReadings.last.bpm;
-          restingHr = todayReadings.map((r) => r.bpm).reduce(min);
-        } else if (_activeReadings.isNotEmpty) {
-          currentHr = _activeReadings.last.bpm;
-          restingHr = _activeReadings.map((r) => r.bpm).reduce(min);
-        }
-      });
+    List<HrReading> fetchedData = [];
+    for (var m in rawMetrics) {
+      String dateStr = m['timestamp'] ?? DateTime.now().toIso8601String();
+      if (!dateStr.endsWith('Z')) dateStr += 'Z'; 
+      DateTime date = DateTime.parse(dateStr).toLocal();
+      int hrValue = int.tryParse(m['value'].toString()) ?? 0;
+      
+      fetchedData.add(HrReading(date, hrValue));
     }
 
     if (mounted) {
-      setState(() => _isLoadingFitbit = false);
-      _aggregateData();
-      _animationController.forward();
+      setState(() {
+        _liveReadings = fetchedData;
+        
+        if (_liveReadings.isNotEmpty) {
+          _liveReadings.sort((a, b) => a.time.compareTo(b.time));
+          currentHr = _liveReadings.last.bpm;
+
+          // Calculate "Resting HR" by finding the lowest HR from today, 
+          // or from all time if they have no entries today.
+          final todayReadings = _liveReadings.where((r) {
+            final now = DateTime.now();
+            return r.time.year == now.year &&
+                   r.time.month == now.month &&
+                   r.time.day   == now.day;
+          }).toList();
+
+          if (todayReadings.isNotEmpty) {
+            restingHr = todayReadings.map((r) => r.bpm).reduce(min);
+          } else {
+            restingHr = _liveReadings.map((r) => r.bpm).reduce(min);
+          }
+        } else {
+          currentHr = 0;
+          restingHr = 0;
+        }
+
+        _isLoadingChart = false;
+        _aggregateData(); 
+      });
       
-      // NEW: Save the currentHr to storage, regardless of whether it 
-      // came from Fitbit or the mock fallback!
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('latest_hr', currentHr);
-      
-      // Generate the tip once the data is loaded!
-      _generateAITip();
+
+      _animationController.reset();
+      _animationController.forward();
     }
   }
 
   // ─── AI Tip Generator ─────────────────────────────────────────────────────
   
-  // NEW: The dynamic AI tip generator
   Future<void> _generateAITip({bool forceRefresh = false}) async {
     final prefs = await SharedPreferences.getInstance();
 
     if (!forceRefresh) {
-      final cachedTip = prefs.getString('ai_tip_cached_hr'); // Unique key for HR!
+      final cachedTip = prefs.getString('ai_tip_cached_hr'); 
       if (cachedTip != null && cachedTip.isNotEmpty) {
         if (mounted) {
           setState(() {
@@ -251,7 +242,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
   // ─── Aggregation ──────────────────────────────────────────────────────────
 
   void _aggregateData() {
-    final rawData  = _activeReadings;
+    final rawData  = _liveReadings; // <-- Switched to live DB data
     final startTime = _startTime;
     final endTime   = _endTime;
 
@@ -344,10 +335,11 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     setState(() => touchedIndex = closestIndex);
   }
 
-  // ─── Manual data entry ────────────────────────────────────────────────────
+  // ─── NEW: Manual data entry ───────────────────────────────────────────────
 
   void _addHrReading(int bpm) async {
-    // 1. Send it to the backend!
+    setState(() => _isLoadingChart = true);
+
     bool success = await ApiService.saveHealthMetric(
       metricType: "Heart Rate",
       value: bpm.toString(),
@@ -355,22 +347,16 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     );
 
     if (success) {
-      setState(() {
-        currentHr = bpm;
-        MockHrData.allReadings.add(HrReading(DateTime.now(), bpm));
-        _aggregateData();
-      });
-      
-      // Update local storage for the dashboard
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('latest_hr', currentHr);
+      await prefs.setInt('latest_hr', bpm);
 
+      await _fetchHrData();
       _generateAITip(forceRefresh: true);
-      _animationController.reset();
-      _animationController.forward();
     } else {
-      // You could show a SnackBar here saying "Failed to sync to server"
-      print("Failed to save heart rate to database");
+      setState(() => _isLoadingChart = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to save data. Check your connection.')),
+      );
     }
   }
 
@@ -426,9 +412,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: _isLoadingFitbit
-          ? const Center(child: CircularProgressIndicator(color: Color(0xff35E0FF)))
-          : SingleChildScrollView(
+      body: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
@@ -517,30 +501,32 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
                       color: const Color(0xff59A2DD),
                       borderRadius: BorderRadius.circular(30),
                     ),
-                    child: AnimatedBuilder(
-                      animation: _animation,
-                      builder: (context, child) {
-                        return LayoutBuilder(
-                          builder: (context, constraints) {
-                            return GestureDetector(
-                              onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
-                              child: CustomPaint(
-                                size: Size(constraints.maxWidth, constraints.maxHeight),
-                                painter: HeartRateChartPainter(
-                                  timeData:     aggTimes,
-                                  minBpmData:   aggMinBpm,
-                                  maxBpmData:   aggMaxBpm,
-                                  rangeLabel:   selectedRange,
-                                  touchedIndex: touchedIndex,
-                                  dateOffset:   dateOffset,
-                                  progress:     _animation.value,
-                                ),
-                              ),
+                    child: _isLoadingChart 
+                      ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                      : AnimatedBuilder(
+                          animation: _animation,
+                          builder: (context, child) {
+                            return LayoutBuilder(
+                              builder: (context, constraints) {
+                                return GestureDetector(
+                                  onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
+                                  child: CustomPaint(
+                                    size: Size(constraints.maxWidth, constraints.maxHeight),
+                                    painter: HeartRateChartPainter(
+                                      timeData:     aggTimes,
+                                      minBpmData:   aggMinBpm,
+                                      maxBpmData:   aggMaxBpm,
+                                      rangeLabel:   selectedRange,
+                                      touchedIndex: touchedIndex,
+                                      dateOffset:   dateOffset,
+                                      progress:     _animation.value,
+                                    ),
+                                  ),
+                                );
+                              },
                             );
                           },
-                        );
-                      },
-                    ),
+                        ),
                   ),
 
                   const SizedBox(height: 14),
@@ -573,16 +559,12 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
 
                   const SizedBox(height: 16),
 
-                  // ── AI Tips (Updated with the Relay Race and Expanded text) ──
+                  // ── AI Tips ──
                   InkWell(
                     onTap: () {
-                      // 1. Copy the base data
                       final updatedData = Map<String, dynamic>.from(widget.baseUserData);
-                      
-                      // 2. Overwrite with fresh, live HR data
                       updatedData['heartRate'] = currentHr.toString();
                       
-                      // 3. Hand the baton to the Assistant!
                       Navigator.push(
                         context, 
                         MaterialPageRoute(
@@ -610,7 +592,6 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
                           ),
                           const SizedBox(height: 12),
                           
-                          // Show loader or dynamic tip with overflow protection
                           _isLoadingTip 
                             ? Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
