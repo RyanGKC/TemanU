@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:temanu/activity.dart';
+import 'package:temanu/api_service.dart';
 import 'package:temanu/bloodGlucose.dart';
 import 'package:temanu/bloodpressure.dart';
 import 'package:temanu/bodyweight.dart';
@@ -26,7 +27,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  String _firstName = "User"; // Default fallback
+  String _firstName = "User"; 
 
   @override
   void initState() {
@@ -104,6 +105,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
     name: 'James', dob: '15 May 1990', age: '35', gender: 'Male',
     height: '180', weight: '75', bloodType: 'O+', conditions: 'None',
   );
+  bool _isLoading = true;
 
   Timer? _backgroundSyncTimer;
   late List<Map<String, dynamic>> _metricsData;
@@ -117,15 +119,16 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   void initState() {
     super.initState();
     _metricsData = [
-      { "icon": Icons.water_drop,          "title": "Blood Glucose Level", "value": "110",    "unit": "mg/dl", "destination": const BloodGlucose(),                         "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.water_drop,          "title": "Blood Glucose Level", "value": "--",    "unit": "mg/dl", "destination": const BloodGlucose(),                         "isVisible": true, "isShareSelected": true },
       { "icon": Icons.directions_run,      "title": "Activity",            "value": "--",     "unit": "steps", "destination": const Activity(),                          "isVisible": true, "isShareSelected": true },
       { "icon": Icons.favorite, "title": "Heart Rate", "value": "--", "unit": "bpm", "destination": const SizedBox(), "isVisible": true, "isShareSelected": true },
-      { "icon": Icons.opacity,             "title": "Oxygen Saturation",   "value": "98",     "unit": "%",     "destination": const SizedBox(),              "isVisible": true, "isShareSelected": true },
-      { "icon": Icons.monitor_heart,       "title": "Blood Pressure",      "value": "118/76", "unit": "mmHg",  "destination": const SizedBox(),                 "isVisible": true, "isShareSelected": true },
-      { "icon": Icons.local_fire_department, "title": "Calories",          "value": "1900",   "unit": "kcal",  "destination": const SizedBox(),   "isVisible": true, "isShareSelected": true },
-      { "icon": Icons.monitor_weight,      "title": "Body Weight",         "value": "80.5",   "unit": "kg",    "destination": const SizedBox(),                    "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.opacity,             "title": "Oxygen Saturation",   "value": "--",     "unit": "%",     "destination": const SizedBox(),              "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.monitor_heart,       "title": "Blood Pressure",      "value": "--", "unit": "mmHg",  "destination": const SizedBox(),                 "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.local_fire_department, "title": "Calories",          "value": "--",   "unit": "kcal",  "destination": const SizedBox(),   "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.monitor_weight,      "title": "Body Weight",         "value": "--",   "unit": "kg",    "destination": const SizedBox(),                    "isVisible": true, "isShareSelected": true },
     ];
     _loadPreferences();
+    _fetchDatabaseMetrics();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkInitialFitbitSync();
@@ -144,6 +147,35 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   void dispose() {
     _backgroundSyncTimer?.cancel();
     super.dispose();
+  }
+  
+  Future<void> _fetchDatabaseMetrics() async {
+    // 1. Turn on the loading spinner
+    setState(() { _isLoading = true; }); 
+
+    final allMetrics = await ApiService.getHealthMetrics(); 
+    Map<String, String> newestValues = {};
+
+    for (var metric in allMetrics) {
+      String type = metric['metric_type'];
+      if (!newestValues.containsKey(type)) {
+        newestValues[type] = metric['value'].toString();
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        if (newestValues.containsKey('Body Weight')) _metricsData.firstWhere((m) => m['title'] == 'Body Weight')['value'] = newestValues['Body Weight'];
+        if (newestValues.containsKey('Heart Rate')) _metricsData.firstWhere((m) => m['title'] == 'Heart Rate')['value'] = newestValues['Heart Rate'];
+        if (newestValues.containsKey('Blood Glucose')) _metricsData.firstWhere((m) => m['title'] == 'Blood Glucose Level')['value'] = newestValues['Blood Glucose'];
+        if (newestValues.containsKey('Oxygen Saturation')) _metricsData.firstWhere((m) => m['title'] == 'Oxygen Saturation')['value'] = newestValues['Oxygen Saturation'];
+        if (newestValues.containsKey('Blood Pressure')) _metricsData.firstWhere((m) => m['title'] == 'Blood Pressure')['value'] = newestValues['Blood Pressure'];
+        if (newestValues.containsKey('Calories')) _metricsData.firstWhere((m) => m['title'] == 'Calories')['value'] = newestValues['Calories'];
+        
+        // 2. Turn off the loading spinner now that the data is ready!
+        _isLoading = false; 
+      });
+    }
   }
 
   // Helper method to gather all data for the AI
@@ -745,7 +777,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
               baseUserData: gatherDataForAI(), // Pass the baton!
             )
           ));
-          _loadPreferences();
+          _fetchDatabaseMetrics();
         } else if (title == 'Heart Rate') {
           // NEW: Intercept the Heart Rate tap to pass the fresh data map
           await Navigator.push(context, MaterialPageRoute(
@@ -753,30 +785,30 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
               baseUserData: gatherDataForAI(), // Pass the baton!
             )
           ));
-          _loadPreferences();
+          _fetchDatabaseMetrics();
         } else if (title == 'Oxygen Saturation') {
           // NEW: Intercept Oxygen Saturation tap!
           await Navigator.push(context, MaterialPageRoute(
             builder: (context) => OxygenSaturationPage(baseUserData: gatherDataForAI())
           ));
-          _loadPreferences();
+          _fetchDatabaseMetrics();
         } else if (title == 'Blood Pressure') {
           // NEW INTERCEPT: Hand off the data!
           await Navigator.push(context, MaterialPageRoute(
             builder: (context) => BloodPressurePage(baseUserData: gatherDataForAI())
           ));
-          _loadPreferences();
+          _fetchDatabaseMetrics();
         } else if (title == 'Body Weight') {
           // NEW INTERCEPT: Hand off the data!
           await Navigator.push(context, MaterialPageRoute(
             builder: (context) => BodyWeightPage(baseUserData: gatherDataForAI())
           ));
-          _loadPreferences();
+          _fetchDatabaseMetrics();
         } else if (destinationPage is ProfileInformationPage) {
           await _navigateToProfile();
         } else {
           await Navigator.push(context, MaterialPageRoute(builder: (context) => destinationPage));
-          _loadPreferences(); 
+          _fetchDatabaseMetrics();
         }
       },
       child: Container(
@@ -794,7 +826,19 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, style: const TextStyle(color: Colors.white70, fontSize: 14)),
-                Text("$value $unit", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                _isLoading
+                  ? const Padding(
+                      padding: EdgeInsets.only(top: 8.0),
+                      child: SizedBox(
+                        height: 20, 
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xff00E5FF)), // Matches your cyan theme!
+                        ),
+                      ),
+                    )
+                  : Text("$value $unit", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
               ],
             ),
           ],

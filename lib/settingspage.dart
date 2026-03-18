@@ -1,11 +1,12 @@
 import 'dart:ui';
-import 'dart:convert';           // <-- NEW: For Base64 decoding
-import 'dart:typed_data';        // <-- NEW: For MemoryImage
+import 'dart:convert'; 
+import 'dart:typed_data';      
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:temanu/changePassword.dart';
 import 'package:temanu/profileInformation.dart';
 import 'package:temanu/fitbitService.dart';
+import 'package:temanu/logindetails.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -180,44 +181,55 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: Column(
                   children: [
                     _buildSettingsTile(
-                        icon: Icons.logout, 
-                        title: "Log Out", 
-                        textColor: Colors.redAccent,
-                        iconColor: Colors.redAccent,
-                        hideArrow: true,
-                        onTap: () {
-                          _showConfirmationDialog(
-                            context,
-                            title: "Log Out",
-                            content: "Are you sure you want to log out of your account?",
-                            actionText: "Log Out",
-                            actionColor: const Color.fromARGB(168, 0, 229, 255),
-                            onConfirm: () async {
-                              await FitbitService.logout();
-                            },
-                          );
-                        }
-                      ),
-                      _buildDivider(),
-                      _buildSettingsTile(
-                        icon: Icons.delete_forever, 
-                        title: "Delete Account", 
-                        textColor: Colors.redAccent,
-                        iconColor: Colors.redAccent,
-                        hideArrow: true,
-                        onTap: () {
-                          _showConfirmationDialog(
-                            context,
-                            title: "Delete Account",
-                            content: "This action cannot be undone.",
-                            actionText: "Delete",
-                            actionColor: Colors.redAccent, 
-                            onConfirm: () async {
-                              await FitbitService.logout();
-                            },
-                          );
-                        }
-                      ),
+                      icon: Icons.logout, 
+                      title: "Log Out", 
+                      textColor: Colors.redAccent,
+                      iconColor: Colors.redAccent,
+                      hideArrow: true,
+                      onTap: () {
+                        _showConfirmationDialog(
+                          context,
+                          title: "Log Out",
+                          content: "Are you sure you want to log out of your account? You will need to sign back in to view your health data.",
+                          actionText: "Log Out",
+                          actionColor: const Color.fromARGB(168, 0, 229, 255),
+                          onConfirm: () async {
+                            await FitbitService.logout();
+                            
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.clear(); 
+                            
+                            if (context.mounted) {
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(builder: (context) => const LoginDetails()),
+                                (route) => false, 
+                              );
+                            }
+                          },
+                        );
+                      }
+                    ),
+                    _buildDivider(),
+                    _buildSettingsTile(
+                      icon: Icons.delete_forever, 
+                      title: "Delete Account", 
+                      textColor: Colors.redAccent,
+                      iconColor: Colors.redAccent,
+                      hideArrow: true,
+                      onTap: () {
+                        _showConfirmationDialog(
+                          context,
+                          title: "Delete Account",
+                          content: "This action cannot be undone.",
+                          actionText: "Delete",
+                          actionColor: Colors.redAccent, 
+                          onConfirm: () async {
+                            await FitbitService.logout();
+                          },
+                        );
+                      }
+                    ),
                   ],
                 ),
               ),

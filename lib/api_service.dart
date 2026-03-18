@@ -151,10 +151,17 @@ class ApiService {
         final data = jsonDecode(response.body);
         final prefs = await SharedPreferences.getInstance();
         
-        await prefs.setString('jwt_token', data['access_token']);
+        final newToken = data['access_token'];
+        
+        // 1. Save it to storage
+        await prefs.setString('jwt_token', newToken);
+        
+        // 2. X-Ray to prove it saved
+        print("✅ FLUTTER SAVED NEW TOKEN ENDING IN: ${newToken.toString().substring(newToken.toString().length - 10)}");
+        
+        // 3. Save the rest of the profile data
         await prefs.setString('user_name', data['name'] ?? 'User');
         await prefs.setString('user_email', data['email'] ?? '');
-        
         await prefs.setString('full_name', data['full_name'] ?? '');
         await prefs.setString('username', data['username'] ?? '');
         
@@ -175,12 +182,19 @@ class ApiService {
 
   // Helper method to get the token for protected routes
   static Future<String?> _getToken() async {
-    return await _storage.read(key: 'jwt_token');
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('jwt_token');
+    
+    // X-Ray to prove it grabbed the right one from storage
+    if (token != null && token.length > 10) {
+      print("🔍 STORAGE CHECK: Flutter pulled token ending in: ${token.substring(token.length - 10)}");
+    }
+    
+    return token;
   }
 
   // ─── HEALTH METRICS ───
 
-  /// Saves a metric to your unified /health endpoint
   static Future<bool> saveHealthMetric({
     required String metricType,
     required String value,
@@ -188,20 +202,51 @@ class ApiService {
   }) async {
     try {
       final token = await _getToken();
-      if (token == null) return false; // User is not logged in
+      
+      if (token == null) return false;
+
+      final Map<String, dynamic> payload = {};
+      final parsedValue = double.tryParse(value);
+      
+      // --- THE FULLY MAPPED ADAPTER ---
+      if (metricType == "Body Weight") {
+        payload['body_weight'] = parsedValue;
+      } else if (metricType == "Heart Rate") {
+        payload['heart_rate'] = int.tryParse(value);
+      } else if (metricType == "Blood Glucose") {
+        payload['blood_glucose'] = parsedValue;
+      } else if (metricType == "Oxygen Saturation") {
+        payload['oxygen_saturation'] = parsedValue;
+      } else if (metricType == "Calories") {
+        payload['calories'] = int.tryParse(value);
+      } else if (metricType == "Blood Pressure") {
+        // Automatically split "120/80" into two database columns!
+        final parts = value.split('/');
+        if (parts.length == 2) {
+          payload['blood_pressure_systolic'] = int.tryParse(parts[0].trim());
+          payload['blood_pressure_diastolic'] = int.tryParse(parts[1].trim());
+        } else {
+          print("⚠️ Warning: Blood pressure format should be '120/80'");
+        }
+      }
+
+      if (payload.isEmpty) {
+        print("⚠️ Warning: Metric type '$metricType' not mapped. Skipping save.");
+        return true; 
+      }
 
       final response = await http.post(
         Uri.parse('$_baseUrl/health'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token', // Inject the JWT!
+          'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({
-          'metric_type': metricType,
-          'value': value,
-          'unit': unit,
-        }),
+        body: jsonEncode(payload),
       );
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        print("📱 SERVER REJECTED HEALTH METRIC: ${response.body}");
+      }
 
       return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
@@ -214,33 +259,56 @@ class ApiService {
   static Future<List<Map<String, dynamic>>> getHealthMetrics({String? metricType}) async {
     try {
       final token = await _getToken();
-      if (token == null) {
-        print("No token found. User might not be logged in.");
-        return [];
-      }
+      if (token == null) return [];
 
       final response = await http.get(
         Uri.parse('$_baseUrl/health'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token', // <-- Proves who the user is
+          'Authorization': 'Bearer $token',
         },
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> decodedData = jsonDecode(response.body);
-        
-        // Convert the dynamic list to a strongly typed list of maps
-        List<Map<String, dynamic>> metrics = List<Map<String, dynamic>>.from(decodedData);
+        List<dynamic> rawData = jsonDecode(response.body);
+        List<Map<String, dynamic>> translatedData = [];
 
-        // If we only want Body Weight, filter the list before returning it
-        if (metricType != null) {
-          metrics = metrics.where((m) => m['metric_type'] == metricType).toList();
+        for (var row in rawData) {
+          String timestamp = row['timestamp'] ?? '';
+
+          if (row['body_weight'] != null) {
+            translatedData.add({'metric_type': 'Body Weight', 'value': row['body_weight'].toString(), 'timestamp': timestamp});
+          }
+          if (row['heart_rate'] != null) {
+            translatedData.add({'metric_type': 'Heart Rate', 'value': row['heart_rate'].toString(), 'timestamp': timestamp});
+          }
+          if (row['blood_glucose'] != null) {
+            translatedData.add({'metric_type': 'Blood Glucose', 'value': row['blood_glucose'].toString(), 'timestamp': timestamp});
+          }
+          if (row['oxygen_saturation'] != null) {
+            translatedData.add({'metric_type': 'Oxygen Saturation', 'value': row['oxygen_saturation'].toString(), 'timestamp': timestamp});
+          }
+          if (row['calories'] != null) {
+            translatedData.add({'metric_type': 'Calories', 'value': row['calories'].toString(), 'timestamp': timestamp});
+          }
+          // Handle Blood Pressure (often displayed together)
+          if (row['blood_pressure_systolic'] != null && row['blood_pressure_diastolic'] != null) {
+            translatedData.add({
+              'metric_type': 'Blood Pressure', 
+              'value': '${row['blood_pressure_systolic']}/${row['blood_pressure_diastolic']}', 
+              'timestamp': timestamp
+            });
+          }
         }
 
-        return metrics;
+        // --- NEW: Filter the data if the UI asked for a specific metric! ---
+        if (metricType != null) {
+          return translatedData.where((metric) => metric['metric_type'] == metricType).toList();
+        }
+
+        return translatedData;
       } else {
-        print('Failed to fetch metrics. Status: ${response.statusCode}');
+        print("Failed to fetch metrics. Status: ${response.statusCode}");
         return [];
       }
     } catch (e) {
