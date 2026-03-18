@@ -67,6 +67,29 @@ class _LoginDetailsState extends State<LoginDetails> {
     }
   }
 
+  // A dedicated fast-path for developers
+  Future<void> _handleDevLogin() async {
+    setState(() => _isLoading = true);
+
+    // Hardcoded credentials for your test account
+    bool success = await ApiService.login('RyanG', 'Ryan8228');
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+
+      if (success) {
+        Navigator.pushReplacement(
+          context, 
+          MaterialPageRoute(builder: (context) => const MainScreen())
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Dev login failed. Is the test account registered?')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -150,7 +173,15 @@ class _LoginDetailsState extends State<LoginDetails> {
                           textColor: Colors.white,
                           onPressed: _handleLogin, // Trigger the API call here
                         ),
-
+                    const SizedBox(height: 10),
+                    TextButton.icon(
+                      onPressed: _isLoading ? null : _handleDevLogin,
+                      icon: const Icon(Icons.bug_report, color: Colors.white70, size: 18),
+                      label: const Text(
+                        'Dev Fast Login', 
+                        style: TextStyle(color: Colors.white70)
+                      ),
+                    ),
                     const SizedBox(height: 20),
                     const Row(
                       children: [
