@@ -16,6 +16,9 @@ class ApiService {
     required String preferredName,
     required String username,
     required String password,
+    required String gender,
+    required String dob,         
+    required String bloodType,  
   }) async {
     try {
       final response = await http.post(
@@ -27,6 +30,9 @@ class ApiService {
           'preferred_name': preferredName,
           'username': username,
           'password': password,
+          'gender': gender,         
+          'dob': dob,               
+          'blood_type': bloodType,  
         }),
       );
 

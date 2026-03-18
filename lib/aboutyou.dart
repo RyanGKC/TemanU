@@ -1,18 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // <-- NEW
-import 'package:temanu/api_service.dart'; // <-- NEW
+import 'package:shared_preferences/shared_preferences.dart'; 
+import 'package:temanu/api_service.dart'; 
 import 'package:temanu/button.dart';
 import 'package:temanu/mainscreen.dart';
 
 class AboutYou extends StatefulWidget {
-  const AboutYou({super.key});
+  // --- NEW: Catching the baton from Step 1! ---
+  final String email;
+  final String name;
+  final String preferredName;
+  final String username;
+  final String password;
+
+  const AboutYou({
+    super.key, 
+    required this.email, 
+    required this.name, 
+    required this.preferredName, 
+    required this.username, 
+    required this.password
+  });
 
   @override
-  State <AboutYou> createState() => AboutYouState();
+  State<AboutYou> createState() => AboutYouState();
 }
 
-class AboutYouState extends State <AboutYou> {
+class AboutYouState extends State<AboutYou> {
   String? selectedGender;
   final List<String> genderOptions = ['Male', 'Female'];
   DateTime? selectedDate;
@@ -22,7 +36,7 @@ class AboutYouState extends State <AboutYou> {
   final weightController = TextEditingController();
   final bloodTypeController = TextEditingController();
 
-  bool _isLoading = false; // <-- NEW: Loading spinner state
+  bool _isLoading = false; 
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -40,7 +54,7 @@ class AboutYouState extends State <AboutYou> {
     }
   }
 
-  // <-- NEW: The function that saves the data
+  // --- THE GRAND FINALE: Save everything at once ---
   Future<void> _submitData() async {
     if (selectedGender == null || 
         dateOfBirthcontroller.text.isEmpty || 
@@ -55,36 +69,65 @@ class AboutYouState extends State <AboutYou> {
 
     setState(() => _isLoading = true);
 
-    // 1. Save to SharedPreferences for local app / AI use
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('gender', selectedGender!);
-    await prefs.setString('dob', dateOfBirthcontroller.text);
-    await prefs.setString('height', heightController.text);
-    await prefs.setString('weight', weightController.text);
-    await prefs.setDouble('latest_weight', double.parse(weightController.text));
-    await prefs.setString('blood_type', bloodTypeController.text);
-
-    // 2. Push the Height and Weight to the Railway Database!
-    await ApiService.saveHealthMetric(
-      metricType: "Height", 
-      value: heightController.text, 
-      unit: "cm"
-    );
-    await ApiService.saveHealthMetric(
-      metricType: "Body Weight", 
-      value: weightController.text, 
-      unit: "kg"
+    // 1. Create the User in the database with ALL data
+    final result = await ApiService.register(
+      email: widget.email,
+      name: widget.name,
+      preferredName: widget.preferredName,
+      username: widget.username,
+      password: widget.password,
+      gender: selectedGender!,
+      dob: dateOfBirthcontroller.text,
+      bloodType: bloodTypeController.text,
     );
 
     if (mounted) {
-      setState(() => _isLoading = false);
-      
-      // 3. Clear the navigation history and go straight to the Main Dashboard
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const MainScreen()),
-        (Route<dynamic> route) => false, // This destroys the back button history
-      );
+      if (result['success'] == true) {
+        // 2. Log them in to get the JWT Token
+        bool loginSuccess = await ApiService.login(widget.username, widget.password);
+
+        if (loginSuccess) {
+          // 3. Save to SharedPreferences for local AI usage
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('gender', selectedGender!);
+          await prefs.setString('dob', dateOfBirthcontroller.text);
+          await prefs.setString('height', heightController.text);
+          await prefs.setString('weight', weightController.text);
+          await prefs.setDouble('latest_weight', double.parse(weightController.text));
+          await prefs.setString('blood_type', bloodTypeController.text);
+
+          // 4. Push Height and Weight to the HealthMetrics table
+          await ApiService.saveHealthMetric(
+            metricType: "Height", 
+            value: heightController.text, 
+            unit: "cm"
+          );
+          await ApiService.saveHealthMetric(
+            metricType: "Body Weight", 
+            value: weightController.text, 
+            unit: "kg"
+          );
+
+          setState(() => _isLoading = false);
+
+          // 5. Fire them into the dashboard!
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const MainScreen()),
+            (Route<dynamic> route) => false, 
+          );
+        } else {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Account created, but login failed. Please try logging in manually.')),
+          );
+        }
+      } else {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? 'Registration failed')),
+        );
+      }
     }
   }
 
