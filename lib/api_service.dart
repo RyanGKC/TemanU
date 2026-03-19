@@ -418,6 +418,32 @@ class ApiService {
     }
   }
 
+  /// Fetch the 7-day aggregated insights from Python
+  static Future<List<dynamic>> getWeeklyInsights() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return [];
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/insights/weekly'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        print("Failed to fetch insights. Status: ${response.statusCode}");
+        return [];
+      }
+    } catch (e) {
+      print("Error fetching insights: $e");
+      return [];
+    }
+  }
+
   /// 1. Save a new meal to the database
   static Future<bool> saveMeal({
     required String name, 
