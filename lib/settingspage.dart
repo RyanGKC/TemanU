@@ -2,7 +2,8 @@ import 'dart:ui';
 import 'dart:convert'; 
 import 'dart:typed_data';      
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; 
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:temanu/api_service.dart'; 
 import 'package:temanu/changePassword.dart';
 import 'package:temanu/profileInformation.dart';
 import 'package:temanu/fitbitService.dart';
@@ -212,24 +213,60 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     _buildDivider(),
                     _buildSettingsTile(
-                      icon: Icons.delete_forever, 
-                      title: "Delete Account", 
-                      textColor: Colors.redAccent,
-                      iconColor: Colors.redAccent,
-                      hideArrow: true,
-                      onTap: () {
-                        _showConfirmationDialog(
-                          context,
-                          title: "Delete Account",
-                          content: "This action cannot be undone.",
-                          actionText: "Delete",
-                          actionColor: Colors.redAccent, 
-                          onConfirm: () async {
-                            await FitbitService.logout();
-                          },
-                        );
-                      }
-                    ),
+                        icon: Icons.delete_forever, 
+                        title: "Delete Account", 
+                        textColor: Colors.redAccent,
+                        iconColor: Colors.redAccent,
+                        hideArrow: true,
+                        onTap: () {
+                          _showConfirmationDialog(
+                            context,
+                            title: "Delete Account",
+                            content: "Are you absolutely sure? This action cannot be undone. All of your health data, settings, and profile information will be permanently erased.",
+                            actionText: "Delete",
+                            actionColor: Colors.redAccent,
+                            onConfirm: () async {
+                              // 1. Show a loading indicator (optional but good practice)
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.redAccent)),
+                              );
+
+                              // 2. Tell the server to nuke the account
+                              bool success = await ApiService.deleteAccount();
+
+                              // Pop the loading circle
+                              if (context.mounted) Navigator.pop(context);
+
+                              if (success) {
+                                // 3. Disconnect third-party services
+                                await FitbitService.logout();
+                                
+                                // 4. Wipe the local storage
+                                final prefs = await SharedPreferences.getInstance();
+                                await prefs.clear(); 
+                                
+                                // 5. Kick them to the login screen and destroy the back button history
+                                if (context.mounted) {
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const LoginDetails()),
+                                    (route) => false, 
+                                  );
+                                }
+                              } else {
+                                // Show an error if the server failed
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text("Failed to delete account. Please try again later.")),
+                                  );
+                                }
+                              }
+                            },
+                          );
+                        }
+                      ),
                   ],
                 ),
               ),

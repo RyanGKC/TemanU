@@ -48,6 +48,32 @@ class ApiService {
       return {'success': false, 'message': 'Connection error: $e'};
     }
   }
+
+  static Future<bool> deleteAccount() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return false;
+
+      final response = await http.delete(
+        Uri.parse('$_baseUrl/users/me'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        print("✅ Account deleted from server successfully.");
+        return true;
+      } else {
+        print("❌ Failed to delete account. Status: ${response.statusCode}");
+        return false;
+      }
+    } catch (e) {
+      print("Error deleting account: $e");
+      return false;
+    }
+  }
   
   static Future<Map<String, dynamic>?> fetchFitbitData(String date, String fitbitAccessToken) async {
     try {
@@ -70,6 +96,54 @@ class ApiService {
     } catch (e) {
       print('Proxy connection error: $e');
       return null;
+    }
+  }
+
+  /// Step 1: Request the OTP to be sent to the user's email
+  static Future<bool> requestPasswordReset(String email) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/forgot-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+
+      if (response.statusCode == 200) {
+        print("✅ OTP sent successfully to $email");
+        return true;
+      } else {
+        print("❌ Failed to send OTP. Status: ${response.statusCode}");
+        return false;
+      }
+    } catch (e) {
+      print("Error requesting password reset: $e");
+      return false;
+    }
+  }
+
+  /// Step 2: Verify the OTP and save the new password
+  static Future<bool> resetPassword(String email, String code, String newPassword) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/reset-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'code': code,
+          'new_password': newPassword
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        print("✅ Password reset successful!");
+        return true;
+      } else {
+        print("❌ Failed to reset password. Server says: ${response.body}");
+        return false;
+      }
+    } catch (e) {
+      print("Error resetting password: $e");
+      return false;
     }
   }
 

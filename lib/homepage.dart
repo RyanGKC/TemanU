@@ -445,28 +445,29 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
         for (var meal in decoded) {
           dynamicallyCalculatedCalories += (meal['calories'] as num).toDouble();
         }
+        _metricsData.firstWhere((m) => m['title'] == 'Calories')['value'] = dynamicallyCalculatedCalories.toInt().toString();
       } else {
-        dynamicallyCalculatedCalories = 1450; 
+        // Changed from 1450 to '--'
+        _metricsData.firstWhere((m) => m['title'] == 'Calories')['value'] = '--';
       }
-      _metricsData.firstWhere((m) => m['title'] == 'Calories')['value'] = dynamicallyCalculatedCalories.toInt().toString();
 
-      // 3. FETCH THE REST OF THE LIVE DATA!
+      // 3. FETCH THE REST OF THE LIVE DATA (from offline cache)!
       
       // Heart Rate
       int latestHr = prefs.getInt('latest_hr') ?? 0; 
       _metricsData.firstWhere((m) => m['title'] == 'Heart Rate')['value'] = latestHr > 0 ? latestHr.toString() : '--';
 
-      // Blood Pressure
-      String latestBp = prefs.getString('latest_bp') ?? '118/76';
-      _metricsData.firstWhere((m) => m['title'] == 'Blood Pressure')['value'] = latestBp;
+      // Blood Pressure (Changed to default to '--')
+      String? latestBp = prefs.getString('latest_bp');
+      _metricsData.firstWhere((m) => m['title'] == 'Blood Pressure')['value'] = latestBp ?? '--';
 
-      // Oxygen Saturation
-      int latestSpo2 = prefs.getInt('latest_spo2') ?? 98;
-      _metricsData.firstWhere((m) => m['title'] == 'Oxygen Saturation')['value'] = latestSpo2.toString();
+      // Oxygen Saturation (Changed to default to '--')
+      int? latestSpo2 = prefs.getInt('latest_spo2');
+      _metricsData.firstWhere((m) => m['title'] == 'Oxygen Saturation')['value'] = latestSpo2 != null ? latestSpo2.toString() : '--';
 
-      // Body Weight
-      double latestWeight = prefs.getDouble('latest_weight') ?? 80.5;
-      _metricsData.firstWhere((m) => m['title'] == 'Body Weight')['value'] = latestWeight.toStringAsFixed(1);
+      // Body Weight (Changed to default to '--')
+      double? latestWeight = prefs.getDouble('latest_weight');
+      _metricsData.firstWhere((m) => m['title'] == 'Body Weight')['value'] = latestWeight != null ? latestWeight.toStringAsFixed(1) : '--';
 
       // 4. Goals and Targets
       _bodyGoal = prefs.getString('body_goal') ?? 'maintain';
