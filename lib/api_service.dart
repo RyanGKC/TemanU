@@ -417,4 +417,64 @@ class ApiService {
       return false;
     }
   }
+
+  /// 1. Save a new meal to the database
+  static Future<bool> saveMeal({
+    required String name, 
+    required int calories, 
+    double protein = 0, 
+    double carbs = 0, 
+    double fats = 0
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return false;
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/meals'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'name': name,
+          'calories': calories,
+          'protein': protein,
+          'carbs': carbs,
+          'fats': fats,
+        }),
+      );
+
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      print("Error saving meal: $e");
+      return false;
+    }
+  }
+
+  /// 2. Fetch all meals logged today
+  static Future<List<dynamic>> getTodaysMeals() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return [];
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/meals/today'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        print("Failed to fetch meals. Status: ${response.statusCode}");
+        return [];
+      }
+    } catch (e) {
+      print("Error fetching meals: $e");
+      return [];
+    }
+  }
 }

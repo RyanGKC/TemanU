@@ -153,6 +153,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
     // 1. Turn on the loading spinner
     setState(() { _isLoading = true; }); 
 
+    // --- FETCH GENERAL METRICS ---
     final allMetrics = await ApiService.getHealthMetrics(); 
     Map<String, String> newestValues = {};
 
@@ -163,6 +164,14 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
       }
     }
 
+    // --- NEW: FETCH TODAY'S MEALS & CALCULATE TOTAL CALORIES ---
+    final todaysMeals = await ApiService.getTodaysMeals();
+    int totalCalories = 0;
+    for (var meal in todaysMeals) {
+      totalCalories += (meal['calories'] as num).toInt();
+    }
+    // -----------------------------------------------------------
+
     if (mounted) {
       setState(() {
         if (newestValues.containsKey('Body Weight')) _metricsData.firstWhere((m) => m['title'] == 'Body Weight')['value'] = newestValues['Body Weight'];
@@ -170,9 +179,11 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
         if (newestValues.containsKey('Blood Glucose')) _metricsData.firstWhere((m) => m['title'] == 'Blood Glucose Level')['value'] = newestValues['Blood Glucose'];
         if (newestValues.containsKey('Oxygen Saturation')) _metricsData.firstWhere((m) => m['title'] == 'Oxygen Saturation')['value'] = newestValues['Oxygen Saturation'];
         if (newestValues.containsKey('Blood Pressure')) _metricsData.firstWhere((m) => m['title'] == 'Blood Pressure')['value'] = newestValues['Blood Pressure'];
-        if (newestValues.containsKey('Calories')) _metricsData.firstWhere((m) => m['title'] == 'Calories')['value'] = newestValues['Calories'];
         
-        // 2. Turn off the loading spinner now that the data is ready!
+        // --- NEW: Inject the calculated live total directly into the card! ---
+        _metricsData.firstWhere((m) => m['title'] == 'Calories')['value'] = totalCalories.toString();
+        
+        // 2. Turn off the loading spinner
         _isLoading = false; 
       });
     }
@@ -447,8 +458,8 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
         }
         _metricsData.firstWhere((m) => m['title'] == 'Calories')['value'] = dynamicallyCalculatedCalories.toInt().toString();
       } else {
-        // Changed from 1450 to '--'
-        _metricsData.firstWhere((m) => m['title'] == 'Calories')['value'] = '--';
+        // --- THE FIX: Changed from '--' to '0' ---
+        _metricsData.firstWhere((m) => m['title'] == 'Calories')['value'] = '0';
       }
 
       // 3. FETCH THE REST OF THE LIVE DATA (from offline cache)!

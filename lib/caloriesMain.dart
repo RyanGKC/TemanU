@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:temanu/api_service.dart';
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/cameraCapture.dart';
 import 'package:temanu/fitbitService.dart';
 import 'package:temanu/patientData.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 
 class CaloriesMain extends StatefulWidget {
   // PatientData is passed in from HomePage so we can read height, weight, age, gender
@@ -161,26 +161,16 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
       _bodyGoal      = prefs.getString('body_goal') ?? 'maintain';
       _goalOffset    = prefs.getInt('goal_offset') ?? 500;
       _activityLevel = prefs.getString('activity_level') ?? 'sedentary';
-      
-      // 1. Load the actual list of tracked meals!
-      final String? mealsJson = prefs.getString('tracked_meals');
+    });
 
-      if (mealsJson != null) {
-        // If meals exist in storage, decode them
-        final List<dynamic> decoded = jsonDecode(mealsJson);
-        trackedMealsList = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
-      } else {
-        // If it's the very first time opening the app, use the mock data as a starter
-        trackedMealsList = [
-          {"name": "Oats and Honey",        "calories": 450, "protein": 15, "carbs": 65, "fats": 8},
-          {"name": "Grilled Chicken Salad", "calories": 600, "protein": 45, "carbs": 20, "fats": 25},
-          {"name": "Salmon and Quinoa",     "calories": 400, "protein": 35, "carbs": 40, "fats": 12},
-        ];
-        // Save these starter meals to storage immediately so the homepage sees them
-        prefs.setString('tracked_meals', jsonEncode(trackedMealsList));
-      }
+    // 1. Fetch LIVE meals from the Python backend!
+    final liveMeals = await ApiService.getTodaysMeals();
 
-      // 2. Dynamically calculate ALL totals by looping through the actual meals
+    setState(() {
+      // Map the backend JSON safely into our Dart list
+      trackedMealsList = liveMeals.map((e) => Map<String, dynamic>.from(e)).toList();
+
+      // 2. Dynamically calculate ALL totals by looping through the live meals
       caloriesConsumed = 0;
       proteinConsumed = 0;
       carbsConsumed = 0;
@@ -195,6 +185,8 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
       _recalculateTargets(); 
     });
+    
+    // Now that we have live data, ask Gemini for a fresh tip
     _generateAITip();
   }
 
@@ -1044,9 +1036,20 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start, // Keeps the calories aligned to the top if the name wraps
             children: [
-              Text(meal["name"],
-                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              // --- THE FIX: Wrap the name in an Expanded widget ---
+              Expanded(
+                child: Text(
+                  meal["name"],
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  maxLines: 2, // Let it wrap to a second line if it's long
+                  overflow: TextOverflow.ellipsis, // Add "..." if it's ridiculously long
+                ),
+              ),
+              const SizedBox(width: 12), // Add a little breathing room between the name and the numbers
+              // ----------------------------------------------------
+              
               Text("${meal["calories"]} kcal",
                 style: const TextStyle(color: Color(0xff00E5FF), fontSize: 16, fontWeight: FontWeight.bold)),
             ],
@@ -1055,9 +1058,10 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildSmallMacroText("Protein", meal["protein"], Colors.redAccent),
-              _buildSmallMacroText("Carbs",   meal["carbs"],   Colors.orangeAccent),
-              _buildSmallMacroText("Fats",    meal["fats"],    Colors.purpleAccent),
+              // Use (as num).toInt() to prevent crashes from Python floats!
+              _buildSmallMacroText("Protein", (meal["protein"] as num).toInt(), Colors.redAccent),
+              _buildSmallMacroText("Carbs",   (meal["carbs"] as num).toInt(),   Colors.orangeAccent),
+              _buildSmallMacroText("Fats",    (meal["fats"] as num).toInt(),    Colors.purpleAccent),
             ],
           ),
         ],
@@ -1083,24 +1087,43 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
           context, MaterialPageRoute(builder: (_) => const TrackMealCameraPage()));
 
         if (newMeal != null && newMeal is Map<String, dynamic>) {
-          setState(() {
-            trackedMealsList.add(newMeal);
-            caloriesConsumed += (newMeal["calories"] as num).toDouble();
-            proteinConsumed  += (newMeal["protein"]  as num).toDouble();
-            carbsConsumed    += (newMeal["carbs"]    as num).toDouble();
-            fatsConsumed     += (newMeal["fats"]     as num).toDouble();
-          });
           
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('tracked_meals', jsonEncode(trackedMealsList));
-
-          // FORCE A FRESH TIP! 
-          _generateAITip(forceRefresh: true);
-
-          _controller.forward(from: 0.0);
+          // Show a quick loading message
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Meal tracked successfully!"), backgroundColor: Color(0xff00E676))
+            const SnackBar(content: Text("Saving meal to cloud..."), duration: Duration(seconds: 1))
           );
+
+          // 1. Send the meal to the Python Database safely
+          bool success = await ApiService.saveMeal(
+            name: newMeal["name"],
+            calories: (newMeal["calories"] as num).toInt(),
+            protein: (newMeal["protein"] as num).toDouble(),
+            carbs: (newMeal["carbs"] as num).toDouble(),
+            fats: (newMeal["fats"] as num).toDouble(),
+          );
+
+          if (success) {
+            // 2. Re-fetch the live data to automatically update rings and totals!
+            await _loadGoalSettings();
+
+            // FORCE A FRESH GEMINI TIP! 
+            _generateAITip(forceRefresh: true);
+
+            // Replay the cool ring animations
+            _controller.forward(from: 0.0);
+            
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Meal tracked successfully!"), backgroundColor: Color(0xff00E676))
+              );
+            }
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Failed to save meal. Please try again."), backgroundColor: Colors.redAccent)
+              );
+            }
+          }
         }
       },
       child: Container(
