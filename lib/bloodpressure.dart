@@ -1,13 +1,15 @@
 import 'dart:ui';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // NEW
-import 'package:google_generative_ai/google_generative_ai.dart'; // NEW
-import 'package:shared_preferences/shared_preferences.dart'; // NEW
-import 'package:temanu/MockBpData.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; 
+import 'package:google_generative_ai/google_generative_ai.dart'; 
+import 'package:shared_preferences/shared_preferences.dart'; 
+import 'package:temanu/api_service.dart'; // <-- NEW: Import API Service
 import 'package:temanu/bloodPressureSharePage.dart';
 import 'package:temanu/bloodPresureChartPainter.dart';
 import 'package:temanu/assistantpage.dart';
+
+// <-- Removed the MockBpData import!
 
 class BpReading {
   final DateTime time;
@@ -17,7 +19,6 @@ class BpReading {
 }
 
 class BloodPressurePage extends StatefulWidget {
-  // NEW: Catch the data map from the homepage
   final Map<String, dynamic> baseUserData;
 
   const BloodPressurePage({super.key, required this.baseUserData});
@@ -26,21 +27,22 @@ class BloodPressurePage extends StatefulWidget {
   State<BloodPressurePage> createState() => _BloodPressurePageState();
 }
 
-// 1. ADDED MIXIN FOR ANIMATIONS
 class _BloodPressurePageState extends State<BloodPressurePage> with SingleTickerProviderStateMixin {
-  int systolic = 118;
-  int diastolic = 76;
+  int systolic = 0; // Will be populated by DB
+  int diastolic = 0; // Will be populated by DB
   String selectedRange = "D";
   int? touchedIndex;
   int dateOffset = 0;
 
-  // NEW: State variables for the dynamic tip
   String _dynamicAiTip = "Analyzing your blood pressure data...";
   bool _isLoadingTip = true;
+  bool _isLoadingChart = true; // <-- NEW: Track loading state for the chart
 
-  // 2. ADDED ANIMATION CONTROLLERS
   late AnimationController _animationController;
   late Animation<double> _animation;
+
+  // <-- NEW: Holds the live data from your Railway backend
+  List<BpReading> _liveReadings = []; 
 
   DateTime get _startTime {
     final now = DateTime.now();
@@ -109,13 +111,11 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
   @override
   void initState() {
     super.initState();
-    // 3. INITIALIZE ANIMATION
     _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
-    _aggregateData(); 
-    _animationController.forward();
     
-    // NEW: Generate the tip when the page loads
+    // <-- NEW: Fetch live data on load
+    _fetchBpData();
     _generateAITip();
   }
 
@@ -125,13 +125,58 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
     super.dispose();
   }
 
+  // ─── NEW: Fetch data from Railway ─────────────────────────────────────────
+  Future<void> _fetchBpData() async {
+    setState(() => _isLoadingChart = true);
+
+    final rawMetrics = await ApiService.getHealthMetrics(metricType: 'Blood Pressure');
+
+    List<BpReading> fetchedData = [];
+    for (var m in rawMetrics) {
+      String dateStr = m['timestamp'] ?? DateTime.now().toIso8601String();
+      if (!dateStr.endsWith('Z')) dateStr += 'Z'; 
+      DateTime date = DateTime.parse(dateStr).toLocal();
+      
+      // 🎯 THE SPLIT MAGIC: "120/80" becomes ["120", "80"]
+      String combinedValue = m['value'].toString();
+      List<String> parts = combinedValue.split('/');
+      
+      if (parts.length == 2) {
+        int sys = int.tryParse(parts[0]) ?? 120;
+        int dia = int.tryParse(parts[1]) ?? 80;
+        fetchedData.add(BpReading(date, sys, dia));
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _liveReadings = fetchedData;
+        
+        if (_liveReadings.isNotEmpty) {
+          _liveReadings.sort((a, b) => a.time.compareTo(b.time));
+          systolic = _liveReadings.last.sys;
+          diastolic = _liveReadings.last.dia;
+        } else {
+          // Fallback if the user has no data yet
+          systolic = 118;
+          diastolic = 76;
+        }
+
+        _isLoadingChart = false;
+        _aggregateData(); 
+      });
+      _animationController.reset();
+      _animationController.forward();
+    }
+  }
+
   // ─── AI Tip Generator ─────────────────────────────────────────────────────
 
   Future<void> _generateAITip({bool forceRefresh = false}) async {
     final prefs = await SharedPreferences.getInstance();
 
     if (!forceRefresh) {
-      final cachedTip = prefs.getString('ai_tip_cached_bp'); // Unique key for BP!
+      final cachedTip = prefs.getString('ai_tip_cached_bp'); 
       if (cachedTip != null && cachedTip.isNotEmpty) {
         if (mounted) {
           setState(() {
@@ -187,7 +232,8 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
   }
 
   void _aggregateData() {
-    final rawData = MockBpData.allReadings; 
+    // <-- NEW: Use live readings instead of Mock data
+    final rawData = _liveReadings; 
     Map<DateTime, List<BpReading>> grouped = {};
 
     final startTime = _startTime;
@@ -289,21 +335,31 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
     setState(() => touchedIndex = closestIndex);
   }
 
-  void addBpData(int sys, int dia) async { // <-- Make it async
-    setState(() {
-      systolic = sys;
-      diastolic = dia;
-      MockBpData.allReadings.add(BpReading(DateTime.now(), sys, dia));
-      _aggregateData(); 
-    });
+  // ─── NEW: Send data to Railway ──────────────────────────────────────────
+  void addBpData(int sys, int dia) async { 
+    setState(() => _isLoadingChart = true);
     
-    // NEW: Save to SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('latest_bp', "$sys/$dia");
+    // 1. Combine them into the single string your backend expects
+    String combinedValue = "$sys/$dia";
 
-    _generateAITip(forceRefresh: true);
-    _animationController.reset();
-    _animationController.forward();
+    bool success = await ApiService.saveHealthMetric(
+      metricType: "Blood Pressure", 
+      value: combinedValue, 
+      unit: "mmHg"
+    );
+
+    if (success) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('latest_bp', combinedValue);
+
+      await _fetchBpData();
+      _generateAITip(forceRefresh: true);
+    } else {
+      setState(() => _isLoadingChart = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to save data. Check your connection.')),
+      );
+    }
   }
 
   void showAddDataDialog() {
@@ -455,7 +511,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
                       touchedIndex = null;
                       _aggregateData();
                     });
-                    // 5. ANIMATE ON ARROW TAP
                     _animationController.reset();
                     _animationController.forward();
                   },
@@ -476,7 +531,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
                       touchedIndex = null;
                       _aggregateData();
                     });
-                    // 5. ANIMATE ON ARROW TAP
                     _animationController.reset();
                     _animationController.forward();
                   } : null, 
@@ -486,7 +540,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
 
             const SizedBox(height: 10),
 
-            // Chart
+            // Chart Container
             Container(
               height: 300,
               width: double.infinity,
@@ -495,33 +549,34 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
                 color: const Color(0xff59A2DD),
                 borderRadius: BorderRadius.circular(30),
               ),
-              // 6. ADDED ANIMATED BUILDER AROUND THE CHART
-              child: AnimatedBuilder(
-                animation: _animation,
-                builder: (context, child) {
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      return GestureDetector(
-                        onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
-                        child: CustomPaint(
-                          size: Size(constraints.maxWidth, constraints.maxHeight),
-                          painter: BloodPressureChartPainter(
-                            timeData: aggTimes,
-                            sysMinData: aggSysMin,
-                            sysMaxData: aggSysMax,
-                            diaMinData: aggDiaMin,
-                            diaMaxData: aggDiaMax,
-                            rangeLabel: selectedRange,
-                            touchedIndex: touchedIndex,
-                            dateOffset: dateOffset,
-                            progress: _animation.value, // <--- PASSING THE ANIMATION HERE
-                          ),
-                        ),
+              child: _isLoadingChart 
+                ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                : AnimatedBuilder(
+                    animation: _animation,
+                    builder: (context, child) {
+                      return LayoutBuilder(
+                        builder: (context, constraints) {
+                          return GestureDetector(
+                            onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
+                            child: CustomPaint(
+                              size: Size(constraints.maxWidth, constraints.maxHeight),
+                              painter: BloodPressureChartPainter(
+                                timeData: aggTimes,
+                                sysMinData: aggSysMin,
+                                sysMaxData: aggSysMax,
+                                diaMinData: aggDiaMin,
+                                diaMaxData: aggDiaMax,
+                                rangeLabel: selectedRange,
+                                touchedIndex: touchedIndex,
+                                dateOffset: dateOffset,
+                                progress: _animation.value, 
+                              ),
+                            ),
+                          );
+                        },
                       );
-                    },
-                  );
-                }
-              ),
+                    }
+                  ),
             ),
 
             const SizedBox(height: 14),
@@ -580,21 +635,14 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
 
             const SizedBox(height: 16),
 
-            // ─── AI Tips Widget (Updated with Relay Race) ───
             InkWell(
               onTap: () {
-                // 1. Copy the base data
                 final updatedData = Map<String, dynamic>.from(widget.baseUserData);
-                
-                // 2. Overwrite with fresh, live BP data
                 updatedData['bloodPressure'] = "$systolic/$diastolic";
                 
-                // 3. Hand the baton to the Assistant!
                 Navigator.push(
                   context, 
-                  MaterialPageRoute(
-                    builder: (_) => AssistantPage(userData: updatedData)
-                  )
+                  MaterialPageRoute(builder: (_) => AssistantPage(userData: updatedData))
                 );
               },
               borderRadius: BorderRadius.circular(22), 
@@ -617,7 +665,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
                     ),
                     const SizedBox(height: 12),
                     
-                    // Show loader or dynamic tip with overflow protection
                     _isLoadingTip 
                       ? Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -686,7 +733,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
           dateOffset = 0;
           _aggregateData();
         });
-        // 7. ANIMATE ON TAB SWITCH
         _animationController.reset();
         _animationController.forward();
       },

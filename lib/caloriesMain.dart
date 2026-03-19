@@ -8,14 +8,14 @@ import 'package:temanu/cameraCapture.dart';
 import 'package:temanu/fitbitService.dart';
 import 'package:temanu/patientData.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'package:temanu/api_service.dart';
+import 'dart:math';
 
 class CaloriesMain extends StatefulWidget {
-  // PatientData is passed in from HomePage so we can read height, weight, age, gender
   final PatientData patientData;
   final Map<String, dynamic> baseUserData;
 
-  const CaloriesMain({super.key, required this.patientData, required this.baseUserData,});
+  const CaloriesMain({super.key, required this.patientData, required this.baseUserData});
 
   @override
   State<CaloriesMain> createState() => _CaloriesMainState();
@@ -23,51 +23,32 @@ class CaloriesMain extends StatefulWidget {
 
 class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderStateMixin {
   double caloriesConsumed = 0;
+  double caloriesIntakeTarget = 2200; 
+  double caloriesBurnedTarget = 2200; 
 
-  // Both targets are DERIVED from BMR/TDEE — never set directly by the user
-  double caloriesIntakeTarget = 2200; // What they should EAT
-  double caloriesBurnedTarget = 2200; // What they should BURN (= TDEE)
+  double proteinConsumed = 0, proteinTarget = 140;
+  double carbsConsumed = 0, carbsTarget = 250;
+  double fatsConsumed = 0, fatsTarget = 70;
 
-  double proteinConsumed = 0;
-  double proteinTarget = 140;
-
-  double carbsConsumed = 0;
-  double carbsTarget = 250;
-
-  double fatsConsumed = 0;
-  double fatsTarget = 70;
-
-  // Fitbit calories burned
   double caloriesBurned = 0;
   bool _isFitbitLoading = true;
 
-  // Goal settings
-  String _bodyGoal   = 'maintain'; // 'deficit' | 'maintain' | 'surplus'
-  int    _goalOffset = 500;        // Always positive; applied as ± against TDEE
+  String _bodyGoal   = 'maintain'; 
+  int    _goalOffset = 500;        
 
   List<Map<String, dynamic>> trackedMealsList = [];
 
-  // Activity level multipliers (Mifflin-St Jeor standard)
   String _activityLevel = 'sedentary';
   static const Map<String, double> _activityMultipliers = {
-    'sedentary':   1.2,
-    'light':       1.375,
-    'moderate':    1.55,
-    'active':      1.725,
-    'very_active': 1.9,
+    'sedentary': 1.2, 'light': 1.375, 'moderate': 1.55, 'active': 1.725, 'very_active': 1.9,
   };
   static const Map<String, String> _activityLabels = {
-    'sedentary':   'Sedentary',
-    'light':       'Lightly Active',
-    'moderate':    'Moderately Active',
-    'active':      'Very Active',
-    'very_active': 'Extremely Active',
+    'sedentary': 'Sedentary', 'light': 'Lightly Active', 'moderate': 'Moderately Active',
+    'active': 'Very Active', 'very_active': 'Extremely Active',
   };
   static const Map<String, String> _activityDescriptions = {
-    'sedentary':   'Desk job, little movement',
-    'light':       'Light exercise 1–3×/week',
-    'moderate':    'Moderate exercise 3–5×/week',
-    'active':      'Hard exercise 6–7×/week',
+    'sedentary': 'Desk job, little movement', 'light': 'Light exercise 1–3×/week',
+    'moderate': 'Moderate exercise 3–5×/week', 'active': 'Hard exercise 6–7×/week',
     'very_active': 'Physical job + hard training',
   };
 
@@ -77,6 +58,12 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
   String _dynamicAiTip = "Analyzing your nutrition...";
   bool _isLoadingTip = true;
 
+  // --- INSIGHTS STATE VARIABLES ---
+  bool _isLoadingInsights = true;
+  double _weeklyNetDeficit = 0;
+  int _proteinHits = 0, _carbsHits = 0, _fatsHits = 0;
+  List<Map<String, dynamic>> _weeklyBars = [];
+
   @override
   void initState() {
     super.initState();
@@ -85,6 +72,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     _controller.forward();
     _loadGoalSettings();
     _loadFitbitCalories();
+    _loadWeeklyInsights(); // Trigger the mock insights generator
   }
 
   @override
@@ -93,10 +81,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     super.dispose();
   }
 
-  // ─── BMR / TDEE Calculations ──────────────────────────────────────────────
-
-  /// Mifflin-St Jeor BMR using PatientData fields.
-  /// Returns 0 if any required field is missing or unparseable.
   double _calculateBMR() {
     final weight = double.tryParse(widget.patientData.weight) ?? 0;
     final height = double.tryParse(widget.patientData.height) ?? 0;
@@ -105,94 +89,63 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     if (weight == 0 || height == 0 || age == 0) return 0;
 
     final isMale = widget.patientData.gender.toLowerCase() == 'male';
-    if (isMale) {
-      return (10 * weight) + (6.25 * height) - (5 * age) + 5;
-    } else {
-      return (10 * weight) + (6.25 * height) - (5 * age) - 161;
-    }
+    if (isMale) return (10 * weight) + (6.25 * height) - (5 * age) + 5;
+    return (10 * weight) + (6.25 * height) - (5 * age) - 161;
   }
 
-  /// TDEE = BMR × activity multiplier.
   double _calculateTDEE() {
-    final bmr        = _calculateBMR();
+    final bmr = _calculateBMR();
     final multiplier = _activityMultipliers[_activityLevel] ?? 1.2;
     return bmr * multiplier;
   }
 
-  /// Recalculates both targets from TDEE:
-  ///   Burn target   = TDEE  (realistic daily burn)
-  ///   Intake target = TDEE - offset (deficit) | TDEE (maintain) | TDEE + offset (surplus)
   void _recalculateTargets() {
     final tdee = _calculateTDEE();
-    if (tdee == 0) return; // PatientData incomplete — leave existing values
+    if (tdee == 0) return; 
 
     caloriesBurnedTarget = tdee.clamp(500, 9999);
 
     switch (_bodyGoal) {
       case 'deficit':
         caloriesIntakeTarget = (tdee - _goalOffset).clamp(500, 9999);
-        // Deficit Split: 35% Protein, 35% Carbs, 30% Fats
         proteinTarget = (caloriesIntakeTarget * 0.35) / 4;
         carbsTarget   = (caloriesIntakeTarget * 0.35) / 4;
         fatsTarget    = (caloriesIntakeTarget * 0.30) / 9;
         break;
-        
       case 'surplus':
         caloriesIntakeTarget = (tdee + _goalOffset).clamp(500, 9999);
-        // Surplus Split: 30% Protein, 50% Carbs, 20% Fats
         proteinTarget = (caloriesIntakeTarget * 0.30) / 4;
         carbsTarget   = (caloriesIntakeTarget * 0.50) / 4;
         fatsTarget    = (caloriesIntakeTarget * 0.20) / 9;
         break;
-        
-      default: // maintain
+      default: 
         caloriesIntakeTarget = tdee.clamp(500, 9999);
-        // Maintain Split: 30% Protein, 40% Carbs, 30% Fats
         proteinTarget = (caloriesIntakeTarget * 0.30) / 4;
         carbsTarget   = (caloriesIntakeTarget * 0.40) / 4;
         fatsTarget    = (caloriesIntakeTarget * 0.30) / 9;
     }
   }
 
-  // ─── Persistence ──────────────────────────────────────────────────────────
   Future<void> _loadGoalSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _bodyGoal      = prefs.getString('body_goal') ?? 'maintain';
       _goalOffset    = prefs.getInt('goal_offset') ?? 500;
       _activityLevel = prefs.getString('activity_level') ?? 'sedentary';
-      
-      // 1. Load the actual list of tracked meals!
-      final String? mealsJson = prefs.getString('tracked_meals');
+    });
 
-      if (mealsJson != null) {
-        // If meals exist in storage, decode them
-        final List<dynamic> decoded = jsonDecode(mealsJson);
-        trackedMealsList = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
-      } else {
-        // If it's the very first time opening the app, use the mock data as a starter
-        trackedMealsList = [
-          {"name": "Oats and Honey",        "calories": 450, "protein": 15, "carbs": 65, "fats": 8},
-          {"name": "Grilled Chicken Salad", "calories": 600, "protein": 45, "carbs": 20, "fats": 25},
-          {"name": "Salmon and Quinoa",     "calories": 400, "protein": 35, "carbs": 40, "fats": 12},
-        ];
-        // Save these starter meals to storage immediately so the homepage sees them
-        prefs.setString('tracked_meals', jsonEncode(trackedMealsList));
-      }
+    final liveMeals = await ApiService.getTodaysMeals();
 
-      // 2. Dynamically calculate ALL totals by looping through the actual meals
-      caloriesConsumed = 0;
-      proteinConsumed = 0;
-      carbsConsumed = 0;
-      fatsConsumed = 0;
+    setState(() {
+      trackedMealsList = liveMeals.map((e) => Map<String, dynamic>.from(e)).toList();
 
+      caloriesConsumed = 0; proteinConsumed = 0; carbsConsumed = 0; fatsConsumed = 0;
       for (var meal in trackedMealsList) {
         caloriesConsumed += (meal['calories'] as num).toDouble();
         proteinConsumed  += (meal['protein']  as num).toDouble();
         carbsConsumed    += (meal['carbs']    as num).toDouble();
         fatsConsumed     += (meal['fats']     as num).toDouble();
       }
-
       _recalculateTargets(); 
     });
     _generateAITip();
@@ -203,14 +156,10 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     await prefs.setString('body_goal',      _bodyGoal);
     await prefs.setInt('goal_offset',       _goalOffset);
     await prefs.setString('activity_level', _activityLevel);
-    
-    // NEW: Save the calculated macro targets!
     await prefs.setDouble('protein_target', proteinTarget);
     await prefs.setDouble('carbs_target', carbsTarget);
     await prefs.setDouble('fats_target', fatsTarget);
   }
-
-  // ─── Fitbit ───────────────────────────────────────────────────────────────
 
   Future<void> _loadFitbitCalories({bool forceRefresh = false}) async {
     setState(() => _isFitbitLoading = true);
@@ -224,8 +173,56 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     if (mounted) setState(() => _isFitbitLoading = false);
   }
 
-  // ─── Goal Settings Bottom Sheet ───────────────────────────────────────────
+  // --- MOCK WEEKLY INSIGHTS GENERATOR (Replace with API later) ---
+  Future<void> _loadWeeklyInsights() async {
+    setState(() => _isLoadingInsights = true);
 
+    // 1. Fetch the real aggregated 7-day data from Python
+    final weeklyData = await ApiService.getWeeklyInsights();
+    
+    double totalDeficit = 0;
+    int pHits = 0, cHits = 0, fHits = 0;
+    List<Map<String, dynamic>> bars = [];
+
+    // 2. Loop through the week and compare it to their personal goals
+    for (var day in weeklyData) {
+      double consumed = (day['consumed'] as num).toDouble();
+      double burned = (day['burned'] as num).toDouble();
+      double p = (day['protein'] as num).toDouble();
+      double c = (day['carbs'] as num).toDouble();
+      double f = (day['fats'] as num).toDouble();
+
+      // Smart Fallback: If Fitbit returned 0 (didn't wear watch), assume standard TDEE burn
+      double actualBurned = burned > 0 ? burned : caloriesBurnedTarget;
+
+      // Add to weekly net deficit (Burned - Consumed)
+      totalDeficit += (actualBurned - consumed);
+
+      // Macro Consistency: Did they hit at least 90% of their target that day?
+      if (p >= (proteinTarget * 0.9)) pHits++;
+      if (c >= (carbsTarget * 0.9)) cHits++;
+      if (f >= (fatsTarget * 0.9)) fHits++;
+
+      bars.add({
+        "day": day['day_name'],
+        "consumed": consumed,
+        "burned": actualBurned,
+      });
+    }
+
+    if (mounted) {
+      setState(() {
+        _weeklyNetDeficit = totalDeficit;
+        _proteinHits = pHits;
+        _carbsHits = cHits;
+        _fatsHits = fHits;
+        _weeklyBars = bars;
+        _isLoadingInsights = false;
+      });
+    }
+  }
+
+  // ... [Keep your existing _showGoalSettingsSheet() exactly as it is] ...
   void _showGoalSettingsSheet() {
     String tempGoal          = _bodyGoal;
     int    tempOffset        = _goalOffset;
@@ -563,9 +560,8 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                             _recalculateTargets();
                           });
                           _saveGoalSettings();
-
-                          // FORCE A FRESH TIP because the targets changed!
                           _generateAITip(forceRefresh: true);
+                          _loadWeeklyInsights(); // Refresh insights on goal change
 
                           Navigator.pop(context);
                           _controller.forward(from: 0.0);
@@ -607,8 +603,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     );
   }
 
-  // ─── Small helper widgets ─────────────────────────────────────────────────
-
   Widget _bmrStat(String label, String value, Color valueColor) {
     return Column(
       children: [
@@ -619,16 +613,11 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     );
   }
 
-  Widget _dividerLine() =>
-      Container(width: 1, height: 32, color: Colors.white12);
+  Widget _dividerLine() => Container(width: 1, height: 32, color: Colors.white12);
 
   Widget _goalChip(
-    StateSetter setSheetState,
-    String value,
-    String label,
-    String current,
-    ValueSetter<String> onSelect,
-    Color activeColor,
+    StateSetter setSheetState, String value, String label, String current,
+    ValueSetter<String> onSelect, Color activeColor,
   ) {
     final isSelected = current == value;
     return Expanded(
@@ -670,21 +659,14 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
   Future<void> _generateAITip({bool forceRefresh = false}) async {
     final prefs = await SharedPreferences.getInstance();
 
-    // 1. Check the cache first if we aren't forcing a refresh
     if (!forceRefresh) {
       final cachedTip = prefs.getString('ai_tip_cached');
       if (cachedTip != null && cachedTip.isNotEmpty) {
-        if (mounted) {
-          setState(() {
-            _dynamicAiTip = cachedTip;
-            _isLoadingTip = false;
-          });
-        }
-        return; // Exit early! No API call needed.
+        if (mounted) setState(() { _dynamicAiTip = cachedTip; _isLoadingTip = false; });
+        return; 
       }
     }
 
-    // 2. If we need a new tip, show the loader and call Gemini
     if (mounted) setState(() => _isLoadingTip = true);
 
     try {
@@ -692,8 +674,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
       if (apiKey.isEmpty) return;
 
       final model = GenerativeModel(
-        model: 'gemini-2.5-flash', 
-        apiKey: apiKey,
+        model: 'gemini-2.5-flash', apiKey: apiKey,
         generationConfig: GenerationConfig(temperature: 0.4),
       );
 
@@ -704,7 +685,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
         - Protein: ${proteinConsumed.toInt()}g / ${proteinTarget.toInt()}g
         - Carbs: ${carbsConsumed.toInt()}g / ${carbsTarget.toInt()}g
         - Fats: ${fatsConsumed.toInt()}g / ${fatsTarget.toInt()}g
-        
         Write a SHORT, 2-sentence encouraging insight or tip based exactly on these numbers. 
         Keep it under 120 characters. Do not use asterisks or markdown formatting.
       ''';
@@ -713,14 +693,8 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
       
       if (mounted && response.text != null) {
         final newTip = response.text!.trim();
-        
-        // 3. Save the brand new tip to the cache!
         await prefs.setString('ai_tip_cached', newTip);
-
-        setState(() {
-          _dynamicAiTip = newTip;
-          _isLoadingTip = false;
-        });
+        setState(() { _dynamicAiTip = newTip; _isLoadingTip = false; });
       }
     } catch (e) {
       if (mounted) {
@@ -732,141 +706,391 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     }
   }
 
-  // ─── Build ────────────────────────────────────────────────────────────────
+  // ─── MAIN BUILD (NOW WITH TAB CONTROLLER) ─────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final double bottomSafeArea = MediaQuery.paddingOf(context).bottom;
-
-    return Scaffold(
-      backgroundColor: const Color(0xff040F31),
-      extendBodyBehindAppBar: false,
-      extendBody: true,
-      appBar: AppBar(
-        backgroundColor: const Color(0xff55607D),
-        elevation: 0,
-        centerTitle: false,
-        title: const Text("Calories",
-          style: TextStyle(color: Color(0xff35E0FF), fontSize: 25, fontWeight: FontWeight.w600)),
-        flexibleSpace: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(color: Colors.white.withValues(alpha: 0.25)),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: const Color(0xff040F31),
+        appBar: AppBar(
+          backgroundColor: const Color(0xff55607D),
+          elevation: 0,
+          centerTitle: false,
+          title: const Text("Calories",
+            style: TextStyle(color: Color(0xff35E0FF), fontSize: 25, fontWeight: FontWeight.w600)),
+          flexibleSpace: ClipRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+              child: Container(color: Colors.white.withValues(alpha: 0.25)),
+            ),
           ),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xff35E0FF)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: _isFitbitLoading
-                ? const SizedBox(height: 20, width: 20,
-                    child: CircularProgressIndicator(color: Color(0xff35E0FF), strokeWidth: 2))
-                : const Icon(Icons.sync, color: Color(0xff35E0FF)),
-            onPressed: _isFitbitLoading ? null : () => _loadFitbitCalories(forceRefresh: true),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Color(0xff35E0FF)),
+            onPressed: () => Navigator.pop(context),
           ),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.ios_share, color: Colors.white),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSideBySideCalorieRings(),
-              const SizedBox(height: 15),
-              _buildCombinedMacrosCard(),
-              const SizedBox(height: 15),
-              // ── AI Tips ──
-              InkWell(
-                onTap: () {
-                  // 1. Copy the base data from the homepage
-                  final updatedData = Map<String, dynamic>.from(widget.baseUserData);
-                  
-                  // 2. Overwrite it with the hyper-accurate live data from this page
-                  updatedData['caloriesEaten'] = caloriesConsumed;
-                  updatedData['proteinConsumed'] = proteinConsumed;
-                  updatedData['carbsConsumed'] = carbsConsumed;
-                  updatedData['fatsConsumed'] = fatsConsumed;
-                  
-                  updatedData['caloriesIntakeTarget'] = caloriesIntakeTarget;
-                  updatedData['proteinTarget'] = proteinTarget;
-                  updatedData['carbsTarget'] = carbsTarget;
-                  updatedData['fatsTarget'] = fatsTarget;
-
-                  // 3. Hand the baton to the Assistant!
-                  Navigator.push(
-                    context, 
-                    MaterialPageRoute(
-                      builder: (_) => AssistantPage(userData: updatedData)
-                    )
-                  );
-                },
-                borderRadius: BorderRadius.circular(22),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: const Color(0xff375B86), borderRadius: BorderRadius.circular(22)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: const [
-                          Text("💡 AI Tips", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                          Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      
-                      // THE FIX: Wrapped the loading text in an Expanded widget
-                      _isLoadingTip 
-                        ? Row(
-                            crossAxisAlignment: CrossAxisAlignment.start, // Keeps the spinner at the top if text wraps
-                            children: [
-                              const Padding(
-                                padding: EdgeInsets.only(top: 2.0),
-                                child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2)),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded( // <--- This prevents the overflow!
-                                child: Text(
-                                  "Analyzing your latest data...", 
-                                  style: const TextStyle(color: Colors.white70, fontSize: 14)
-                                ),
-                              ),
-                            ],
-                          )
-                        : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text("Meals Today",
-                    style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                  _buildAddMealButton(),
-                ],
-              ),
-              const SizedBox(height: 15),
-              ...trackedMealsList.map((meal) => _buildMealListItem(meal)),
-              SizedBox(height: 40 + bottomSafeArea),
+          actions: [
+            IconButton(
+              icon: _isFitbitLoading
+                  ? const SizedBox(height: 20, width: 20,
+                      child: CircularProgressIndicator(color: Color(0xff35E0FF), strokeWidth: 2))
+                  : const Icon(Icons.sync, color: Color(0xff35E0FF)),
+              onPressed: _isFitbitLoading ? null : () {
+                _loadFitbitCalories(forceRefresh: true);
+                _loadWeeklyInsights();
+              },
+            ),
+            IconButton(
+              onPressed: () {},
+              icon: const Icon(Icons.ios_share, color: Colors.white),
+            ),
+          ],
+          // --- THE NEW TABS ---
+          bottom: const TabBar(
+            indicatorColor: Color(0xff00E5FF),
+            labelColor: Color(0xff00E5FF),
+            unselectedLabelColor: Colors.white54,
+            indicatorWeight: 3,
+            tabs: [
+              Tab(text: "Today"),
+              Tab(text: "Insights & Trends"),
             ],
           ),
+        ),
+        body: TabBarView(
+          children: [
+            _buildTodayTab(),
+            _buildInsightsTab(),
+          ],
         ),
       ),
     );
   }
 
-  // ─── Side-by-side rings ───────────────────────────────────────────────────
+  // ─── TAB 1: TODAY ─────────────────────────────────────────────────────────
+  Widget _buildTodayTab() {
+    final double bottomSafeArea = MediaQuery.paddingOf(context).bottom;
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSideBySideCalorieRings(),
+            const SizedBox(height: 15),
+            _buildCombinedMacrosCard(),
+            const SizedBox(height: 15),
+            _buildAiTipCard(),
+            const SizedBox(height: 40),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("Meals Today",
+                  style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                _buildAddMealButton(),
+              ],
+            ),
+            const SizedBox(height: 15),
+            ...trackedMealsList.map((meal) => _buildMealListItem(meal)),
+            SizedBox(height: 40 + bottomSafeArea),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showInfoDialog(String title, String content) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xff1A3F6B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.lightbulb_outline, color: Color(0xff00E5FF)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+        content: Text(content, style: const TextStyle(color: Colors.white70, height: 1.4, fontSize: 15)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Got it", style: TextStyle(color: Color(0xff00E5FF), fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── TAB 2: INSIGHTS & TRENDS ─────────────────────────────────────────────
+  Widget _buildInsightsTab() {
+    if (_isLoadingInsights) {
+      return const Center(child: CircularProgressIndicator(color: Color(0xff00E5FF)));
+    }
+
+    final double bottomSafeArea = MediaQuery.paddingOf(context).bottom;
+    
+    // Calculate projected weight impact
+    double projectedKg = (_weeklyNetDeficit / 7700).abs();
+    String projectionTitle = "Maintaining Weight";
+    String projectionText = "Your energy balance is perfectly level. You are projected to maintain your current weight.";
+    Color projectionColor = const Color(0xff00E5FF);
+    IconData projectionIcon = Icons.balance;
+
+    if (_weeklyNetDeficit > 300) { 
+      projectionTitle = "Projected Fat Loss";
+      projectionText = "Great job! Based on your weekly deficit, you are on track to lose ~${projectedKg.toStringAsFixed(2)} kg of fat this week.";
+      projectionColor = Colors.orangeAccent;
+      projectionIcon = Icons.trending_down;
+    } else if (_weeklyNetDeficit < -300) { 
+      projectionTitle = "Projected Weight Gain";
+      projectionText = "Based on your weekly surplus, you are on track to gain ~${projectedKg.toStringAsFixed(2)} kg this week.";
+      projectionColor = Colors.greenAccent;
+      projectionIcon = Icons.trending_up;
+    }
+
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Insight 1: Projected Weight Impact
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: const Color(0xff1A3F6B),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: projectionColor.withValues(alpha: 0.5), width: 1.5),
+              ),
+              child: Column(
+                children: [
+                  Icon(projectionIcon, color: projectionColor, size: 40),
+                  const SizedBox(height: 15),
+                  // --- THE FIX: ADDED INFO ICON FOR PROJECTION ---
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(projectionTitle, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => _showInfoDialog(
+                          "Projected Impact", 
+                          "This projection is based on the scientific rule that a net deficit of ~7,700 kcal equates to roughly 1 kg of fat loss. It averages your 7-day energy balance to predict future results."
+                        ),
+                        child: const Icon(Icons.info_outline, color: Colors.white54, size: 20),
+                      ),
+                    ],
+                  ),
+                  // ----------------------------------------------
+                  const SizedBox(height: 8),
+                  Text(projectionText, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.4)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 25),
+
+            // Insight 2: Weekly Energy Balance Bar Chart
+            // --- THE FIX: ADDED INFO ICON FOR ENERGY BALANCE ---
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("Weekly Energy Balance", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.info_outline, color: Colors.white54, size: 22),
+                  onPressed: () => _showInfoDialog(
+                    "Energy Balance", 
+                    "This chart compares the calories you consumed (food) against the calories you burned (BMR + activity)."
+                  ),
+                ),
+              ],
+            ),
+            // ---------------------------------------------------
+            const SizedBox(height: 15),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(color: const Color(0xff1A3F6B), borderRadius: BorderRadius.circular(20)),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.circle, color: Color(0xff00E5FF), size: 10),
+                      const SizedBox(width: 5),
+                      const Text("Consumed", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      const SizedBox(width: 20),
+                      const Icon(Icons.circle, color: Color(0xff00E676), size: 10),
+                      const SizedBox(width: 5),
+                      const Text("Burned", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+                  SizedBox(
+                    height: 150,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: _weeklyBars.map((dayData) {
+                        double maxVal = max(dayData['consumed'], dayData['burned']);
+                        if (maxVal < 1) maxVal = 1; 
+                        
+                        double consumedHeight = (dayData['consumed'] / maxVal) * 120;
+                        double burnedHeight = (dayData['burned'] / maxVal) * 120;
+
+                        return Tooltip(
+                          triggerMode: TooltipTriggerMode.tap, // Shows when the user taps
+                          showDuration: const Duration(seconds: 3), // Disappears after 3 seconds
+                          preferBelow: false, // Pops up above the user's finger
+                          verticalOffset: 20, // Gives it some breathing room from the bars
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xff040F31).withValues(alpha: 0.95), // Deep dark blue
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xff00E5FF).withValues(alpha: 0.5)), // Cyan border
+                          ),
+                          textStyle: const TextStyle(color: Colors.white, fontSize: 13, height: 1.5),
+                          richMessage: TextSpan(
+                            children: [
+                              TextSpan(text: "${dayData['day']}\n", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                              TextSpan(text: "Consumed: ", style: TextStyle(color: Colors.white.withValues(alpha: 0.7))),
+                              TextSpan(text: "${dayData['consumed'].toInt()} kcal\n", style: const TextStyle(color: Color(0xff00E5FF), fontWeight: FontWeight.bold)),
+                              TextSpan(text: "Burned: ", style: TextStyle(color: Colors.white.withValues(alpha: 0.7))),
+                              TextSpan(text: "${dayData['burned'].toInt()} kcal", style: const TextStyle(color: Color(0xff00E676), fontWeight: FontWeight.bold)),
+                            ]
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Container(width: 10, height: consumedHeight, decoration: BoxDecoration(color: const Color(0xff00E5FF), borderRadius: BorderRadius.circular(5))),
+                                  const SizedBox(width: 4),
+                                  Container(width: 10, height: burnedHeight, decoration: BoxDecoration(color: const Color(0xff00E676), borderRadius: BorderRadius.circular(5))),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Text(dayData['day'], style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 25),
+
+            // Insight 3: Macro Consistency Score
+            // --- THE FIX: ADDED INFO ICON FOR MACROS ---
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("Macro Consistency", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.info_outline, color: Colors.white54, size: 22),
+                  onPressed: () => _showInfoDialog(
+                    "Macro Consistency", 
+                    "This score shows how many days over the last week you successfully met your Protein, Carbs, and Fats goals. Hitting your macros consistently ensures you can hit your goals!"
+                  ),
+                ),
+              ],
+            ),
+            // -------------------------------------------
+            const SizedBox(height: 15),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(color: const Color(0xff1A3F6B), borderRadius: BorderRadius.circular(20)),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildMiniMacroCircle("Protein", _proteinHits, Colors.redAccent),
+                  _buildMiniMacroCircle("Carbs", _carbsHits, Colors.orangeAccent),
+                  _buildMiniMacroCircle("Fats", _fatsHits, Colors.purpleAccent),
+                ],
+              ),
+            ),
+            SizedBox(height: 40 + bottomSafeArea),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMiniMacroCircle(String label, int hits, Color color) {
+    return Column(
+      children: [
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox(height: 60, width: 60, child: CircularProgressIndicator(value: 1.0, strokeWidth: 6, color: Colors.white.withValues(alpha: 0.1))),
+            SizedBox(height: 60, width: 60, child: CircularProgressIndicator(value: hits / 7, strokeWidth: 6, color: color, strokeCap: StrokeCap.round, backgroundColor: Colors.transparent)),
+            Text("$hits/7", style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+      ],
+    );
+  }
+
+  // ... [Keep your existing UI building blocks exact as they were below this point] ...
+  Widget _buildAiTipCard() {
+    return InkWell(
+      onTap: () {
+        final updatedData = Map<String, dynamic>.from(widget.baseUserData);
+        updatedData['caloriesEaten'] = caloriesConsumed;
+        updatedData['proteinConsumed'] = proteinConsumed;
+        updatedData['carbsConsumed'] = carbsConsumed;
+        updatedData['fatsConsumed'] = fatsConsumed;
+        updatedData['caloriesIntakeTarget'] = caloriesIntakeTarget;
+        updatedData['proteinTarget'] = proteinTarget;
+        updatedData['carbsTarget'] = carbsTarget;
+        updatedData['fatsTarget'] = fatsTarget;
+
+        Navigator.push(context, MaterialPageRoute(builder: (_) => AssistantPage(userData: updatedData)));
+      },
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: const Color(0xff375B86), borderRadius: BorderRadius.circular(22)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: const [
+                Text("💡 AI Tips", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _isLoadingTip 
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(padding: EdgeInsets.only(top: 2.0), child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2))),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text("Analyzing your latest data...", style: const TextStyle(color: Colors.white70, fontSize: 14))),
+                  ],
+                )
+              : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildSideBySideCalorieRings() {
     return AnimatedBuilder(
@@ -889,10 +1113,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
-          decoration: BoxDecoration(
-            color: const Color(0xff1A3F6B),
-            borderRadius: BorderRadius.circular(25),
-          ),
+          decoration: BoxDecoration(color: const Color(0xff1A3F6B), borderRadius: BorderRadius.circular(25)),
           child: Column(
             children: [
               GestureDetector(
@@ -901,8 +1122,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text("Goal: ", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14)),
-                    Text(goalTypeLabel(),
-                      style: TextStyle(color: goalColor(), fontSize: 14, fontWeight: FontWeight.bold)),
+                    Text(goalTypeLabel(), style: TextStyle(color: goalColor(), fontSize: 14, fontWeight: FontWeight.bold)),
                     const SizedBox(width: 5),
                     Icon(Icons.edit, color: goalColor(), size: 14),
                   ],
@@ -912,23 +1132,9 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildRing(
-                    label: "Consumed",
-                    currentValue: (caloriesConsumed * _animation.value).toInt(),
-                    target: caloriesIntakeTarget.toInt(),
-                    progress: consumedProgress,
-                    ringColor: const Color(0xff00E5FF),
-                    isLoading: false,
-                  ),
+                  _buildRing(label: "Consumed", currentValue: (caloriesConsumed * _animation.value).toInt(), target: caloriesIntakeTarget.toInt(), progress: consumedProgress, ringColor: const Color(0xff00E5FF), isLoading: false),
                   Container(height: 120, width: 1, color: Colors.white12),
-                  _buildRing(
-                    label: "Burned",
-                    currentValue: (caloriesBurned * _animation.value).toInt(),
-                    target: caloriesBurnedTarget.toInt(),
-                    progress: burnedProgress,
-                    ringColor: const Color(0xff00E676),
-                    isLoading: _isFitbitLoading,
-                  ),
+                  _buildRing(label: "Burned", currentValue: (caloriesBurned * _animation.value).toInt(), target: caloriesBurnedTarget.toInt(), progress: burnedProgress, ringColor: const Color(0xff00E676), isLoading: _isFitbitLoading),
                 ],
               ),
             ],
@@ -938,35 +1144,18 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     );
   }
 
-  Widget _buildRing({
-    required String label,
-    required int currentValue,
-    required int target,
-    required double progress,
-    required Color ringColor,
-    required bool isLoading,
-  }) {
+  Widget _buildRing({required String label, required int currentValue, required int target, required double progress, required Color ringColor, required bool isLoading}) {
     return Column(
       children: [
         Stack(
           alignment: Alignment.center,
           children: [
-            SizedBox(height: 120, width: 120,
-              child: CircularProgressIndicator(
-                value: 1.0, strokeWidth: 10,
-                color: Colors.white.withValues(alpha: 0.08))),
-            SizedBox(height: 120, width: 120,
-              child: CircularProgressIndicator(
-                value: progress, strokeWidth: 10,
-                color: ringColor, backgroundColor: Colors.transparent,
-                strokeCap: StrokeCap.round,
-              )),
+            SizedBox(height: 120, width: 120, child: CircularProgressIndicator(value: 1.0, strokeWidth: 10, color: Colors.white.withValues(alpha: 0.08))),
+            SizedBox(height: 120, width: 120, child: CircularProgressIndicator(value: progress, strokeWidth: 10, color: ringColor, backgroundColor: Colors.transparent, strokeCap: StrokeCap.round)),
             isLoading
-              ? SizedBox(height: 28, width: 28,
-                  child: CircularProgressIndicator(color: ringColor, strokeWidth: 2.5))
+              ? SizedBox(height: 28, width: 28, child: CircularProgressIndicator(color: ringColor, strokeWidth: 2.5))
               : Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text("$currentValue",
-                    style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                  Text("$currentValue", style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
                   const Text("kcal", style: TextStyle(color: Colors.white54, fontSize: 13)),
                 ]),
           ],
@@ -979,8 +1168,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     );
   }
 
-  // ─── Macros ───────────────────────────────────────────────────────────────
-
   Widget _buildCombinedMacrosCard() {
     return Container(
       width: double.infinity,
@@ -990,8 +1177,8 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _buildSingleMacroColumn("Protein", proteinConsumed, proteinTarget, Colors.redAccent),
-          _buildSingleMacroColumn("Carbs",   carbsConsumed,   carbsTarget,   Colors.orangeAccent),
-          _buildSingleMacroColumn("Fats",    fatsConsumed,    fatsTarget,    Colors.purpleAccent),
+          _buildSingleMacroColumn("Carbs", carbsConsumed, carbsTarget, Colors.orangeAccent),
+          _buildSingleMacroColumn("Fats", fatsConsumed, fatsTarget, Colors.purpleAccent),
         ],
       ),
     );
@@ -1008,16 +1195,10 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
             Stack(
               alignment: Alignment.center,
               children: [
-                SizedBox(height: 75, width: 75,
-                  child: CircularProgressIndicator(value: 1.0, strokeWidth: 8, color: Colors.white.withValues(alpha: 0.1))),
-                SizedBox(height: 75, width: 75,
-                  child: CircularProgressIndicator(
-                    value: progress, strokeWidth: 8,
-                    color: progressColor, backgroundColor: Colors.transparent, strokeCap: StrokeCap.round,
-                  )),
+                SizedBox(height: 75, width: 75, child: CircularProgressIndicator(value: 1.0, strokeWidth: 8, color: Colors.white.withValues(alpha: 0.1))),
+                SizedBox(height: 75, width: 75, child: CircularProgressIndicator(value: progress, strokeWidth: 8, color: progressColor, backgroundColor: Colors.transparent, strokeCap: StrokeCap.round)),
                 Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text("${(consumed * _animation.value).toInt()}",
-                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text("${(consumed * _animation.value).toInt()}", style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                   const Text("g", style: TextStyle(color: Colors.white70, fontSize: 12)),
                 ]),
               ],
@@ -1032,8 +1213,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     );
   }
 
-  // ─── Meals ────────────────────────────────────────────────────────────────
-
   Widget _buildMealListItem(Map<String, dynamic> meal) {
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
@@ -1044,20 +1223,22 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(meal["name"],
-                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-              Text("${meal["calories"]} kcal",
-                style: const TextStyle(color: Color(0xff00E5FF), fontSize: 16, fontWeight: FontWeight.bold)),
+              Expanded(
+                child: Text(meal["name"], style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis),
+              ),
+              const SizedBox(width: 12),
+              Text("${meal["calories"]} kcal", style: const TextStyle(color: Color(0xff00E5FF), fontSize: 16, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildSmallMacroText("Protein", meal["protein"], Colors.redAccent),
-              _buildSmallMacroText("Carbs",   meal["carbs"],   Colors.orangeAccent),
-              _buildSmallMacroText("Fats",    meal["fats"],    Colors.purpleAccent),
+              _buildSmallMacroText("Protein", (meal["protein"] as num).toInt(), Colors.redAccent),
+              _buildSmallMacroText("Carbs", (meal["carbs"] as num).toInt(), Colors.orangeAccent),
+              _buildSmallMacroText("Fats", (meal["fats"] as num).toInt(), Colors.purpleAccent),
             ],
           ),
         ],
@@ -1079,36 +1260,26 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
   Widget _buildAddMealButton() {
     return GestureDetector(
       onTap: () async {
-        final newMeal = await Navigator.push(
-          context, MaterialPageRoute(builder: (_) => const TrackMealCameraPage()));
-
+        final newMeal = await Navigator.push(context, MaterialPageRoute(builder: (_) => const TrackMealCameraPage()));
         if (newMeal != null && newMeal is Map<String, dynamic>) {
-          setState(() {
-            trackedMealsList.add(newMeal);
-            caloriesConsumed += (newMeal["calories"] as num).toDouble();
-            proteinConsumed  += (newMeal["protein"]  as num).toDouble();
-            carbsConsumed    += (newMeal["carbs"]    as num).toDouble();
-            fatsConsumed     += (newMeal["fats"]     as num).toDouble();
-          });
-          
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('tracked_meals', jsonEncode(trackedMealsList));
-
-          // FORCE A FRESH TIP! 
-          _generateAITip(forceRefresh: true);
-
-          _controller.forward(from: 0.0);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Meal tracked successfully!"), backgroundColor: Color(0xff00E676))
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Saving meal to cloud..."), duration: Duration(seconds: 1)));
+          bool success = await ApiService.saveMeal(
+            name: newMeal["name"], calories: (newMeal["calories"] as num).toInt(),
+            protein: (newMeal["protein"] as num).toDouble(), carbs: (newMeal["carbs"] as num).toDouble(), fats: (newMeal["fats"] as num).toDouble(),
           );
+          if (success) {
+            await _loadGoalSettings();
+            _generateAITip(forceRefresh: true);
+            _controller.forward(from: 0.0);
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Meal tracked successfully!"), backgroundColor: Color(0xff00E676)));
+          } else {
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to save meal. Please try again."), backgroundColor: Colors.redAccent));
+          }
         }
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xff00E676),
-          borderRadius: BorderRadius.circular(12),
-        ),
+        decoration: BoxDecoration(color: const Color(0xff00E676), borderRadius: BorderRadius.circular(12)),
         child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:temanu/api_service.dart'; // <-- IMPORT YOUR API SERVICE
 import 'package:temanu/aboutyou.dart';
 import 'package:temanu/button.dart';
 import 'package:temanu/logindetails.dart';
@@ -35,14 +34,13 @@ class _RegisterDetailsState extends State<RegisterDetails> {
   }
 
   // <-- NEW: The function that handles registration and auto-login
-  Future<void> _handleRegister() async {
+  void _handleRegister() {
     final email = emailController.text.trim();
     final name = fullNameController.text.trim();
     final preferredName = preferredNameController.text.trim();
     final username = usernameController.text.trim();
     final password = passwordController.text.trim();
 
-    // 1. Basic validation
     if (email.isEmpty || name.isEmpty || preferredName.isEmpty || username.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill out all fields.')),
@@ -50,49 +48,19 @@ class _RegisterDetailsState extends State<RegisterDetails> {
       return;
     }
 
-    // 2. Start loading
-    setState(() => _isLoading = true);
-
-    // 3. Call the API to Register
-    final result = await ApiService.register(
-      email: email,
-      name: name,
-      preferredName: preferredName,
-      username: username,
-      password: password,
+    // Success! Pass the baton to the About You page. NO API CALL YET!
+    Navigator.push(
+      context, 
+      MaterialPageRoute(
+        builder: (context) => AboutYou(
+          email: email,
+          name: name,
+          preferredName: preferredName,
+          username: username,
+          password: password,
+        )
+      )
     );
-
-    if (mounted) {
-      if (result['success'] == true) {
-        // 4. If registration worked, automatically log them in to get the JWT token!
-        bool loginSuccess = await ApiService.login(username, password);
-
-        setState(() => _isLoading = false);
-
-        if (loginSuccess) {
-          // Success! Send them to the About You page to finish onboarding
-          Navigator.pushReplacement(
-            context, 
-            MaterialPageRoute(builder: (context) => const AboutYou())
-          );
-        } else {
-          // Fallback just in case auto-login fails
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Account created, but auto-login failed. Please log in.')),
-          );
-          Navigator.pushReplacement(
-            context, 
-            MaterialPageRoute(builder: (context) => const LoginDetails())
-          );
-        }
-      } else {
-        // Registration failed (e.g., username already taken)
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message'])),
-        );
-      }
-    }
   }
 
   @override

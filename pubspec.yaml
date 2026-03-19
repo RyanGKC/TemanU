@@ -31,7 +31,7 @@ dependencies:
   flutter:
     sdk: flutter
   google_generative_ai: ^0.4.5
-  image_picker: ^1.1.2
+  image_picker: ^1.2.1
   file_saver: ^0.2.14
   file_picker: ^8.0.0
   http: ^1.6.0

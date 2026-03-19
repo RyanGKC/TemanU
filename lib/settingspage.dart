@@ -1,11 +1,47 @@
 import 'dart:ui';
+import 'dart:convert'; 
+import 'dart:typed_data';      
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:temanu/api_service.dart'; 
 import 'package:temanu/changePassword.dart';
 import 'package:temanu/profileInformation.dart';
 import 'package:temanu/fitbitService.dart';
+import 'package:temanu/logindetails.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  String _userName = "Loading...";
+  String _userEmail = "Loading...";
+  Uint8List? _profileImageBytes; // <-- NEW: Holds the profile picture
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileData();
+  }
+
+  Future<void> _loadProfileData() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _userName = prefs.getString('user_name') ?? "User";
+        _userEmail = prefs.getString('user_email') ?? "No email linked";
+        
+        // <-- NEW: Load the saved image -->
+        final base64String = prefs.getString('profile_image_base64');
+        if (base64String != null && base64String.isNotEmpty) {
+          _profileImageBytes = base64Decode(base64String);
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,9 +63,7 @@ class SettingsPage extends StatelessWidget {
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(
-              color: Colors.white.withValues(alpha: 0.25),
-            )
+            child: Container(color: Colors.white.withValues(alpha: 0.25))
           ),
         ),
       ),
@@ -52,21 +86,23 @@ class SettingsPage extends StatelessWidget {
                         color: Color(0xff00E5FF), 
                         shape: BoxShape.circle,
                       ),
-                      child: const CircleAvatar(
+                      // <-- UPDATED: Display the image if it exists -->
+                      child: CircleAvatar(
                         radius: 50,
-                        backgroundColor: Color(0xff1A3F6B),
-                        child: Icon(Icons.person, size: 50, color: Colors.white),
+                        backgroundColor: const Color(0xff1A3F6B),
+                        backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
+                        child: _profileImageBytes == null ? const Icon(Icons.person, size: 50, color: Colors.white) : null,
                       ),
                     ),
                     const SizedBox(height: 15),
-                    const Text(
-                      "James",
-                      style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                    Text(
+                      _userName, 
+                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 5),
-                    const Text(
-                      "james@example.com",
-                      style: TextStyle(color: Colors.white70, fontSize: 16),
+                    Text(
+                      _userEmail, 
+                      style: const TextStyle(color: Colors.white70, fontSize: 16),
                     ),
                   ],
                 ),
@@ -92,11 +128,13 @@ class SettingsPage extends StatelessWidget {
                       _buildSettingsTile(
                         icon: Icons.person_outline, 
                         title: "Profile Information", 
-                        onTap: () {
-                          Navigator.push(
+                        onTap: () async {
+                          // <-- THE FIX: AWAIT the navigator, then reload! -->
+                          await Navigator.push(
                             context,
                             MaterialPageRoute(builder: (context) => const ProfileInformationPage()),
                           );
+                          _loadProfileData(); // Instantly updates when returning!
                         }
                       ),
                       _buildDivider(),
@@ -112,16 +150,12 @@ class SettingsPage extends StatelessWidget {
                         }
                       ),
                       _buildDivider(),
-                      // --- UPDATED: FITBIT MANUAL SYNC TILE ---
                       _buildSettingsTile(
                         icon: Icons.sync, 
                         title: "Sync Fitbit Data", 
                         onTap: () async {
-                          // 1. Silently check if they are already connected
                           String? token = await FitbitService.getSilentToken();
                           bool isConnected = token != null;
-
-                          // 2. Show the smart dialog based on their status
                           if (context.mounted) {
                             _showFitbitSyncDialog(context, isConnected);
                           }
@@ -148,27 +182,37 @@ class SettingsPage extends StatelessWidget {
                 child: Column(
                   children: [
                     _buildSettingsTile(
-                        icon: Icons.logout, 
-                        title: "Log Out", 
-                        textColor: Colors.redAccent,
-                        iconColor: Colors.redAccent,
-                        hideArrow: true,
-                        onTap: () {
-                          _showConfirmationDialog(
-                            context,
-                            title: "Log Out",
-                            content: "Are you sure you want to log out of your account? You will need to sign back in to view your health data.",
-                            actionText: "Log Out",
-                            actionColor: const Color.fromARGB(168, 0, 229, 255),
-                            onConfirm: () async {
-                              await FitbitService.logout();
-                              print("User officially logged out!");
-                            },
-                          );
-                        }
-                      ),
-                      _buildDivider(),
-                      _buildSettingsTile(
+                      icon: Icons.logout, 
+                      title: "Log Out", 
+                      textColor: Colors.redAccent,
+                      iconColor: Colors.redAccent,
+                      hideArrow: true,
+                      onTap: () {
+                        _showConfirmationDialog(
+                          context,
+                          title: "Log Out",
+                          content: "Are you sure you want to log out of your account? You will need to sign back in to view your health data.",
+                          actionText: "Log Out",
+                          actionColor: const Color.fromARGB(168, 0, 229, 255),
+                          onConfirm: () async {
+                            await FitbitService.logout();
+                            
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.clear(); 
+                            
+                            if (context.mounted) {
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(builder: (context) => const LoginDetails()),
+                                (route) => false, 
+                              );
+                            }
+                          },
+                        );
+                      }
+                    ),
+                    _buildDivider(),
+                    _buildSettingsTile(
                         icon: Icons.delete_forever, 
                         title: "Delete Account", 
                         textColor: Colors.redAccent,
@@ -178,12 +222,47 @@ class SettingsPage extends StatelessWidget {
                           _showConfirmationDialog(
                             context,
                             title: "Delete Account",
-                            content: "This action cannot be undone. All of your saved health data, medication logs, and settings will be permanently erased.",
+                            content: "Are you absolutely sure? This action cannot be undone. All of your health data, settings, and profile information will be permanently erased.",
                             actionText: "Delete",
-                            actionColor: Colors.redAccent, 
+                            actionColor: Colors.redAccent,
                             onConfirm: () async {
-                              await FitbitService.logout();
-                              print("User officially deleted account!");
+                              // 1. Show a loading indicator (optional but good practice)
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.redAccent)),
+                              );
+
+                              // 2. Tell the server to nuke the account
+                              bool success = await ApiService.deleteAccount();
+
+                              // Pop the loading circle
+                              if (context.mounted) Navigator.pop(context);
+
+                              if (success) {
+                                // 3. Disconnect third-party services
+                                await FitbitService.logout();
+                                
+                                // 4. Wipe the local storage
+                                final prefs = await SharedPreferences.getInstance();
+                                await prefs.clear(); 
+                                
+                                // 5. Kick them to the login screen and destroy the back button history
+                                if (context.mounted) {
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const LoginDetails()),
+                                    (route) => false, 
+                                  );
+                                }
+                              } else {
+                                // Show an error if the server failed
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text("Failed to delete account. Please try again later.")),
+                                  );
+                                }
+                              }
                             },
                           );
                         }
@@ -247,7 +326,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // --- NEW: DEDICATED SMART FITBIT SYNC DIALOG ---
   void _showFitbitSyncDialog(BuildContext context, bool isConnected) {
     showDialog(
       context: context,
@@ -317,8 +395,7 @@ class SettingsPage extends StatelessWidget {
                         Expanded(
                           child: GestureDetector(
                             onTap: () async {
-                              Navigator.pop(context); // Close the dialog
-                              // Trigger the connection or sync
+                              Navigator.pop(context);
                               String? token = await FitbitService.getValidToken();
                               if (token != null && context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -355,7 +432,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // STANDARD DESTRUCTIVE DIALOG
   void _showConfirmationDialog(
     BuildContext context, {
     required String title,

@@ -72,7 +72,7 @@ class _LoginDetailsState extends State<LoginDetails> {
     setState(() => _isLoading = true);
 
     // Hardcoded credentials for your test account
-    bool success = await ApiService.login('RyanG', 'Ryan8228');
+    bool success = await ApiService.login('RyanG', '12345678');
 
     if (mounted) {
       setState(() => _isLoading = false);
@@ -156,7 +156,6 @@ class _LoginDetailsState extends State<LoginDetails> {
                             fontSize: 13,
                             fontWeight: FontWeight.w400,
                             color: Colors.white,
-                            decoration: TextDecoration.underline,
                           )
                         ),
                       )
