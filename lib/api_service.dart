@@ -503,4 +503,85 @@ class ApiService {
       return [];
     }
   }
+
+  // --- MEDICATION APIS ---
+
+  static Future<List<dynamic>> getMedications() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return [];
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/medications'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return [];
+    } catch (e) {
+      print("Error fetching meds: $e");
+      return [];
+    }
+  }
+
+  static Future<bool> addMedication(String name, String dosage, double inventory, String unit, List<String> times) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return false;
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/medications'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'name': name, 
+          'dosage': dosage, 
+          'inventory': inventory,
+          'unit': unit,
+          'times': times, // Pass the list directly!
+        }),
+      );
+
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<bool> takeMedication(int medId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return false;
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/medications/$medId/take'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<bool> deleteMedication(int medId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return false;
+
+      final response = await http.delete(
+        Uri.parse('$_baseUrl/medications/$medId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print("Error deleting medication: $e");
+      return false;
+    }
+  }
 }

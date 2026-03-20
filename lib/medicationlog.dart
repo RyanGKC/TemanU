@@ -1,22 +1,6 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
-
-// 1. DATA MODEL
-class Medication {
-  String id;
-  String name;
-  String amount;
-  TimeOfDay time;
-  bool isTaken;
-
-  Medication({
-    required this.id,
-    required this.name,
-    required this.amount,
-    required this.time,
-    this.isTaken = false,
-  });
-}
+import 'package:flutter/services.dart';
+import 'package:temanu/api_service.dart';
 
 class MedicationLog extends StatefulWidget {
   const MedicationLog({super.key});
@@ -26,373 +10,434 @@ class MedicationLog extends StatefulWidget {
 }
 
 class _MedicationLogState extends State<MedicationLog> {
-  bool _isEditing = false;
+  List<dynamic> _medications = [];
+  bool _isLoading = true;
 
-  // Initial mock data
-  final List<Medication> _medications = [
-    Medication(id: '1', name: 'Metformin', amount: '1 pill', time: const TimeOfDay(hour: 10, minute: 0)),
-    Medication(id: '2', name: 'Sulfonylureas', amount: '1 pill', time: const TimeOfDay(hour: 10, minute: 0)),
-    Medication(id: '3', name: 'Metformin', amount: '1 pill', time: const TimeOfDay(hour: 22, minute: 0)),
-    Medication(id: '4', name: 'Sulfonylureas', amount: '1 pill', time: const TimeOfDay(hour: 22, minute: 0)),
-  ];
-
-  // Helper to group medications by time and sort them chronologically
-  Map<TimeOfDay, List<Medication>> _getGroupedMedications() {
-    Map<TimeOfDay, List<Medication>> grouped = {};
-    for (var med in _medications) {
-      grouped.putIfAbsent(med.time, () => []).add(med);
-    }
-    return grouped;
+  @override
+  void initState() {
+    super.initState();
+    _fetchMedications();
   }
 
-  // DIALOG: Add or Edit Medication
-  void _showMedicationDialog({Medication? existingMedication}) {
-    final TextEditingController nameController = TextEditingController(text: existingMedication?.name ?? '');
-    final TextEditingController amountController = TextEditingController(text: existingMedication?.amount ?? '');
-    TimeOfDay selectedTime = existingMedication?.time ?? TimeOfDay.now();
+  Future<void> _fetchMedications() async {
+    setState(() => _isLoading = true);
+    final meds = await ApiService.getMedications();
+    if (mounted) {
+      setState(() {
+        _medications = meds;
+        _isLoading = false;
+      });
+    }
+  }
+
+  // --- THE NEW, BEAUTIFIED, DIGITAL-ONLY DIALOG ---
+  void _showAddMedicationDialog() {
+    final nameController = TextEditingController();
+    final dosageController = TextEditingController();
+    final inventoryController = TextEditingController();
+    final unitController = TextEditingController(text: "pills"); 
+    
+    List<String> selectedTimes = [];
+
+    String selectedHour = "08";
+    String selectedMinute = "00";
+    String selectedPeriod = "AM";
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.6),
-      builder: (BuildContext context) {
+      barrierColor: Colors.black.withValues(alpha: 0.8), // Darken the background
+      builder: (context) {
+        // StatefulBuilder is necessary to update the dropdowns inside the dialog
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            return Dialog(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(25),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                  child: Container(
-                    padding: const EdgeInsets.all(25),
-                    decoration: BoxDecoration(
-                      color: const Color(0xff1A3F6B).withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(25),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
-                    ),
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            existingMedication == null ? "Add Medication" : "Edit Medication",
-                            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 20),
-                          
-                          // Name Input
-                          _buildDialogTextField("Medication Name", "e.g., Metformin", nameController),
-                          const SizedBox(height: 15),
-                          
-                          // Amount Input
-                          _buildDialogTextField("Amount", "e.g., 1 pill", amountController),
-                          const SizedBox(height: 15),
+            
+            // Reusable Input Field Decoration
+            InputDecoration inputDecoration(String label) => InputDecoration(
+              labelText: label,
+              labelStyle: const TextStyle(color: Colors.white54, fontSize: 13),
+              filled: true,
+              fillColor: const Color(0xff040F31).withValues(alpha: 0.4),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+            );
 
-                          // Time Selector
-                          const Text("Schedule", style: TextStyle(color: Colors.white54, fontSize: 13)),
-                          const SizedBox(height: 5),
-                          GestureDetector(
-                            onTap: () async {
-                              final TimeOfDay? time = await showTimePicker(
-                                context: context,
-                                initialTime: selectedTime,
-                              );
-                              if (time != null) {
-                                setDialogState(() => selectedTime = time);
+            // Digital Time Picker Input Matrix
+            Widget buildTimeMatrix() {
+              final List<String> hours = List.generate(12, (i) => (i + 1).toString().padLeft(2, '0'));
+              final List<String> minutes = List.generate(60, (i) => i.toString().padLeft(2, '0'));
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Scheduled Time(s)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                  const SizedBox(height: 12),
+                  // The Time Selector Matrix
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: const Color(0xff040F31).withValues(alpha: 0.4), borderRadius: BorderRadius.circular(18)),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        // Hour
+                        DropdownButton<String>(
+                          value: selectedHour,
+                          underline: const SizedBox(),
+                          dropdownColor: const Color(0xff1A3F6B),
+                          borderRadius: BorderRadius.circular(15), // Native rounded corners!
+                          style: const TextStyle(color: Color(0xff00E5FF), fontSize: 18, fontWeight: FontWeight.bold),
+                          onChanged: (val) => setDialogState(() => selectedHour = val!),
+                          items: hours.map((h) => DropdownMenuItem(value: h, child: Text(h))).toList(),
+                        ),
+                        const Text(":", style: TextStyle(color: Colors.white38, fontSize: 22)),
+                        // Minute
+                        DropdownButton<String>(
+                          value: selectedMinute,
+                          underline: const SizedBox(),
+                          dropdownColor: const Color(0xff1A3F6B),
+                          borderRadius: BorderRadius.circular(15), 
+                          style: const TextStyle(color: Color(0xff00E5FF), fontSize: 18, fontWeight: FontWeight.bold),
+                          onChanged: (val) => setDialogState(() => selectedMinute = val!),
+                          items: minutes.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+                        ),
+                        // AM/PM
+                        DropdownButton<String>(
+                          value: selectedPeriod,
+                          underline: const SizedBox(),
+                          dropdownColor: const Color(0xff1A3F6B),
+                          borderRadius: BorderRadius.circular(15),
+                          style: const TextStyle(color: Color(0xff00E5FF), fontSize: 18, fontWeight: FontWeight.bold),
+                          onChanged: (val) => setDialogState(() => selectedPeriod = val!),
+                          items: ["AM", "PM"].map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+                        ),
+                        // Confirm Time Button
+                        GestureDetector(
+                          onTap: () {
+                            setDialogState(() {
+                              selectedTimes.add("$selectedHour:$selectedMinute $selectedPeriod");
+                              // Optional: Sort times alphabetically/chronologically
+                              selectedTimes.sort();
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: const BoxDecoration(color: Color(0xff00E5FF), shape: BoxShape.circle),
+                            child: const Icon(Icons.add, color: Color(0xff040F31), size: 18),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  // The list of selected times
+                  if (selectedTimes.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: selectedTimes.map((time) {
+                        return Chip(
+                          backgroundColor: const Color(0xff00E5FF).withValues(alpha: 0.15),
+                          side: const BorderSide(color: Color(0xff00E5FF)),
+                          label: Text(time, style: const TextStyle(color: Color(0xff00E5FF), fontWeight: FontWeight.w600)),
+                          deleteIcon: const Icon(Icons.close, color: Color(0xff00E5FF), size: 16),
+                          onDeleted: () => setDialogState(() => selectedTimes.remove(time)),
+                        );
+                      }).toList(),
+                    ),
+                ],
+              );
+            }
+
+            return Dialog(
+              backgroundColor: const Color(0xff1A3F6B),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25), side: const BorderSide(color: Colors.white12, width: 1.5)),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(22, 25, 22, 30),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header Matrix
+                    Row(
+                      children: const [
+                        Icon(Icons.add_task, color: Color(0xff00E5FF), size: 24),
+                        SizedBox(width: 12),
+                        Text("Add Medication", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 25),
+
+                    // Inputs Matrix
+                    TextField(
+                      controller: nameController, 
+                      style: const TextStyle(color: Colors.white), 
+                      decoration: inputDecoration("Medication Name")
+                    ),
+                    const SizedBox(height: 15),
+                    
+                    // --- UPDATED: Dosage strictly accepts numbers/decimals ---
+                    TextField(
+                      controller: dosageController, 
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*')),
+                      ],
+                      style: const TextStyle(color: Colors.white), 
+                      decoration: inputDecoration("Dosage Amount (e.g. 50, 1.5)")
+                    ),
+                    const SizedBox(height: 15),
+                    
+                    Row(
+                      children: [
+                        // --- UPDATED: Inventory strictly accepts numbers/decimals ---
+                        Expanded(
+                          flex: 2, 
+                          child: TextField(
+                            controller: inventoryController, 
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*')),
+                            ],
+                            style: const TextStyle(color: Colors.white), 
+                            decoration: inputDecoration("Total Amount Left")
+                          )
+                        ),
+                        const SizedBox(width: 15),
+                        
+                        Expanded(
+                          flex: 1, 
+                          child: TextField(
+                            controller: unitController, 
+                            style: const TextStyle(color: Colors.white), 
+                            decoration: inputDecoration("Unit (mg, ml, pills)")
+                          )
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 30),
+
+                    // Time Picker Matrix
+                    buildTimeMatrix(),
+                    
+                    const SizedBox(height: 35),
+
+                    // Action Buttons Matrix
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.white24, width: 1.5),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text("Cancel", style: TextStyle(color: Colors.white, fontSize: 16)),
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xff00E5FF),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                            onPressed: () async {
+                              final name = nameController.text.trim();
+                              final dosage = dosageController.text.trim();
+                              final inv = double.tryParse(inventoryController.text) ?? 0.0;
+                              final unit = unitController.text.trim();
+                              
+                              if (name.isNotEmpty) {
+                                Navigator.pop(context);
+                                // Fallback if no times are set
+                                if (selectedTimes.isEmpty) selectedTimes.add("Anytime");
+                                bool success = await ApiService.addMedication(name, dosage, inv, unit, selectedTimes);
+                                if (success) _fetchMedications();
                               }
                             },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 15),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xff00E5FF).withValues(alpha: 0.5)),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    selectedTime.format(context),
-                                    style: const TextStyle(color: Colors.white, fontSize: 16),
-                                  ),
-                                  const Icon(Icons.access_time, color: Color(0xff00E5FF)),
-                                ],
-                              ),
-                            ),
+                            child: const Text("Save", style: TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold)),
                           ),
-                          const SizedBox(height: 30),
-
-                          // Buttons
-                          Row(
-                            children: [
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () => Navigator.pop(context),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.white38),
-                                      borderRadius: BorderRadius.circular(15),
-                                    ),
-                                    child: const Text("Cancel", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 15),
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () {
-                                    if (nameController.text.isEmpty || amountController.text.isEmpty) return;
-
-                                    setState(() {
-                                      if (existingMedication == null) {
-                                        // Add new
-                                        _medications.add(Medication(
-                                          id: DateTime.now().toString(),
-                                          name: nameController.text,
-                                          amount: amountController.text,
-                                          time: selectedTime,
-                                        ));
-                                      } else {
-                                        // Update existing
-                                        existingMedication.name = nameController.text;
-                                        existingMedication.amount = amountController.text;
-                                        existingMedication.time = selectedTime;
-                                      }
-                                    });
-                                    Navigator.pop(context);
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xff00E5FF),
-                                      borderRadius: BorderRadius.circular(15),
-                                    ),
-                                    child: const Text("Save", style: TextStyle(color: Color(0xff040F31), fontWeight: FontWeight.bold)),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    )
-                  ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             );
-          },
+          }
         );
       },
     );
   }
 
-  Widget _buildDialogTextField(String label, String hint, TextEditingController controller) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: Colors.white54, fontSize: 13)),
-        const SizedBox(height: 5),
-        TextField(
-          controller: controller,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: const TextStyle(color: Colors.white38),
-            filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.1),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xff00E5FF))),
-          ),
-        ),
-      ],
-    );
-  }
-
+  // ... [Keep the entire build() and list item methods exact as they were] ...
   @override
   Widget build(BuildContext context) {
-    final groupedMedications = _getGroupedMedications();
-    // Sort times chronologically
-    final sortedTimes = groupedMedications.keys.toList()
-      ..sort((a, b) => (a.hour * 60 + a.minute).compareTo(b.hour * 60 + b.minute));
-
     return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xff1A3F6B),
-        borderRadius: BorderRadius.circular(25),
-      ),
       width: double.infinity,
-      padding: const EdgeInsets.all(20.0),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: const Color(0xff1A3F6B), borderRadius: BorderRadius.circular(25)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Row with Edit/Done Button
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Medication Log',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24)
-              ),
-              IconButton(
-                icon: Icon(_isEditing ? Icons.check : Icons.edit_note, color: _isEditing ? const Color(0xff00E5FF) : Colors.white, size: 28),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                onPressed: () {
-                  setState(() => _isEditing = !_isEditing);
-                },
+              const Text("Daily Medications", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              GestureDetector(
+                onTap: _showAddMedicationDialog,
+                child: const Icon(Icons.add_circle, color: Color(0xff00E5FF), size: 28),
               ),
             ],
           ),
           const SizedBox(height: 15),
-
-          if (_medications.isEmpty)
+          
+          if (_isLoading)
+            const Center(child: Padding(padding: EdgeInsets.all(20.0), child: CircularProgressIndicator(color: Color(0xff00E5FF))))
+          else if (_medications.isEmpty)
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
+              padding: EdgeInsets.symmetric(vertical: 20.0),
               child: Center(child: Text("No medications scheduled.", style: TextStyle(color: Colors.white54))),
-            ),
+            )
+          else
+            ..._medications.map((med) {
+              int totalDoses = (med['times'] as List).length;
+              int dosesTaken = med['doses_taken_today'];
+              bool isFullyTaken = dosesTaken >= totalDoses;
+              
+              num inventory = med['inventory'];
+              String unit = med['unit'];
+              
+              // 1. Safely extract the dosage as a decimal number
+              double dosageAmount = double.tryParse(med['dosage'].toString()) ?? 1.0;
+              
+              // --- THE NEW LOGIC: Alert if they don't have enough for 5 more doses ---
+              bool lowStock = (inventory / dosageAmount) < 5; 
 
-          // Render grouped medications
-          ...sortedTimes.map((time) {
-            final medsForTime = groupedMedications[time]!;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  time.format(context),
-                  style: const TextStyle(color: Color(0xff00E5FF), fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                ...medsForTime.map((med) => MedicationLogEntry(
-                  medication: med,
-                  isEditing: _isEditing,
-                  onEdit: () => _showMedicationDialog(existingMedication: med),
-                  onDelete: () {
-                    setState(() => _medications.remove(med));
-                  },
-                  onToggle: (val) {
-                    setState(() => med.isTaken = val);
-                  },
-                )),
-                const SizedBox(height: 15),
-              ],
-            );
-          }),
-
-          // Add Medication Button (Only visible in Edit Mode)
-          if (_isEditing)
-            GestureDetector(
-              onTap: () => _showMedicationDialog(), // Pass null to add a new one
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 14),
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(15),
                 decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0xff00E5FF), width: 1.5),
+                  color: isFullyTaken ? const Color(0xff00E676).withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.05),
+                  border: Border.all(color: isFullyTaken ? const Color(0xff00E676).withValues(alpha: 0.5) : Colors.transparent),
                   borderRadius: BorderRadius.circular(15),
-                  color: const Color(0xff00E5FF).withValues(alpha: 0.1),
                 ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Row(
                   children: [
-                    Icon(Icons.add, color: Color(0xff00E5FF)),
-                    SizedBox(width: 8),
-                    Text("Add Medication", style: TextStyle(color: Color(0xff00E5FF), fontWeight: FontWeight.bold, fontSize: 16)),
+                    // Dynamic checkboxes
+                    Row(
+                      children: List.generate(totalDoses, (index) {
+                        bool isChecked = index < dosesTaken;
+                        return GestureDetector(
+                          onTap: isChecked ? null : () async {
+                            bool success = await ApiService.takeMedication(med['id']);
+                            if (success) _fetchMedications(); 
+                          },
+                          child: Container(
+                            height: 28, width: 28,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: isChecked ? const Color(0xff00E676) : Colors.transparent,
+                              border: Border.all(color: isChecked ? const Color(0xff00E676) : Colors.white54, width: 2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: isChecked ? const Icon(Icons.check, color: Color(0xff040F31), size: 18) : null,
+                          ),
+                        );
+                      }),
+                    ),
+                    const SizedBox(width: 8),
+                    
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            med['name'],
+                            style: TextStyle(
+                              color: isFullyTaken ? Colors.white70 : Colors.white,
+                              fontSize: 16, fontWeight: FontWeight.bold,
+                              decoration: isFullyTaken ? TextDecoration.lineThrough : TextDecoration.none,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          // --- UPDATED: Combines Dosage Number and Unit! ---
+                          Text(
+                            "${med['dosage']} $unit • ${(med['times'] as List).join(', ')}",
+                            style: const TextStyle(color: Colors.white54, fontSize: 13),
+                          ),
+                          // -------------------------------------------------
+                        ],
+                      ),
+                    ),
+                    
+                    // Inventory Alert & Delete Button Column
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        // --- NEW: Delete Button ---
+                        GestureDetector(
+                          onTap: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                backgroundColor: const Color(0xff1A3F6B),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                title: const Text("Delete Medication?", style: TextStyle(color: Colors.white)),
+                                content: Text("Are you sure you want to remove ${med['name']} from your schedule?", style: const TextStyle(color: Colors.white70)),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text("Cancel", style: TextStyle(color: Colors.white54)),
+                                  ),
+                                  TextButton(
+                                    onPressed: () async {
+                                      Navigator.pop(context); // Close dialog
+                                      bool success = await ApiService.deleteMedication(med['id']);
+                                      if (success) _fetchMedications(); // Refresh list!
+                                    },
+                                    child: const Text("Delete", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.only(bottom: 8.0),
+                            child: Icon(Icons.delete_outline, color: Colors.white24, size: 20),
+                          ),
+                        ),
+                        // --------------------------
+                        
+                        if (lowStock)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.orangeAccent.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.orangeAccent),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 14),
+                                const SizedBox(width: 4),
+                                Text("$inventory left", style: const TextStyle(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          )
+                        else
+                          Text("$inventory left", style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                      ],
+                    ),
                   ],
                 ),
-              ),
-            )
-        ]
-      )
-    );
-  }
-}
-
-// 2. ENTRY WIDGET
-class MedicationLogEntry extends StatelessWidget {
-  final Medication medication;
-  final bool isEditing;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-  final Function(bool) onToggle;
-
-  const MedicationLogEntry({
-    super.key,
-    required this.medication,
-    required this.isEditing,
-    required this.onEdit,
-    required this.onDelete,
-    required this.onToggle,
-  });
-  
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 12.0),
-            margin: const EdgeInsets.only(bottom: 8.0),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(15),
-              color: Colors.white.withValues(alpha: 0.08),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                const Icon(Icons.healing, size: 28, color: Colors.white70),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Text(
-                    "${medication.name}\n${medication.amount}",
-                    style: TextStyle(
-                      color: medication.isTaken && !isEditing ? Colors.white54 : Colors.white, 
-                      fontSize: 16,
-                      decoration: medication.isTaken && !isEditing ? TextDecoration.lineThrough : null,
-                    ),
-                  ),
-                )
-              ]
-            )
-          )
-        ),
-        const SizedBox(width: 15),
-
-        // Toggle between Edit Controls and Checkbox
-        if (isEditing)
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.edit, color: Colors.white70),
-                onPressed: onEdit,
-                constraints: const BoxConstraints(),
-                padding: const EdgeInsets.only(right: 8),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                onPressed: onDelete,
-                constraints: const BoxConstraints(),
-                padding: EdgeInsets.zero,
-              ),
-            ],
-          )
-        else
-          Transform.scale(
-            scale: 1.3,
-            child: Checkbox(
-              value: medication.isTaken,
-              activeColor: const Color(0xff00E5FF),
-              checkColor: const Color(0xff040F31),
-              side: const BorderSide(color: Colors.white54, width: 2),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-              onChanged: (newValue) => onToggle(newValue ?? false),
-            ),
-          )
-      ]
+              );
+            }).toList(),
+        ],
+      ),
     );
   }
 }
