@@ -584,4 +584,48 @@ class ApiService {
       return false;
     }
   }
+
+  static Future<int> getMedicationAdherence() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return 0;
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/medications/adherence'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body)['adherence_percentage'] ?? 0;
+      }
+      return 0;
+    } catch (e) {
+      print("Error fetching adherence: $e");
+      return 0;
+    }
+  }
+
+  static Future<bool> editMedication(int medId, String name, String dosage, double inventory, String unit, List<String> times) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return false;
+
+      final response = await http.put(
+        Uri.parse('$_baseUrl/medications/$medId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'name': name, 'dosage': dosage, 'inventory': inventory,
+          'unit': unit, 'times': times,
+        }),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print("Error editing medication: $e");
+      return false;
+    }
+  }
 }

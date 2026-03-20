@@ -106,6 +106,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
     height: '180', weight: '75', bloodType: 'O+', conditions: 'None',
   );
   bool _isLoading = true;
+  List<dynamic> _activeMedications = []; // --- NEW: Holds the med list for the PDF ---
 
   Timer? _backgroundSyncTimer;
   late List<Map<String, dynamic>> _metricsData;
@@ -164,13 +165,16 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
       }
     }
 
-    // --- NEW: FETCH TODAY'S MEALS & CALCULATE TOTAL CALORIES ---
+    // --- FETCH TODAY'S MEALS ---
     final todaysMeals = await ApiService.getTodaysMeals();
     int totalCalories = 0;
     for (var meal in todaysMeals) {
       totalCalories += (meal['calories'] as num).toInt();
     }
-    // -----------------------------------------------------------
+    
+    // --- THE FIX: Fetch the full medication list instead of just the score! ---
+    final meds = await ApiService.getMedications();
+    // --------------------------------------------------------------------------
 
     if (mounted) {
       setState(() {
@@ -180,8 +184,10 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
         if (newestValues.containsKey('Oxygen Saturation')) _metricsData.firstWhere((m) => m['title'] == 'Oxygen Saturation')['value'] = newestValues['Oxygen Saturation'];
         if (newestValues.containsKey('Blood Pressure')) _metricsData.firstWhere((m) => m['title'] == 'Blood Pressure')['value'] = newestValues['Blood Pressure'];
         
-        // --- NEW: Inject the calculated live total directly into the card! ---
         _metricsData.firstWhere((m) => m['title'] == 'Calories')['value'] = totalCalories.toString();
+        
+        // --- Save the meds to pass to the PDF ---
+        _activeMedications = meds; 
         
         // 2. Turn off the loading spinner
         _isLoading = false; 
@@ -675,6 +681,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                                 PdfGenerator.generateAndShare(
                                   selectedMetrics: _selectedMetrics,
                                   patientData: _patientData.toMap(),
+                                  activeMedications: _activeMedications, // <-- ADD THIS
                                 );
                               },
                               child: const Text(
@@ -702,6 +709,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                               PdfGenerator.generateAndSave(
                                 selectedMetrics: _selectedMetrics,
                                 patientData: _patientData.toMap(),
+                                activeMedications: _activeMedications, // <-- ADD THIS
                                 context: context,
                               );
                             },
