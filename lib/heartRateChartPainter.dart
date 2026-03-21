@@ -22,7 +22,6 @@ class HeartRateChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Vibrant red for heart rate
     final hrPaint = Paint()..color = const Color(0xffFF4B4B)..style = PaintingStyle.fill;
     final hrColumnPaint = Paint()..color = const Color(0xffFF4B4B).withValues(alpha: 0.3)..strokeWidth = 5..strokeCap = StrokeCap.round;
     final gridPaint = Paint()..color = Colors.white54..strokeWidth = 1;
@@ -30,7 +29,6 @@ class HeartRateChartPainter extends CustomPainter {
 
     // --- Y-AXIS CALCULATION ---
     final allValues = [...minBpmData, ...maxBpmData];
-    // Standard HR chart bounds are usually between 40 and 180+
     final minVal = allValues.isEmpty ? 40.0 : ((allValues.reduce(min) - 10) ~/ 10) * 10.0;
     final maxVal = allValues.isEmpty ? 150.0 : (((allValues.reduce(max) + 9) ~/ 10) * 10).toDouble();
     final range = maxVal - minVal == 0 ? 10 : maxVal - minVal;
@@ -49,7 +47,7 @@ class HeartRateChartPainter extends CustomPainter {
       tp.paint(canvas, Offset(8, y - 8));
     }
 
-    // --- TIME BOUNDS & LABELS ---
+    // --- TIME BOUNDS ---
     final now = DateTime.now();
     DateTime startTime;
     DateTime endTime;
@@ -110,7 +108,6 @@ class HeartRateChartPainter extends CustomPainter {
       timeRatio = timeRatio.clamp(0.0, 1.0); 
       final x = leftPadding + (usableWidth * timeRatio);
 
-      // Animation math for a single metric
       final targetMinY = chartHeight - ((minBpmData[i] - minVal) / range) * chartHeight;
       final targetMaxY = chartHeight - ((maxBpmData[i] - minVal) / range) * chartHeight;
 
@@ -124,9 +121,19 @@ class HeartRateChartPainter extends CustomPainter {
       } else {
         canvas.drawCircle(Offset(x, minY), dotRadius, hrPaint); 
       }
+
+      // Highlight rings for touched point — drawn on top of dots
+      if (touchedIndex == i) {
+        canvas.drawCircle(Offset(x, maxY), 8, Paint()..color = Colors.white);
+        canvas.drawCircle(Offset(x, maxY), 5, Paint()..color = const Color(0xff031447));
+        if (minBpmData[i] != maxBpmData[i]) {
+          canvas.drawCircle(Offset(x, minY), 8, Paint()..color = Colors.white);
+          canvas.drawCircle(Offset(x, minY), 5, Paint()..color = const Color(0xff031447));
+        }
+      }
     }
 
-    // --- DRAW HIGHLIGHT TOOLTIP ---
+    // --- DRAW TOOLTIP (drawn last so it sits above everything) ---
     if (touchedIndex != null && touchedIndex! < pointCount) {
       final elapsedMillis = timeData[touchedIndex!].difference(startTime).inMilliseconds;
       double timeRatio = elapsedMillis / (totalMillis > 0 ? totalMillis : 1);
@@ -137,56 +144,70 @@ class HeartRateChartPainter extends CustomPainter {
       final bMax = maxBpmData[touchedIndex!];
       final highestY = chartHeight - ((bMax - minVal) / range) * chartHeight;
 
-      _drawTooltip(canvas, size, x, highestY, chartHeight, bMin, bMax, timeData[touchedIndex!]);
+      _drawTooltip(canvas, size, x, highestY, bMin, bMax, timeData[touchedIndex!]);
     }
   }
 
-  void _drawTooltip(Canvas canvas, Size size, double x, double highestY, double chartHeight, int bMin, int bMax, DateTime date) {
+  // --- UPDATED: Dark box tooltip matching body weight style (date row 1, value row 2) ---
+  void _drawTooltip(Canvas canvas, Size size, double x, double highestY, int bMin, int bMax, DateTime date) {
     const List<String> months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    
-    String period = date.hour >= 12 ? "PM" : "AM";
-    int h = date.hour % 12;
-    if (h == 0) h = 12;
-    
+
+    // Row 1: date/timeframe
     String dateStr;
     if (rangeLabel == "D") {
-      dateStr = "${date.day} ${months[date.month - 1]}, $h:00 $period"; 
+      String period = date.hour >= 12 ? "PM" : "AM";
+      int h = date.hour % 12;
+      if (h == 0) h = 12;
+      dateStr = "${date.day} ${months[date.month - 1]}, $h:00 $period";
     } else if (rangeLabel == "W" || rangeLabel == "M") {
-      dateStr = "${date.day} ${months[date.month - 1]}"; 
+      dateStr = "${date.day} ${months[date.month - 1]}";
     } else if (rangeLabel == "3M" || rangeLabel == "6M") {
       final weekEnd = date.add(const Duration(days: 6));
       dateStr = "${date.day} ${months[date.month - 1]} - ${weekEnd.day} ${months[weekEnd.month - 1]}";
     } else {
-      dateStr = "${months[date.month - 1]} ${date.year}"; 
+      dateStr = "${months[date.month - 1]} ${date.year}";
     }
 
-    String hrText = bMin == bMax ? "BPM: $bMax" : "BPM: $bMin-$bMax";
-    String text = "$hrText\n$dateStr";
+    // Row 2: value — show range if min != max, otherwise single value
+    String valueStr = bMin == bMax ? "$bMax bpm" : "$bMin–$bMax bpm";
 
-    final textSpan = TextSpan(text: text, style: const TextStyle(color: Color(0xff031447), fontSize: 12, fontWeight: FontWeight.bold));
-    final textPainter = TextPainter(text: textSpan, textAlign: TextAlign.center, textDirection: TextDirection.ltr);
-    textPainter.layout();
-
-    final boxWidth = textPainter.width + 20;
-    final boxHeight = textPainter.height + 14;
-    
-    double rectTop = highestY - boxHeight - 15;
-    if (rectTop < 0) rectTop = highestY + 15; 
-
-    double rectLeft = x - boxWidth / 2;
-    if (rectLeft < 55) rectLeft = 55;
-    if (rectLeft + boxWidth > size.width) rectLeft = size.width - boxWidth;
-
-    final rrect = RRect.fromRectAndRadius(Rect.fromLTWH(rectLeft, rectTop, boxWidth, boxHeight), const Radius.circular(10));
-
-    canvas.drawLine(
-      Offset(x, 0), Offset(x, chartHeight), 
-      Paint()..color = Colors.white.withValues(alpha: 0.6)..strokeWidth = 1.5
+    final textSpan = TextSpan(
+      children: [
+        TextSpan(
+          text: "$dateStr\n",
+          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+        TextSpan(
+          text: valueStr,
+          style: const TextStyle(color: Color(0xff00E5FF), fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+      ],
     );
 
-    canvas.drawRRect(rrect.shift(const Offset(0, 3)), Paint()..color = Colors.black26); 
-    canvas.drawRRect(rrect, Paint()..color = Colors.white);
-    textPainter.paint(canvas, Offset(rectLeft + 10, rectTop + 7));
+    final textPainter = TextPainter(
+      text: textSpan,
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final boxWidth = textPainter.width + 24;
+    final boxHeight = textPainter.height + 16;
+
+    double rectLeft = (x - boxWidth / 2).clamp(55.0, size.width - boxWidth);
+    double rectTop = highestY - boxHeight - 15;
+    if (rectTop < 0) rectTop = highestY + 15;
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(rectLeft, rectTop, boxWidth, boxHeight),
+      const Radius.circular(8),
+    );
+
+    // Shadow
+    canvas.drawRRect(rrect.shift(const Offset(0, 3)), Paint()..color = Colors.black26);
+    // Dark box
+    canvas.drawRRect(rrect, Paint()..color = const Color(0xff1A3F6B));
+    // Text
+    textPainter.paint(canvas, Offset(rectLeft + 12, rectTop + 8));
   }
 
   List<ChartLabel> _getDynamicLabels(String range, DateTime start, DateTime end) { 

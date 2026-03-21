@@ -64,7 +64,6 @@ class BloodPressureChartPainter extends CustomPainter {
         endTime = DateTime(now.year, now.month, now.day + dateOffset + 1);
         break;
       case "W":
-        // Make the visual graph canvas strictly Monday to Sunday
         int daysToMonday = now.weekday - 1;
         startTime = DateTime(now.year, now.month, now.day - daysToMonday + (dateOffset * 7));
         endTime = DateTime(now.year, now.month, now.day - daysToMonday + 7 + (dateOffset * 7));
@@ -95,7 +94,6 @@ class BloodPressureChartPainter extends CustomPainter {
     final labels = _getDynamicLabels(rangeLabel, startTime, endTime);
     
     for (var label in labels) {
-      // Calculate exactly where this specific timestamp sits on the X axis
       final elapsedMillis = label.time.difference(startTime).inMilliseconds;
       double timeRatio = elapsedMillis / (totalMillis > 0 ? totalMillis : 1);
       timeRatio = timeRatio.clamp(0.0, 1.0); 
@@ -117,14 +115,11 @@ class BloodPressureChartPainter extends CustomPainter {
       timeRatio = timeRatio.clamp(0.0, 1.0); 
       final x = leftPadding + (usableWidth * timeRatio);
 
-      // --- NEW ANIMATION MATH ---
-      // We calculate where the dot *should* be (target Y)...
       final targetSysMinY = chartHeight - ((sysMinData[i] - minVal) / range) * chartHeight;
       final targetSysMaxY = chartHeight - ((sysMaxData[i] - minVal) / range) * chartHeight;
       final targetDiaMinY = chartHeight - ((diaMinData[i] - minVal) / range) * chartHeight;
       final targetDiaMaxY = chartHeight - ((diaMaxData[i] - minVal) / range) * chartHeight;
 
-      // ...and then multiply its distance from the bottom by the progress (0.0 to 1.0)
       final sysMinY = chartHeight - ((chartHeight - targetSysMinY) * progress);
       final sysMaxY = chartHeight - ((chartHeight - targetSysMaxY) * progress);
       final diaMinY = chartHeight - ((chartHeight - targetDiaMinY) * progress);
@@ -147,9 +142,19 @@ class BloodPressureChartPainter extends CustomPainter {
       } else {
         canvas.drawCircle(Offset(x, diaMinY), dotRadius, diaPaint); 
       }
+
+      // Highlight ring for touched point — drawn on top of all dots
+      if (touchedIndex == i) {
+        // Draw highlight rings on the systolic dot(s)
+        canvas.drawCircle(Offset(x, sysMaxY), 8, Paint()..color = Colors.white);
+        canvas.drawCircle(Offset(x, sysMaxY), 5, Paint()..color = const Color(0xff031447));
+        // Draw highlight rings on the diastolic dot(s)
+        canvas.drawCircle(Offset(x, diaMinY), 8, Paint()..color = Colors.white);
+        canvas.drawCircle(Offset(x, diaMinY), 5, Paint()..color = const Color(0xff031447));
+      }
     }
 
-    // --- DRAW HIGHLIGHT TOOLTIP ---
+    // --- DRAW TOOLTIP (drawn last so it sits above everything) ---
     if (touchedIndex != null && touchedIndex! < pointCount) {
       final elapsedMillis = timeData[touchedIndex!].difference(startTime).inMilliseconds;
       double timeRatio = elapsedMillis / (totalMillis > 0 ? totalMillis : 1);
@@ -160,69 +165,75 @@ class BloodPressureChartPainter extends CustomPainter {
       final sMax = sysMaxData[touchedIndex!];
       final dMin = diaMinData[touchedIndex!];
       final dMax = diaMaxData[touchedIndex!];
+      // Anchor tooltip to the highest point (systolic max)
       final highestY = chartHeight - ((sMax - minVal) / range) * chartHeight;
 
       _drawTooltip(canvas, size, x, highestY, chartHeight, sMin, sMax, dMin, dMax, timeData[touchedIndex!]);
     }
   }
 
+  // --- UPDATED: Tooltip now matches body weight style (dark box, date row 1, value row 2) ---
   void _drawTooltip(Canvas canvas, Size size, double x, double highestY, double chartHeight, int sMin, int sMax, int dMin, int dMax, DateTime date) {
     const List<String> months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    
-    String period = date.hour >= 12 ? "PM" : "AM";
-    int h = date.hour % 12;
-    if (h == 0) h = 12;
-    
-    // Customize label based on range grouping
+
+    // Build the date string (row 1) based on range
     String dateStr;
     if (rangeLabel == "D") {
-      dateStr = "${date.day} ${months[date.month - 1]}, $h:00 $period"; 
+      String period = date.hour >= 12 ? "PM" : "AM";
+      int h = date.hour % 12;
+      if (h == 0) h = 12;
+      dateStr = "${date.day} ${months[date.month - 1]}, $h:00 $period";
     } else if (rangeLabel == "W" || rangeLabel == "M") {
-      dateStr = "${date.day} ${months[date.month - 1]}"; 
+      dateStr = "${date.day} ${months[date.month - 1]}";
     } else if (rangeLabel == "3M" || rangeLabel == "6M") {
-      // Formats the tooltip as "2 Mar - 8 Mar"
       final weekEnd = date.add(const Duration(days: 6));
       dateStr = "${date.day} ${months[date.month - 1]} - ${weekEnd.day} ${months[weekEnd.month - 1]}";
     } else {
-      dateStr = "${months[date.month - 1]} ${date.year}"; 
+      dateStr = "${months[date.month - 1]} ${date.year}";
     }
 
-    String sysText = sMin == sMax ? "SYS: $sMax" : "SYS: $sMin-$sMax";
-    String diaText = dMin == dMax ? "DIA: $dMax" : "DIA: $dMin-$dMax";
-    String text = "$sysText   $diaText\n$dateStr";
+    // Build the value string (row 2) — show range if min != max, otherwise single value
+    String sysStr = sMin == sMax ? "$sMax" : "$sMin–$sMax";
+    String diaStr = dMin == dMax ? "$dMax" : "$dMin–$dMax";
+    String valueStr = "$sysStr / $diaStr mmHg";
 
-    final textSpan = TextSpan(text: text, style: const TextStyle(color: Color(0xff031447), fontSize: 12, fontWeight: FontWeight.bold));
-    final textPainter = TextPainter(text: textSpan, textAlign: TextAlign.center, textDirection: TextDirection.ltr);
-    textPainter.layout();
-
-    final boxWidth = textPainter.width + 20;
-    final boxHeight = textPainter.height + 14;
-    
-    double rectTop = highestY - boxHeight - 15;
-    if (rectTop < 0) rectTop = highestY + 15; 
-
-    double rectLeft = x - boxWidth / 2;
-    if (rectLeft < 55) rectLeft = 55;
-    if (rectLeft + boxWidth > size.width) rectLeft = size.width - boxWidth;
-
-    final rrect = RRect.fromRectAndRadius(Rect.fromLTWH(rectLeft, rectTop, boxWidth, boxHeight), const Radius.circular(10));
-
-    // --- FIX: DRAW THE LINE FIRST (Layer 1) ---
-    canvas.drawLine(
-      Offset(x, 0), 
-      Offset(x, chartHeight), 
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.6)
-        ..strokeWidth = 1.5
+    final textSpan = TextSpan(
+      children: [
+        TextSpan(
+          text: "$dateStr\n",
+          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+        TextSpan(
+          text: valueStr,
+          style: const TextStyle(color: Color(0xff00E5FF), fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+      ],
     );
 
-    // --- DRAW THE TOOLTIP BOX SECOND (Layer 2 - overlaps the line) ---
-    // Draw Shadow
-    canvas.drawRRect(rrect.shift(const Offset(0, 3)), Paint()..color = Colors.black26); 
-    // Draw White Box
-    canvas.drawRRect(rrect, Paint()..color = Colors.white);
-    // Draw Text
-    textPainter.paint(canvas, Offset(rectLeft + 10, rectTop + 7));
+    final textPainter = TextPainter(
+      text: textSpan,
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final boxWidth = textPainter.width + 24;
+    final boxHeight = textPainter.height + 16;
+
+    double rectLeft = (x - boxWidth / 2).clamp(55.0, size.width - boxWidth);
+    double rectTop = highestY - boxHeight - 15;
+    if (rectTop < 0) rectTop = highestY + 15;
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(rectLeft, rectTop, boxWidth, boxHeight),
+      const Radius.circular(8),
+    );
+
+    // Shadow
+    canvas.drawRRect(rrect.shift(const Offset(0, 3)), Paint()..color = Colors.black26);
+    // Dark box (matches body weight)
+    canvas.drawRRect(rrect, Paint()..color = const Color(0xff1A3F6B));
+    // Text
+    textPainter.paint(canvas, Offset(rectLeft + 12, rectTop + 8));
   }
 
   List<ChartLabel> _getDynamicLabels(String range, DateTime start, DateTime end) { 

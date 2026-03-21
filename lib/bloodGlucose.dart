@@ -1,12 +1,13 @@
 import 'dart:ui';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temanu/api_service.dart';
 import 'package:temanu/assistantpage.dart';
+import 'package:temanu/button.dart'; 
+import 'package:temanu/textbox.dart';
 
 // ─── Data model ──────────────────────────────────────────────────────────────
 
@@ -39,13 +40,13 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
   double averageBGlevel = 0;
   double fluctuation    = 0;
 
-  // ── Thresholds (editable) ──────────────────────────────────────────────────
-  double veryHigh           = 250;
-  double high               = 180;
-  double low                = 70;
-  double veryLow            = 54;
-  double highFluctuation    = 80;
-  double veryHighFluctuation = 120;
+  // ── Hardcoded Thresholds (Average Person) ──────────────────────────────────
+  final double veryHigh = 200;
+  final double high = 140;
+  final double low = 70;
+  final double veryLow = 54;
+  final double highFluctuation = 50;
+  final double veryHighFluctuation = 100;
 
   // ── Chart aggregation ──────────────────────────────────────────────────────
   List<DateTime> aggTimes = [];
@@ -130,7 +131,7 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
   // ─────────────────────────────────────────────────────────────────────────
 
   Color getBGLColor(double value) {
-    if (value > low && value < high)   return Colors.green;
+    if (value > low && value < high)         return Colors.green;
     if (value > veryHigh || value < veryLow) return Colors.red;
     return const Color.fromARGB(255, 200, 200, 0);
   }
@@ -287,176 +288,91 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
     final controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xff1A3F6B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Add Blood Glucose Reading", style: TextStyle(color: Colors.white)),
-        content: TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            labelText: "Value (mg/dL)",
-            labelStyle: const TextStyle(color: Colors.white54),
-            enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white38)),
-            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xff00E5FF))),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          padding: const EdgeInsets.all(25),
+          decoration: BoxDecoration(
+            color: const Color(0xff1A3F6B).withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel", style: TextStyle(color: Colors.white54)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xff00E5FF)),
-            onPressed: () {
-              final val = double.tryParse(controller.text);
-              if (val != null && val > 0) _addBgData(val);
-              Navigator.pop(context);
-            },
-            child: const Text("Save",
-                style: TextStyle(color: Color(0xff040F31), fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Threshold editor
-  // ─────────────────────────────────────────────────────────────────────────
-
-  Future<List<double>?> _showThresholdDialog({
-    required String title,
-    required List<String> fieldLabels,
-    required List<double> currentValues,
-  }) {
-    List<TextEditingController> controllers = List.generate(
-      fieldLabels.length,
-      (i) => TextEditingController(text: currentValues[i].toStringAsFixed(0)),
-    );
-    return showDialog<List<double>>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xff1A3F6B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(title, style: const TextStyle(color: Colors.white)),
-        content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: List.generate(fieldLabels.length, (i) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: TextField(
-                controller: controllers[i],
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: fieldLabels[i],
-                  labelStyle: const TextStyle(color: Colors.white54),
-                  enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white38)),
-                  focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xff00E5FF))),
-                ),
+            children: [
+              const Text(
+                'Add Glucose Data',
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
               ),
-            )),
+              const SizedBox(height: 20),
+              const Text(
+                "Enter your latest blood glucose reading in mg/dL.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+              MyTextField(
+                controller: controller,
+                hintText: 'Value (mg/dL)',
+                prefixIcon: Icons.water_drop_outlined,
+              ),
+              const SizedBox(height: 25),
+              MyRoundedButton(
+                text: 'Save Reading',
+                backgroundColor: const Color(0xff00E5FF),
+                textColor: const Color(0xff040F31),
+                onPressed: () {
+                  final val = double.tryParse(controller.text);
+                  if (val != null && val > 0) _addBgData(val);
+                  Navigator.pop(context);
+                },
+              ),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel", style: TextStyle(color: Colors.white54)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xff00E5FF)),
-            onPressed: () {
-              try {
-                final vals = controllers.map((c) => double.parse(c.text)).toList();
-                Navigator.pop(context, vals);
-              } catch (_) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Please enter valid numbers.")),
-                );
-              }
-            },
-            child: const Text("Save",
-                style: TextStyle(color: Color(0xff040F31), fontWeight: FontWeight.bold)),
-          ),
-        ],
       ),
     );
   }
 
-  void _editBGLThresholds() async {
-    final result = await _showThresholdDialog(
-      title: "Edit BGL Thresholds",
-      fieldLabels: ["Very High (mg/dL)", "High (mg/dL)", "Low (mg/dL)", "Very Low (mg/dL)"],
-      currentValues: [veryHigh, high, low, veryLow],
-    );
-    if (result != null && result.length == 4) {
-      setState(() {
-        veryHigh = result[0];
-        high     = result[1];
-        low      = result[2];
-        veryLow  = result[3];
-      });
-      // Redraw chart to reflect new threshold lines
-      _animationController.reset();
-      _animationController.forward();
-    }
-  }
-
-  void _editFluctuationThresholds() async {
-    final result = await _showThresholdDialog(
-      title: "Edit Fluctuation Thresholds",
-      fieldLabels: ["High Fluctuation (mg/dL)", "Very High Fluctuation (mg/dL)"],
-      currentValues: [highFluctuation, veryHighFluctuation],
-    );
-    if (result != null && result.length == 2) {
-      setState(() {
-        highFluctuation     = result[0];
-        veryHighFluctuation = result[1];
-      });
-    }
-  }
-
   // ─────────────────────────────────────────────────────────────────────────
-  // Chart interaction
+  // Chart interaction — full hover + tap + drag matching body weight pattern
   // ─────────────────────────────────────────────────────────────────────────
 
-  void _handleChartTap(TapUpDetails details, double width) {
+  void _handleChartInteraction(Offset localPosition, double width) {
     const double leftPadding = 55.0;
     final double usableWidth = width - leftPadding - 20.0;
-    final double dx = details.localPosition.dx;
+    final double dx = localPosition.dx;
 
     if (dx < leftPadding - 15 || dx > width - 5) {
-      setState(() => touchedIndex = null);
+      if (touchedIndex != null) setState(() => touchedIndex = null);
       return;
     }
 
     if (aggTimes.isEmpty) return;
 
-    final startTime = _startTime;
-    final endTime = _endTime;
+    final startTime   = _startTime;
+    final endTime     = _endTime;
     final totalMillis = endTime.difference(startTime).inMilliseconds;
     
-    int? closestIndex;
+    int?   closestIndex;
     double minDistance = double.infinity;
 
     for (int i = 0; i < aggTimes.length; i++) {
       final elapsedMillis = aggTimes[i].difference(startTime).inMilliseconds;
-      double timeRatio = elapsedMillis / (totalMillis > 0 ? totalMillis : 1);
-      timeRatio = timeRatio.clamp(0.0, 1.0);
-      final x = leftPadding + (usableWidth * timeRatio);
-      
-      final distance = (x - dx).abs();
-      if (distance < 20 && distance < minDistance) { 
-        minDistance = distance;
+      double timeRatio    = totalMillis > 0 ? elapsedMillis / totalMillis : 0;
+      timeRatio           = timeRatio.clamp(0.0, 1.0);
+      final x             = leftPadding + (usableWidth * timeRatio);
+      final distance      = (x - dx).abs();
+      if (distance < 20 && distance < minDistance) {
+        minDistance  = distance;
         closestIndex = i;
       }
     }
 
-    setState(() => touchedIndex = closestIndex);
+    if (touchedIndex != closestIndex) {
+      setState(() => touchedIndex = closestIndex);
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -547,7 +463,7 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
         ),
         actions: [
           IconButton(
-            onPressed: () {}, // Add share page logic if needed
+            onPressed: () {}, 
             icon: const Icon(Icons.ios_share, color: Colors.white),
           ),
         ],
@@ -645,7 +561,7 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
 
             const SizedBox(height: 10),
 
-            // ── Chart Container ──────────────────────────────────────────────
+            // ── Chart Container — now with MouseRegion + full gesture support ──
             Container(
               height: 300,
               width: double.infinity,
@@ -661,22 +577,28 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
                     builder: (context, child) {
                       return LayoutBuilder(
                         builder: (context, constraints) {
-                          return GestureDetector(
-                            onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
-                            child: CustomPaint(
-                              size: Size(constraints.maxWidth, constraints.maxHeight),
-                              painter: BloodGlucoseChartPainter(
-                                timeData: aggTimes,
-                                highData: aggHighs,
-                                lowData: aggLows,
-                                rangeLabel: selectedRange,
-                                touchedIndex: touchedIndex,
-                                dateOffset: dateOffset,
-                                progress: _animation.value,
-                                veryHigh: veryHigh,
-                                high: high,
-                                low: low,
-                                veryLow: veryLow,
+                          return MouseRegion(
+                            onHover: (event) => _handleChartInteraction(event.localPosition, constraints.maxWidth),
+                            onExit: (_) {
+                              if (touchedIndex != null) setState(() => touchedIndex = null);
+                            },
+                            child: GestureDetector(
+                              onTapUp: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                              onHorizontalDragUpdate: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                              onHorizontalDragEnd: (_) {
+                                if (touchedIndex != null) setState(() => touchedIndex = null);
+                              },
+                              child: CustomPaint(
+                                size: Size(constraints.maxWidth, constraints.maxHeight),
+                                painter: BloodGlucoseChartPainter(
+                                  timeData: aggTimes,
+                                  minBgData: aggLows,
+                                  maxBgData: aggHighs,
+                                  rangeLabel: selectedRange,
+                                  touchedIndex: touchedIndex,
+                                  dateOffset: dateOffset,
+                                  progress: _animation.value,
+                                ),
                               ),
                             ),
                           );
@@ -703,38 +625,14 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
               ),
             ),
 
-            const SizedBox(height: 14),
-
-            // ── Chart legend ─────────────────────────────────────────────────
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _legendDot(Colors.white, "Highs"),
-                const SizedBox(width: 20),
-                _legendDot(Colors.white54, "Lows"),
-              ],
-            ),
-
             const SizedBox(height: 16),
 
             // ── Info cards ───────────────────────────────────────────────────
             Row(
               children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: _editBGLThresholds, // Kept your editable functionality!
-                    borderRadius: BorderRadius.circular(24),
-                    child: _infoCard("Daily Avg ✏️", "${averageBGlevel.toInt()}\nmg/dL", getBGLColor(averageBGlevel)),
-                  )
-                ),
+                Expanded(child: _infoCard("Daily Avg", "${averageBGlevel.toInt()}\nmg/dL", getBGLColor(averageBGlevel))),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: InkWell(
-                    onTap: _editFluctuationThresholds, // Kept your editable functionality!
-                    borderRadius: BorderRadius.circular(24),
-                    child: _infoCard("Fluctuation ✏️", "${fluctuation.toInt()}\nmg/dL", const Color(0xff4DA5E0)),
-                  )
-                ),
+                Expanded(child: _infoCard("Fluctuation", "${fluctuation.toInt()}\nmg/dL", const Color(0xff4DA5E0))),
                 const SizedBox(width: 8),
                 Expanded(child: _infoCard("Status", zoneText, zoneColor)),
               ],
@@ -869,317 +767,270 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
       ),
     );
   }
-
-  Widget _legendDot(Color color, String label) {
-    return Row(children: [
-      Container(
-          width: 12, height: 12,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: color)),
-      const SizedBox(width: 6),
-      Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
-    ]);
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Custom Painter (Matches BloodPressure architecture perfectly)
+// Custom Painter
 // ─────────────────────────────────────────────────────────────────────────
 
 class BloodGlucoseChartPainter extends CustomPainter {
   final List<DateTime> timeData;
-  final List<double> highData;
-  final List<double> lowData;
+  final List<double> minBgData;
+  final List<double> maxBgData;
   final String rangeLabel;
   final int? touchedIndex;
   final int dateOffset;
   final double progress;
 
-  // Thresholds
-  final double veryHigh;
-  final double high;
-  final double low;
-  final double veryLow;
-
   BloodGlucoseChartPainter({
     required this.timeData,
-    required this.highData,
-    required this.lowData,
+    required this.minBgData,
+    required this.maxBgData,
     required this.rangeLabel,
-    required this.touchedIndex,
+    this.touchedIndex,
     required this.dateOffset,
-    required this.progress,
-    required this.veryHigh,
-    required this.high,
-    required this.low,
-    required this.veryLow,
+    required this.progress
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    const double leftPadding = 55.0;
-    const double bottomPadding = 30.0;
-    final double usableWidth = size.width - leftPadding - 20.0;
-    final double usableHeight = size.height - bottomPadding;
+    final bgPaint       = Paint()..color = const Color(0xff00E5FF)..style = PaintingStyle.fill;
+    final bgColumnPaint = Paint()..color = const Color(0xff00E5FF).withValues(alpha: 0.3)..strokeWidth = 5..strokeCap = StrokeCap.round;
+    final gridPaint     = Paint()..color = Colors.white54..strokeWidth = 1;
+    const textStyle     = TextStyle(color: Colors.white, fontSize: 11);
 
-    // Background Grid & Threshold Lines
-    final Paint gridPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.1)
-      ..strokeWidth = 1;
+    // --- Y-AXIS ---
+    final allValues = [...minBgData, ...maxBgData];
+    final minVal = allValues.isEmpty ? 50.0  : max(0.0, ((allValues.reduce(min) - 20) ~/ 10) * 10.0);
+    final maxVal = allValues.isEmpty ? 200.0 : (((allValues.reduce(max) + 20) ~/ 10) * 10).toDouble();
+    final range  = maxVal - minVal == 0 ? 10 : maxVal - minVal;
 
-    final Paint veryHighPaint = Paint()
-      ..color = Colors.red.withValues(alpha: 0.5)
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
+    const leftPadding   = 55.0;
+    const bottomPadding = 24.0;
+    final chartHeight   = size.height - bottomPadding;
+    final usableWidth   = size.width - leftPadding - 20;
 
-    final Paint highPaint = Paint()
-      ..color = Colors.orange.withValues(alpha: 0.5)
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-
-    final Paint lowPaint = Paint()
-      ..color = Colors.orange.withValues(alpha: 0.5)
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-
-    final Paint veryLowPaint = Paint()
-      ..color = Colors.red.withValues(alpha: 0.5)
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-
-    // Define Y-Axis max dynamically to fit the thresholds or data
-    double maxData = highData.isNotEmpty ? highData.reduce(max) : 200;
-    double maxY = max(veryHigh + 50, maxData + 50);
-
-    // Draw horizontal grid and labels
-    for (int i = 0; i <= 4; i++) {
-      double yVal = (maxY / 4) * i;
-      double yPos = usableHeight - (yVal / maxY * usableHeight);
-
-      canvas.drawLine(Offset(leftPadding, yPos), Offset(size.width, yPos), gridPaint);
-
-      _drawText(canvas, yVal.toInt().toString(), Offset(10, yPos - 6), fontSize: 10);
+    for (int i = 0; i <= 5; i++) {
+      final y = chartHeight * i / 5;
+      canvas.drawLine(Offset(leftPadding, y), Offset(size.width, y), gridPaint);
+      final value = maxVal - (range * i / 5);
+      final tp = TextPainter(
+        text: TextSpan(text: value.toStringAsFixed(0), style: textStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(8, y - 8));
     }
 
-    // Draw Threshold Dashed Lines
-    _drawDashedLine(canvas, usableHeight - (veryHigh / maxY * usableHeight), leftPadding, size.width, veryHighPaint);
-    _drawDashedLine(canvas, usableHeight - (high / maxY * usableHeight), leftPadding, size.width, highPaint);
-    _drawDashedLine(canvas, usableHeight - (low / maxY * usableHeight), leftPadding, size.width, lowPaint);
-    _drawDashedLine(canvas, usableHeight - (veryLow / maxY * usableHeight), leftPadding, size.width, veryLowPaint);
-
-    if (timeData.isEmpty) return;
-
+    // --- TIME BOUNDS ---
+    final now = DateTime.now();
     DateTime startTime;
     DateTime endTime;
-    final now = DateTime.now();
 
     switch (rangeLabel) {
       case "D":
         startTime = DateTime(now.year, now.month, now.day + dateOffset);
-        endTime = startTime.add(const Duration(days: 1));
+        endTime   = DateTime(now.year, now.month, now.day + dateOffset + 1);
         break;
       case "W":
-        int dToMonday = now.weekday - 1;
-        startTime = DateTime(now.year, now.month, now.day - dToMonday + (dateOffset * 7));
-        endTime = startTime.add(const Duration(days: 7));
+        int dToM  = now.weekday - 1;
+        startTime = DateTime(now.year, now.month, now.day - dToM + (dateOffset * 7));
+        endTime   = DateTime(now.year, now.month, now.day - dToM + 7 + (dateOffset * 7));
         break;
       case "M":
         startTime = DateTime(now.year, now.month + dateOffset, 1);
-        endTime = DateTime(now.year, now.month + dateOffset + 1, 1);
+        endTime   = DateTime(now.year, now.month + dateOffset + 1, 1);
         break;
       case "3M":
         startTime = DateTime(now.year, now.month - 2 + (dateOffset * 3), 1);
-        endTime = DateTime(now.year, now.month + 1 + (dateOffset * 3), 1);
+        endTime   = DateTime(now.year, now.month + 1 + (dateOffset * 3), 1);
         break;
       case "6M":
         startTime = DateTime(now.year, now.month - 5 + (dateOffset * 6), 1);
-        endTime = DateTime(now.year, now.month + 1 + (dateOffset * 6), 1);
+        endTime   = DateTime(now.year, now.month + 1 + (dateOffset * 6), 1);
         break;
       case "Y":
         startTime = DateTime(now.year + dateOffset, 1, 1);
-        endTime = DateTime(now.year + dateOffset + 1, 1, 1);
+        endTime   = DateTime(now.year + dateOffset + 1, 1, 1);
         break;
       default:
         startTime = DateTime(now.year, now.month, now.day);
-        endTime = startTime.add(const Duration(days: 1));
+        endTime   = startTime.add(const Duration(days: 1));
     }
 
-    final int totalMillis = endTime.difference(startTime).inMilliseconds;
-    List<Offset> highPoints = [];
-    List<Offset> lowPoints = [];
+    final totalMillis = endTime.difference(startTime).inMilliseconds;
 
-    // Calculate Coordinates
-    for (int i = 0; i < timeData.length; i++) {
-      final elapsedMillis = timeData[i].difference(startTime).inMilliseconds;
-      double timeRatio = elapsedMillis / (totalMillis > 0 ? totalMillis : 1);
-      timeRatio = timeRatio.clamp(0.0, 1.0);
-
-      double x = leftPadding + (usableWidth * timeRatio);
-      
-      // Animate the Y values sweeping upward
-      double yHigh = usableHeight - ((highData[i] * progress) / maxY * usableHeight);
-      highPoints.add(Offset(x, yHigh));
-
-      if (rangeLabel != "D") {
-        double yLow = usableHeight - ((lowData[i] * progress) / maxY * usableHeight);
-        lowPoints.add(Offset(x, yLow));
-      }
-    }
-
-    // ── Draw Data Lines ──
-    final Paint linePaintHigh = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    final Paint linePaintLow = Paint()
-      ..color = Colors.white.withValues(alpha: 0.5)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    if (highPoints.isNotEmpty) {
-      Path highPath = Path()..moveTo(highPoints.first.dx, highPoints.first.dy);
-      for (int i = 1; i < highPoints.length; i++) {
-        highPath.lineTo(highPoints[i].dx, highPoints[i].dy);
-      }
-      canvas.drawPath(highPath, linePaintHigh);
-    }
-
-    if (lowPoints.isNotEmpty && rangeLabel != "D") {
-      for (int i = 0; i < lowPoints.length - 1; i++) {
-        _drawDashedLineFromTo(canvas, lowPoints[i], lowPoints[i+1], linePaintLow);
-      }
-    }
-
-    // ── Draw Data Dots ──
-    final Paint dotPaint = Paint()..color = Colors.white;
-
-    for (int i = 0; i < highPoints.length; i++) {
-      canvas.drawCircle(highPoints[i], 3, dotPaint);
-      if (lowPoints.isNotEmpty && rangeLabel != "D") {
-        canvas.drawCircle(lowPoints[i], 3, dotPaint);
-      }
-    }
-
-    // ── Draw X-Axis Labels ──
-    List<double> labelRatios = [];
-    List<String> labels = [];
-
-    if (rangeLabel == "D") {
-      labelRatios = [0.0, 0.25, 0.5, 0.75, 1.0];
-      labels = ["12AM", "6AM", "12PM", "6PM", "12AM"];
-    } else if (rangeLabel == "W") {
-      labelRatios = [0.0, 0.285, 0.571, 0.857];
-      labels = ["Mon", "Wed", "Fri", "Sun"];
-    } else if (rangeLabel == "M") {
-      labelRatios = [0.0, 0.33, 0.66, 1.0];
-      labels = ["1st", "10th", "20th", "30th"];
-    } else if (rangeLabel == "3M" || rangeLabel == "6M") {
-      labelRatios = [0.0, 0.5, 1.0];
-      labels = ["Start", "Mid", "End"];
-    } else if (rangeLabel == "Y") {
-      labelRatios = [0.0, 0.25, 0.5, 0.75, 1.0];
-      labels = ["Jan", "Apr", "Jul", "Oct", "Dec"];
-    }
-
-    for (int i = 0; i < labelRatios.length; i++) {
-      double xPos = leftPadding + (usableWidth * labelRatios[i]);
-      _drawText(canvas, labels[i], Offset(xPos - 12, size.height - 20), fontSize: 10);
-    }
-
-    // ── Tooltip ──
-    if (touchedIndex != null && touchedIndex! < timeData.length) {
-      double tx = highPoints[touchedIndex!].dx;
-      
-      canvas.drawLine(
-        Offset(tx, 0),
-        Offset(tx, usableHeight),
-        Paint()..color = Colors.white24..strokeWidth = 2,
-      );
-
-      final String dateStr = _formatTooltipDate(timeData[touchedIndex!]);
-      final String highStr = "High: ${highData[touchedIndex!].toInt()} mg/dL";
-      
-      String labelText = "$dateStr\n$highStr";
-      if (rangeLabel != "D") {
-        labelText += "\nLow: ${lowData[touchedIndex!].toInt()} mg/dL";
-      }
-
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: labelText,
-          style: const TextStyle(color: Color(0xff00E5FF), fontSize: 12, fontWeight: FontWeight.bold),
-        ),
+    // --- X-AXIS LABELS ---
+    for (var label in _getDynamicLabels(rangeLabel, startTime, endTime)) {
+      final elapsed   = label.time.difference(startTime).inMilliseconds;
+      num ratio    = (totalMillis > 0 ? elapsed / totalMillis : 0).clamp(0.0, 1.0);
+      final x         = leftPadding + usableWidth * ratio;
+      final tp        = TextPainter(
+        text: TextSpan(text: label.text, style: textStyle),
         textDirection: TextDirection.ltr,
-        textAlign: TextAlign.center,
-      );
-      textPainter.layout();
+      )..layout();
+      tp.paint(canvas, Offset(x - tp.width / 2, size.height - 18));
+    }
 
-      double boxWidth = textPainter.width + 20;
-      double boxHeight = textPainter.height + 15;
-      
-      double boxX = tx - (boxWidth / 2);
-      if (boxX < leftPadding) boxX = leftPadding;
-      if (boxX + boxWidth > size.width) boxX = size.width - boxWidth;
-      
-      double boxY = highPoints[touchedIndex!].dy - boxHeight - 15;
-      if (boxY < 0) boxY = highPoints[touchedIndex!].dy + 15;
+    // --- DATA POINTS (columns + dots) ---
+    final pointCount = min(timeData.length, minBgData.length);
+    const dotRadius  = 3.5;
 
-      final RRect tooltipRect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(boxX, boxY, boxWidth, boxHeight),
-        const Radius.circular(8),
-      );
+    for (int i = 0; i < pointCount; i++) {
+      final elapsed  = timeData[i].difference(startTime).inMilliseconds;
+      num ratio   = (totalMillis > 0 ? elapsed / totalMillis : 0).clamp(0.0, 1.0);
+      final x        = leftPadding + usableWidth * ratio;
 
-      canvas.drawRRect(tooltipRect, Paint()..color = const Color(0xff1A3F6B));
-      textPainter.paint(canvas, Offset(boxX + 10, boxY + 7.5));
+      final tMinY    = chartHeight - ((minBgData[i] - minVal) / range) * chartHeight;
+      final tMaxY    = chartHeight - ((maxBgData[i] - minVal) / range) * chartHeight;
+      final minY     = chartHeight - ((chartHeight - tMinY) * progress);
+      final maxY     = chartHeight - ((chartHeight - tMaxY) * progress);
+
+      if (minBgData[i] != maxBgData[i]) {
+        canvas.drawLine(Offset(x, minY), Offset(x, maxY), bgColumnPaint);
+        canvas.drawCircle(Offset(x, minY), dotRadius, bgPaint);
+        canvas.drawCircle(Offset(x, maxY), dotRadius, bgPaint);
+      } else {
+        canvas.drawCircle(Offset(x, minY), dotRadius, bgPaint);
+      }
+
+      // Highlight rings drawn on top of the dot(s) for the touched point
+      if (touchedIndex == i) {
+        canvas.drawCircle(Offset(x, maxY), 8, Paint()..color = Colors.white);
+        canvas.drawCircle(Offset(x, maxY), 5, Paint()..color = const Color(0xff031447));
+        if (minBgData[i] != maxBgData[i]) {
+          canvas.drawCircle(Offset(x, minY), 8, Paint()..color = Colors.white);
+          canvas.drawCircle(Offset(x, minY), 5, Paint()..color = const Color(0xff031447));
+        }
+      }
+    }
+
+    // --- TOOLTIP drawn last so it layers above everything ---
+    if (touchedIndex != null && touchedIndex! < pointCount) {
+      final elapsed  = timeData[touchedIndex!].difference(startTime).inMilliseconds;
+      num ratio   = (totalMillis > 0 ? elapsed / totalMillis : 0).clamp(0.0, 1.0);
+      final x        = leftPadding + usableWidth * ratio;
+      final bMin     = minBgData[touchedIndex!];
+      final bMax     = maxBgData[touchedIndex!];
+      final highestY = chartHeight - ((bMax - minVal) / range) * chartHeight;
+
+      _drawTooltip(canvas, size, x, highestY, bMin, bMax, timeData[touchedIndex!]);
     }
   }
 
-  void _drawDashedLine(Canvas canvas, double y, double startX, double endX, Paint paint) {
-    const double dashWidth = 6;
-    const double dashSpace = 4;
-    double currentX = startX;
-    while (currentX < endX) {
-      canvas.drawLine(Offset(currentX, y), Offset(currentX + dashWidth, y), paint);
-      currentX += dashWidth + dashSpace;
-    }
-  }
+  // --- UPDATED: Dark box tooltip matching body weight style ---
+  // Row 1: date/timeframe in white70
+  // Row 2: value in cyan (0xff00E5FF)
+  void _drawTooltip(Canvas canvas, Size size, double x, double highestY, double bMin, double bMax, DateTime date) {
+    const List<String> months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  void _drawDashedLineFromTo(Canvas canvas, Offset start, Offset end, Paint paint) {
-    const double dashWidth = 6;
-    const double dashSpace = 4;
-    final double distance = (end - start).distance;
-    final Offset vector = (end - start) / distance;
-    
-    double currentDistance = 0;
-    while (currentDistance < distance) {
-      canvas.drawLine(
-        start + vector * currentDistance,
-        start + vector * min(currentDistance + dashWidth, distance),
-        paint,
-      );
-      currentDistance += dashWidth + dashSpace;
+    // Row 1 — timeframe label
+    String dateStr;
+    if (rangeLabel == "D") {
+      final period = date.hour >= 12 ? "PM" : "AM";
+      int h = date.hour % 12;
+      if (h == 0) h = 12;
+      dateStr = "${date.day} ${months[date.month - 1]}, $h:00 $period";
+    } else if (rangeLabel == "W" || rangeLabel == "M") {
+      dateStr = "${date.day} ${months[date.month - 1]}";
+    } else if (rangeLabel == "3M" || rangeLabel == "6M") {
+      final weekEnd = date.add(const Duration(days: 6));
+      dateStr = "${date.day} ${months[date.month - 1]} - ${weekEnd.day} ${months[weekEnd.month - 1]}";
+    } else {
+      dateStr = "${months[date.month - 1]} ${date.year}";
     }
-  }
 
-  void _drawText(Canvas canvas, String text, Offset offset, {double fontSize = 12}) {
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: fontSize),
-      ),
-      textDirection: TextDirection.ltr,
+    // Row 2 — value (single or range)
+    final valueStr = bMin == bMax
+        ? "${bMax.toInt()} mg/dL"
+        : "${bMin.toInt()}–${bMax.toInt()} mg/dL";
+
+    final textSpan = TextSpan(
+      children: [
+        TextSpan(
+          text: "$dateStr\n",
+          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+        TextSpan(
+          text: valueStr,
+          style: const TextStyle(color: Color(0xff00E5FF), fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+      ],
     );
-    textPainter.layout();
-    textPainter.paint(canvas, offset);
+
+    final textPainter = TextPainter(
+      text: textSpan,
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final boxWidth  = textPainter.width + 24;
+    final boxHeight = textPainter.height + 16;
+
+    double rectLeft = (x - boxWidth / 2).clamp(55.0, size.width - boxWidth);
+    double rectTop  = highestY - boxHeight - 15;
+    if (rectTop < 0) rectTop = highestY + 15;
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(rectLeft, rectTop, boxWidth, boxHeight),
+      const Radius.circular(8),
+    );
+
+    // Shadow
+    canvas.drawRRect(rrect.shift(const Offset(0, 3)), Paint()..color = Colors.black26);
+    // Dark box
+    canvas.drawRRect(rrect, Paint()..color = const Color(0xff1A3F6B));
+    // Text
+    textPainter.paint(canvas, Offset(rectLeft + 12, rectTop + 8));
   }
 
-  String _formatTooltipDate(DateTime dt) {
-    if (rangeLabel == "D") return "${dt.hour}:00";
-    return "${dt.day}/${dt.month}";
+  List<ChartLabel> _getDynamicLabels(String range, DateTime start, DateTime end) { 
+    const weekdays         = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    const months           = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const singleLetterMonths = ["J","F","M","A","M","J","J","A","S","O","N","D"];
+    
+    switch (range) {
+      case "D": 
+        return [
+          ChartLabel("12 AM", start),
+          ChartLabel("6 AM",  start.add(const Duration(hours: 6))),
+          ChartLabel("12 PM", start.add(const Duration(hours: 12))),
+          ChartLabel("6 PM",  start.add(const Duration(hours: 18))),
+          ChartLabel("12 AM", start.add(const Duration(hours: 24))),
+        ];
+      case "W":
+        return List.generate(7, (i) {
+          final t = start.add(Duration(days: i));
+          return ChartLabel(weekdays[t.weekday - 1], t);
+        });
+      case "M":
+        final days = end.difference(start).inDays;
+        return List.generate(5, (i) {
+          final t = start.add(Duration(days: (i * (days - 1) / 4).round()));
+          return ChartLabel("${t.day} ${months[t.month - 1]}", t);
+        });
+      case "3M":
+      case "6M":
+        final count = range == "3M" ? 3 : 6;
+        return List.generate(count, (i) {
+          final t = DateTime(start.year, start.month + i, 1);
+          return ChartLabel(months[t.month - 1], t);
+        });
+      case "Y":
+        return List.generate(12, (i) {
+          final t = DateTime(start.year, start.month + i, 1);
+          return ChartLabel(singleLetterMonths[t.month - 1], t);
+        });
+      default:
+        return [];
+    }
   }
 
   @override
-  bool shouldRepaint(covariant BloodGlucoseChartPainter oldDelegate) {
-    return oldDelegate.progress != progress || oldDelegate.touchedIndex != touchedIndex;
-  }
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class ChartLabel {
+  final String text;
+  final DateTime time;
+  ChartLabel(this.text, this.time);
 }

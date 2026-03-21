@@ -6,7 +6,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temanu/api_service.dart';
-import 'package:temanu/fitbitService.dart'; // <-- NEW: Imported the Fitbit Service!
+import 'package:temanu/fitbitService.dart'; 
 import 'assistantpage.dart';
 
 class Activity extends StatefulWidget {
@@ -35,6 +35,10 @@ class _ActivityState extends State<Activity> {
 
   List<String> monthlyLabels = [];
   List<double> monthlyValues = [];
+
+  List<String> threeMonthLabels = [];
+  List<double> threeMonthValues = [];
+  List<String> threeMonthTooltipLabels = [];
 
   List<String> sixMonthLabels = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
   List<double> sixMonthValues = [9540, 3950, 2300, 5496, 3289, 3894];
@@ -67,7 +71,7 @@ class _ActivityState extends State<Activity> {
   }
 
   // ==========================================
-  // FITBIT CONNECTION (NEW)
+  // FITBIT CONNECTION
   // ==========================================
 
   void _showFitbitConnectDialog() {
@@ -137,7 +141,6 @@ class _ActivityState extends State<Activity> {
                               Navigator.pop(context); 
                               String? newToken = await FitbitService.getValidToken();
                               if (newToken != null) {
-                                // Once connected, instantly pull the fresh data!
                                 _fetchLiveFitbitData();
                                 _fetchComparisonData();
                               }
@@ -236,6 +239,7 @@ class _ActivityState extends State<Activity> {
       return currentMonday.add(Duration(days: dateOffset * 7));
     }
     if (selectedRange == "M") return DateTime(now.year, now.month + dateOffset, 1);
+    if (selectedRange == "3M") return DateTime(now.year, now.month - 2 + (dateOffset * 3), 1); 
     if (selectedRange == "6M") return DateTime(now.year, now.month - 5 + (dateOffset * 6), 1);
     if (selectedRange == "Y") return DateTime(now.year + dateOffset, 1, 1);
     return now;
@@ -245,6 +249,7 @@ class _ActivityState extends State<Activity> {
     if (selectedRange == "D") return rangeStart;
     if (selectedRange == "W") return rangeStart.add(const Duration(days: 6)); 
     if (selectedRange == "M") return DateTime(rangeStart.year, rangeStart.month + 1, 0); 
+    if (selectedRange == "3M") return DateTime(rangeStart.year, rangeStart.month + 3, 0); 
     if (selectedRange == "6M") return DateTime(rangeStart.year, rangeStart.month + 6, 0); 
     if (selectedRange == "Y") return DateTime(rangeStart.year, 12, 31);
     return now;
@@ -270,7 +275,7 @@ class _ActivityState extends State<Activity> {
     if (selectedRange == "M") {
       return "${months[s.month - 1]} ${s.year}";
     }
-    if (selectedRange == "6M") {
+    if (selectedRange == "3M" || selectedRange == "6M") { 
       return "${months[s.month - 1]} ${s.year} - ${months[e.month - 1]} ${e.year}";
     }
     if (selectedRange == "Y") {
@@ -285,6 +290,7 @@ class _ActivityState extends State<Activity> {
         case "D": return "Current";
         case "W": return "Total This Week";
         case "M": return "Total This Month";
+        case "3M": return "Total (3 Months)"; 
         case "6M": return "Total (6 Months)";
         case "Y": return "Total This Year";
         default: return "Current";
@@ -294,6 +300,7 @@ class _ActivityState extends State<Activity> {
         case "D": return "Total Yesterday";
         case "W": return "Total Last Week";
         case "M": return "Total Last Month";
+        case "3M": return "Previous 3 Months"; 
         case "6M": return "Previous 6 Months";
         case "Y": return "Total Last Year";
         default: return "Total Steps";
@@ -414,6 +421,7 @@ class _ActivityState extends State<Activity> {
     } else {
       String fbPeriod = "1w";
       if (selectedRange == "M") fbPeriod = "1m";
+      if (selectedRange == "3M") fbPeriod = "3m"; 
       if (selectedRange == "6M") fbPeriod = "6m";
       if (selectedRange == "Y") fbPeriod = "1y";
       
@@ -448,7 +456,7 @@ class _ActivityState extends State<Activity> {
             totalSteps += val.toInt();
             if (val > 0) activeDays++; 
           }
-        } else if (selectedRange == "6M") {
+        } else if (selectedRange == "3M" || selectedRange == "6M") { 
           Map<String, double> weekSums = {};
           Map<String, int> weekActiveDayCounts = {};
           Map<String, int> weekMonthAssignment = {}; 
@@ -474,9 +482,12 @@ class _ActivityState extends State<Activity> {
 
             if (!weekMonthAssignment.containsKey(weekKey)) {
               DateTime monday = dt.subtract(Duration(days: dt.weekday - 1));
-              DateTime thursday = monday.add(const Duration(days: 3));
               DateTime sunday = monday.add(const Duration(days: 6));
-              weekMonthAssignment[weekKey] = thursday.month;
+              
+              // --- THE FIX: Label the week based on the FIRST valid data point! ---
+              // This guarantees it never spills out of bounds into April or December.
+              weekMonthAssignment[weekKey] = dt.month; 
+              
               weekMonday[weekKey] = monday;
               weekSunday[weekKey] = sunday;
             }
@@ -533,6 +544,7 @@ class _ActivityState extends State<Activity> {
             
             if (selectedRange == "W" && newLabels.isNotEmpty) { weeklyLabels = newLabels; weeklyValues = newValues; }
             if (selectedRange == "M" && newLabels.isNotEmpty) { monthlyLabels = newLabels; monthlyValues = newValues; }
+            if (selectedRange == "3M" && newLabels.isNotEmpty) { threeMonthLabels = newLabels; threeMonthValues = newValues; threeMonthTooltipLabels = newTooltipLabels; } 
             if (selectedRange == "6M" && newLabels.isNotEmpty) { sixMonthLabels = newLabels; sixMonthValues = newValues; sixMonthTooltipLabels = newTooltipLabels; }
             if (selectedRange == "Y" && newLabels.isNotEmpty) { yearlyLabels = newLabels; yearlyValues = newValues; }
             
@@ -666,6 +678,7 @@ class _ActivityState extends State<Activity> {
       case "D": return dailyLabels;
       case "W": return weeklyLabels;
       case "M": return monthlyLabels;
+      case "3M": return threeMonthLabels; 
       case "6M": return sixMonthLabels;
       case "Y": return yearlyLabels;
       default: return [];
@@ -677,6 +690,7 @@ class _ActivityState extends State<Activity> {
       case "D": return dailyValues;
       case "W": return weeklyValues;
       case "M": return monthlyValues;
+      case "3M": return threeMonthValues; 
       case "6M": return sixMonthValues;
       case "Y": return yearlyValues;
       default: return [];
@@ -688,6 +702,7 @@ class _ActivityState extends State<Activity> {
       case "D": return "Day";
       case "W": return "Week";
       case "M": return "Month";
+      case "3M": return "3 Months"; 
       case "6M": return "6 Months";
       case "Y": return "Year";
       default: return "Day";
@@ -756,7 +771,7 @@ class _ActivityState extends State<Activity> {
                   ],
                 ),
                 InkWell(
-                  onTap: _showFitbitConnectDialog, // <-- NEW: Triggers the Fitbit connection!
+                  onTap: _showFitbitConnectDialog,
                   child: Row(
                     children: const [
                       Icon(Icons.watch, color: Colors.white),
@@ -825,7 +840,9 @@ class _ActivityState extends State<Activity> {
                     values: getValuesList(),
                     showSideLabels: true,
                     selectedRange: selectedRange,
-                    tooltipLabels: selectedRange == "6M" ? sixMonthTooltipLabels : null,
+                    tooltipLabels: (selectedRange == "3M" || selectedRange == "6M") 
+                        ? (selectedRange == "3M" ? threeMonthTooltipLabels : sixMonthTooltipLabels) 
+                        : null,
                   ),
             ),
 
@@ -843,6 +860,7 @@ class _ActivityState extends State<Activity> {
                   filterButton("D"),
                   filterButton("W"),
                   filterButton("M"),
+                  filterButton("3M"), 
                   filterButton("6M"),
                   filterButton("Y"),
                 ],
@@ -1132,13 +1150,14 @@ class MyBarChart extends StatelessWidget {
                 if (endHour == 0) endAmPm = "AM"; 
                 
                 timeFrame = "$displayStart$startAmPm - $displayEnd$endAmPm";
-              } else if (selectedRange == "6M" && tooltipLabels != null && group.x < tooltipLabels!.length) {
+              } 
+              else if ((selectedRange == "3M" || selectedRange == "6M") && tooltipLabels != null && group.x < tooltipLabels!.length) {
                 timeFrame = tooltipLabels![group.x];
               } else {
                 timeFrame = labels.length > group.x ? labels[group.x] : "";
               }
 
-              final String stepLabel = (selectedRange == "6M" || selectedRange == "COMPARE") ? "daily avg" : "steps";
+              final String stepLabel = (selectedRange == "3M" || selectedRange == "6M" || selectedRange == "COMPARE") ? "daily avg" : "steps";
 
               return BarTooltipItem(
                 '$timeFrame\n',
@@ -1185,7 +1204,7 @@ class MyBarChart extends StatelessWidget {
                 else if (selectedRange == "M" && labels.length > 20) {
                   if (index % 7 == 0) labelText = labels[index];
                 } 
-                else if (selectedRange == "6M") {
+                else if (selectedRange == "3M" || selectedRange == "6M") {
                   if (index == 0 || labels[index] != labels[index - 1]) {
                     labelText = labels[index];
                   }

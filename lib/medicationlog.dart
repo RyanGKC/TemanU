@@ -22,6 +22,7 @@ class _MedicationLogState extends State<MedicationLog> {
     _fetchMedications();
   }
 
+  // ── Full load (shows spinner only on the very first load) ─────────────────
   Future<void> _fetchMedications() async {
     setState(() => _isLoading = true);
     
@@ -32,6 +33,16 @@ class _MedicationLogState extends State<MedicationLog> {
         _medications = meds;
         _isLoading = false;
       });
+    }
+  }
+
+  // ── Silent refresh — data is updated in the background with no spinner ────
+  // Use this for take/edit/delete so the existing list stays on screen and
+  // the widget tree never collapses and re-expands (which causes the jerk).
+  Future<void> _silentRefresh() async {
+    final meds = await ApiService.getMedications();
+    if (mounted) {
+      setState(() => _medications = meds);
     }
   }
 
@@ -68,7 +79,7 @@ class _MedicationLogState extends State<MedicationLog> {
 
             Widget buildTimeMatrix() {
               final List<String> hours = List.generate(12, (i) => (i + 1).toString().padLeft(2, '0'));
-              final List<String> minutes = List.generate(60, (i) => i.toString().padLeft(2, '0'));
+              final List<String> minutes = List.generate(12, (i) => (i * 5).toString().padLeft(2, '0'));
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -227,7 +238,8 @@ class _MedicationLogState extends State<MedicationLog> {
                                   success = await ApiService.addMedication(name, dosage, inv, unit, selectedTimes);
                                 }
                                 
-                                if (success) _fetchMedications();
+                                // Silent refresh — no spinner flash after saving
+                                if (success) _silentRefresh();
                               }
                             },
                             child: Text(isEditing ? "Update" : "Save", style: const TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold)),
@@ -401,8 +413,19 @@ class _MedicationLogState extends State<MedicationLog> {
             children: [
               GestureDetector(
                 onTap: () async {
-                  bool success = await ApiService.takeMedication(med['id']);
-                  if (success) _fetchMedications(); 
+                  // Optimistically remove this dose from local state immediately
+                  // so the UI responds at once, then sync quietly in the background.
+                  setState(() {
+                    final idx = _medications.indexWhere((m) => m['id'] == med['id']);
+                    if (idx != -1) {
+                      final current = _medications[idx]['doses_taken_today'] as int? ?? 0;
+                      _medications[idx] = Map<String, dynamic>.from(_medications[idx])
+                        ..['doses_taken_today'] = current + 1;
+                    }
+                  });
+                  // Fire the API call and silently reconcile — no spinner, no jerk.
+                  final success = await ApiService.takeMedication(med['id']);
+                  if (success) _silentRefresh();
                 },
                 child: Container(
                   height: 28, width: 28,
@@ -504,8 +527,9 @@ class _MedicationLogState extends State<MedicationLog> {
                                 TextButton(
                                   onPressed: () async {
                                     Navigator.pop(context);
+                                    // Silent refresh — no spinner after deleting
                                     bool success = await ApiService.deleteMedication(med['id']);
-                                    if (success) _fetchMedications();
+                                    if (success) _silentRefresh();
                                   },
                                   child: const Text("Delete", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                                 ),

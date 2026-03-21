@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; 
 import 'package:google_generative_ai/google_generative_ai.dart'; 
 import 'package:shared_preferences/shared_preferences.dart'; 
-import 'package:temanu/api_service.dart'; // <-- NEW: Import API Service
+import 'package:temanu/api_service.dart';
 import 'package:temanu/oxygenSaturationChartPainter.dart'; 
 import 'package:temanu/assistantpage.dart';
-
-// <-- Removed the MockSpO2Data import!
+import 'package:temanu/button.dart';
+import 'package:temanu/textbox.dart';
 
 class SpO2Reading {
   final DateTime time;
@@ -26,8 +26,8 @@ class OxygenSaturationPage extends StatefulWidget {
 }
 
 class _OxygenSaturationPageState extends State<OxygenSaturationPage> with SingleTickerProviderStateMixin {
-  int currentSpO2 = 0; // Will be populated by DB
-  int avgSpO2 = 0;     // Will be calculated from DB
+  int currentSpO2 = 0;
+  int avgSpO2 = 0;
   String selectedRange = "D";
   int? touchedIndex;
   int dateOffset = 0;
@@ -37,9 +37,8 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
 
   String _dynamicAiTip = "Analyzing your oxygen data...";
   bool _isLoadingTip = true;
-  bool _isLoadingChart = true; // <-- NEW: Track loading state for the chart
+  bool _isLoadingChart = true;
 
-  // <-- NEW: Holds the live data from your Railway backend
   List<SpO2Reading> _liveReadings = []; 
 
   DateTime get _startTime {
@@ -110,7 +109,6 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
     
-    // <-- NEW: Fetch live data on load
     _fetchSpO2Data();
     _generateAITip();
   }
@@ -121,7 +119,6 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     super.dispose();
   }
 
-  // ─── NEW: Fetch data from Railway ─────────────────────────────────────────
   Future<void> _fetchSpO2Data() async {
     setState(() => _isLoadingChart = true);
 
@@ -139,7 +136,6 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
       
       fetchedData.add(SpO2Reading(date, spo2Value));
 
-      // Quick calculation for the "Daily Avg" box
       if (date.year == DateTime.now().year && 
           date.month == DateTime.now().month && 
           date.day == DateTime.now().day) {
@@ -157,7 +153,6 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
           currentSpO2 = _liveReadings.last.spo2;
           avgSpO2 = countForToday > 0 ? (sumForToday / countForToday).round() : currentSpO2;
         } else {
-          // Fallback if the user has no data yet
           currentSpO2 = 98;
           avgSpO2 = 98;
         }
@@ -169,8 +164,6 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
       _animationController.forward();
     }
   }
-
-  // ─── AI Tip Generator ─────────────────────────────────────────────────────
 
   Future<void> _generateAITip({bool forceRefresh = false}) async {
     final prefs = await SharedPreferences.getInstance();
@@ -231,7 +224,6 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
   }
 
   void _aggregateData() {
-    // <-- NEW: Use live readings instead of Mock data
     final rawData = _liveReadings; 
     Map<DateTime, List<SpO2Reading>> grouped = {};
 
@@ -281,25 +273,25 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
 
   Color get zoneColor {
     switch (zoneText) {
-      case "Normal": return const Color(0xff4DA5E0); // Cyan
+      case "Normal": return const Color(0xff4DA5E0);
       case "Borderline": return Colors.orange;
       case "Low": return Colors.red;
       default: return const Color(0xff4DA5E0);
     }
   }
 
-  void _handleChartTap(TapUpDetails details, double width) {
+  // --- UPDATED: Full hover + tap + drag interaction matching body weight ---
+  void _handleChartInteraction(Offset localPosition, double width) {
     const double leftPadding = 55.0;
     final double usableWidth = width - leftPadding - 20.0;
-    final double dx = details.localPosition.dx;
+    final double dx = localPosition.dx;
 
     if (dx < leftPadding - 15 || dx > width - 5) {
-      setState(() => touchedIndex = null);
+      if (touchedIndex != null) setState(() => touchedIndex = null);
       return;
     }
 
-    final timeData = aggTimes;
-    if (timeData.isEmpty) return;
+    if (aggTimes.isEmpty) return;
 
     final startTime = _startTime;
     final endTime = _endTime;
@@ -308,9 +300,9 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     int? closestIndex;
     double minDistance = double.infinity;
 
-    for (int i = 0; i < timeData.length; i++) {
-      final elapsedMillis = timeData[i].difference(startTime).inMilliseconds;
-      double timeRatio = elapsedMillis / (totalMillis > 0 ? totalMillis : 1);
+    for (int i = 0; i < aggTimes.length; i++) {
+      final elapsedMillis = aggTimes[i].difference(startTime).inMilliseconds;
+      double timeRatio = totalMillis > 0 ? elapsedMillis / totalMillis : 0;
       timeRatio = timeRatio.clamp(0.0, 1.0);
       final x = leftPadding + (usableWidth * timeRatio);
       
@@ -321,10 +313,11 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
       }
     }
 
-    setState(() => touchedIndex = closestIndex);
+    if (touchedIndex != closestIndex) {
+      setState(() => touchedIndex = closestIndex);
+    }
   }
 
-  // ─── NEW: Send data to Railway ──────────────────────────────────────────
   void addSpO2Data(int spo2) async { 
     setState(() => _isLoadingChart = true);
     
@@ -348,37 +341,56 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     }
   }
 
+  // --- UPDATED: Glossy dialog matching body weight style, no cancel button ---
   void showAddDataDialog() {
     final spo2Controller = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Add Oxygen Data"),
-          content: TextField(
-            controller: spo2Controller,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: "SpO2 (%)"),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          padding: const EdgeInsets.all(25),
+          decoration: BoxDecoration(
+            color: const Color(0xff1A3F6B).withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final spo2 = int.tryParse(spo2Controller.text);
-                if (spo2 != null && spo2 <= 100 && spo2 > 0) {
-                  addSpO2Data(spo2);
-                }
-                Navigator.pop(context);
-              },
-              child: const Text("Save"),
-            ),
-          ],
-        );
-      },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Add Oxygen Data',
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                "Enter your blood oxygen saturation reading in %.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+              MyTextField(
+                controller: spo2Controller,
+                hintText: 'SpO2 (%)',
+                prefixIcon: Icons.opacity,
+              ),
+              const SizedBox(height: 25),
+              MyRoundedButton(
+                text: 'Save Reading',
+                backgroundColor: const Color(0xff00E5FF),
+                textColor: const Color(0xff040F31),
+                onPressed: () {
+                  final spo2 = int.tryParse(spo2Controller.text);
+                  if (spo2 != null && spo2 <= 100 && spo2 > 0) addSpO2Data(spo2);
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -503,7 +515,7 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
 
             const SizedBox(height: 10),
 
-            // Chart Container
+            // --- UPDATED: Chart now uses MouseRegion + GestureDetector like body weight ---
             Container(
               height: 300,
               width: double.infinity,
@@ -519,18 +531,28 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
                     builder: (context, child) {
                       return LayoutBuilder(
                         builder: (context, constraints) {
-                          return GestureDetector(
-                            onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
-                            child: CustomPaint(
-                              size: Size(constraints.maxWidth, constraints.maxHeight),
-                              painter: OxygenSaturationChartPainter(
-                                timeData: aggTimes,
-                                minSpO2Data: aggMinSpO2,
-                                maxSpO2Data: aggMaxSpO2,
-                                rangeLabel: selectedRange,
-                                touchedIndex: touchedIndex,
-                                dateOffset: dateOffset,
-                                progress: _animation.value, 
+                          return MouseRegion(
+                            onHover: (event) => _handleChartInteraction(event.localPosition, constraints.maxWidth),
+                            onExit: (_) {
+                              if (touchedIndex != null) setState(() => touchedIndex = null);
+                            },
+                            child: GestureDetector(
+                              onTapUp: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                              onHorizontalDragUpdate: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                              onHorizontalDragEnd: (_) {
+                                if (touchedIndex != null) setState(() => touchedIndex = null);
+                              },
+                              child: CustomPaint(
+                                size: Size(constraints.maxWidth, constraints.maxHeight),
+                                painter: OxygenSaturationChartPainter(
+                                  timeData: aggTimes,
+                                  minSpO2Data: aggMinSpO2,
+                                  maxSpO2Data: aggMaxSpO2,
+                                  rangeLabel: selectedRange,
+                                  touchedIndex: touchedIndex,
+                                  dateOffset: dateOffset,
+                                  progress: _animation.value, 
+                                ),
                               ),
                             ),
                           );

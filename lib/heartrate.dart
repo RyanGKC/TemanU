@@ -6,7 +6,9 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:temanu/heartRateChartPainter.dart';
 import 'package:temanu/assistantpage.dart';
-import 'package:temanu/api_service.dart'; // <-- API Service is all we need now!
+import 'package:temanu/api_service.dart';
+import 'package:temanu/button.dart';
+import 'package:temanu/textbox.dart';
 
 class HrReading {
   final DateTime time;
@@ -26,7 +28,7 @@ class HeartRatePage extends StatefulWidget {
 class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProviderStateMixin {
   int currentHr  = 0;
   int restingHr  = 0;
-  bool _isLoadingChart = true; // <-- Replaced Fitbit loader with Chart loader
+  bool _isLoadingChart = true;
 
   String selectedRange = "D";
   int? touchedIndex;
@@ -35,7 +37,6 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
   late AnimationController _animationController;
   late Animation<double> _animation;
 
-  // <-- NEW: Holds the live data from your Railway backend
   List<HrReading> _liveReadings = [];
 
   List<DateTime> aggTimes  = [];
@@ -112,7 +113,6 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
     
-    // <-- NEW: Fetch live data on load
     _fetchHrData();
     _generateAITip();
   }
@@ -123,7 +123,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     super.dispose();
   }
 
-  // ─── NEW: Fetch data from Railway ─────────────────────────────────────────
+  // ─── Fetch data ───────────────────────────────────────────────────────────
 
   Future<void> _fetchHrData() async {
     setState(() => _isLoadingChart = true);
@@ -148,8 +148,6 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
           _liveReadings.sort((a, b) => a.time.compareTo(b.time));
           currentHr = _liveReadings.last.bpm;
 
-          // Calculate "Resting HR" by finding the lowest HR from today, 
-          // or from all time if they have no entries today.
           final todayReadings = _liveReadings.where((r) {
             final now = DateTime.now();
             return r.time.year == now.year &&
@@ -179,7 +177,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     }
   }
 
-  // ─── AI Tip Generator ─────────────────────────────────────────────────────
+  // ─── AI Tip ───────────────────────────────────────────────────────────────
   
   Future<void> _generateAITip({bool forceRefresh = false}) async {
     final prefs = await SharedPreferences.getInstance();
@@ -242,7 +240,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
   // ─── Aggregation ──────────────────────────────────────────────────────────
 
   void _aggregateData() {
-    final rawData  = _liveReadings; // <-- Switched to live DB data
+    final rawData  = _liveReadings;
     final startTime = _startTime;
     final endTime   = _endTime;
 
@@ -299,15 +297,15 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     }
   }
 
-  // ─── Chart interaction ────────────────────────────────────────────────────
+  // ─── UPDATED: Full hover + tap + drag interaction matching body weight ─────
 
-  void _handleChartTap(TapUpDetails details, double width) {
+  void _handleChartInteraction(Offset localPosition, double width) {
     const double leftPadding  = 55.0;
     final double usableWidth  = width - leftPadding - 20.0;
-    final double dx           = details.localPosition.dx;
+    final double dx           = localPosition.dx;
 
     if (dx < leftPadding - 15 || dx > width - 5) {
-      setState(() => touchedIndex = null);
+      if (touchedIndex != null) setState(() => touchedIndex = null);
       return;
     }
 
@@ -322,7 +320,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
 
     for (int i = 0; i < aggTimes.length; i++) {
       final elapsedMillis = aggTimes[i].difference(startTime).inMilliseconds;
-      double timeRatio    = elapsedMillis / (totalMillis > 0 ? totalMillis : 1);
+      double timeRatio    = totalMillis > 0 ? elapsedMillis / totalMillis : 0;
       timeRatio           = timeRatio.clamp(0.0, 1.0);
       final x             = leftPadding + (usableWidth * timeRatio);
       final distance      = (x - dx).abs();
@@ -332,10 +330,12 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
       }
     }
 
-    setState(() => touchedIndex = closestIndex);
+    if (touchedIndex != closestIndex) {
+      setState(() => touchedIndex = closestIndex);
+    }
   }
 
-  // ─── NEW: Manual data entry ───────────────────────────────────────────────
+  // ─── Data entry ───────────────────────────────────────────────────────────
 
   void _addHrReading(int bpm) async {
     setState(() => _isLoadingChart = true);
@@ -360,28 +360,54 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     }
   }
 
+  // --- UPDATED: Glossy dialog matching body weight style, no cancel button ---
   void _showAddDataDialog() {
     final controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Add Heart Rate Data"),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: "Heart Rate (BPM)"),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-          ElevatedButton(
-            onPressed: () {
-              final bpm = int.tryParse(controller.text);
-              if (bpm != null) _addHrReading(bpm);
-              Navigator.pop(context);
-            },
-            child: const Text("Save"),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          padding: const EdgeInsets.all(25),
+          decoration: BoxDecoration(
+            color: const Color(0xff1A3F6B).withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
           ),
-        ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Add Heart Rate Data',
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                "Enter your heart rate reading in BPM.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+              MyTextField(
+                controller: controller,
+                hintText: 'Heart Rate (BPM)',
+                prefixIcon: Icons.favorite_outline,
+              ),
+              const SizedBox(height: 25),
+              MyRoundedButton(
+                text: 'Save Reading',
+                backgroundColor: const Color(0xff00E5FF),
+                textColor: const Color(0xff040F31),
+                onPressed: () {
+                  final bpm = int.tryParse(controller.text);
+                  if (bpm != null) _addHrReading(bpm);
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -413,212 +439,222 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
         ),
       ),
       body: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // ── Header row ──
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text("Current", style: TextStyle(color: Colors.white, fontSize: 16)),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.baseline,
-                            textBaseline: TextBaseline.alphabetic,
-                            children: [
-                              Text(
-                                currentHr > 0 ? "$currentHr" : "–",
-                                style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(width: 4),
-                              const Text("bpm", style: TextStyle(color: Colors.white70, fontSize: 20)),
-                            ],
-                          ),
-                          Text(zoneText, style: const TextStyle(color: Colors.white70, fontSize: 16)),
-                        ],
-                      ),
-                      InkWell(
-                        onTap: _showAddDataDialog,
-                        child: const Row(
-                          children: [
-                            Icon(Icons.add_box_outlined, color: Colors.white),
-                            SizedBox(width: 6),
-                            Text("Add data", style: TextStyle(color: Colors.white, fontSize: 18)),
-                          ],
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // ── Header row ──
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Current", style: TextStyle(color: Colors.white, fontSize: 16)),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          currentHr > 0 ? "$currentHr" : "–",
+                          style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
                         ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      "$fullRangeName Overview",
-                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                        const SizedBox(width: 4),
+                        const Text("bpm", style: TextStyle(color: Colors.white70, fontSize: 20)),
+                      ],
                     ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  // ── Date navigator ──
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Text(zoneText, style: const TextStyle(color: Colors.white70, fontSize: 16)),
+                  ],
+                ),
+                InkWell(
+                  onTap: _showAddDataDialog,
+                  child: const Row(
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
-                        onPressed: () {
-                          setState(() { dateOffset--; touchedIndex = null; _aggregateData(); });
-                          _animationController.reset();
-                          _animationController.forward();
-                        },
-                      ),
-                      Text(dateRangeLabel,
-                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                      IconButton(
-                        icon: Icon(Icons.chevron_right,
-                          color: dateOffset < 0 ? Colors.white : Colors.white38, size: 30),
-                        onPressed: dateOffset < 0 ? () {
-                          setState(() { dateOffset++; touchedIndex = null; _aggregateData(); });
-                          _animationController.reset();
-                          _animationController.forward();
-                        } : null,
-                      ),
+                      Icon(Icons.add_box_outlined, color: Colors.white),
+                      SizedBox(width: 6),
+                      Text("Add data", style: TextStyle(color: Colors.white, fontSize: 18)),
                     ],
                   ),
+                ),
+              ],
+            ),
 
-                  const SizedBox(height: 10),
+            const SizedBox(height: 18),
 
-                  // ── Chart ──
-                  Container(
-                    height: 300,
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xff59A2DD),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: _isLoadingChart 
-                      ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                      : AnimatedBuilder(
-                          animation: _animation,
-                          builder: (context, child) {
-                            return LayoutBuilder(
-                              builder: (context, constraints) {
-                                return GestureDetector(
-                                  onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
-                                  child: CustomPaint(
-                                    size: Size(constraints.maxWidth, constraints.maxHeight),
-                                    painter: HeartRateChartPainter(
-                                      timeData:     aggTimes,
-                                      minBpmData:   aggMinBpm,
-                                      maxBpmData:   aggMaxBpm,
-                                      rangeLabel:   selectedRange,
-                                      touchedIndex: touchedIndex,
-                                      dateOffset:   dateOffset,
-                                      progress:     _animation.value,
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // ── Range filter ──
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade600,
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: ["D","W","M","3M","6M","Y"].map(_filterButton).toList(),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // ── Info cards ──
-                  Row(
-                    children: [
-                      Expanded(child: _infoCard("Current HR",  currentHr > 0 ? "$currentHr\nbpm" : "–")),
-                      const SizedBox(width: 8),
-                      Expanded(child: _infoCard("Resting HR",  restingHr > 0 ? "$restingHr\nbpm" : "–")),
-                      const SizedBox(width: 8),
-                      Expanded(child: _zoneCard("Zone", zoneText)),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // ── AI Tips ──
-                  InkWell(
-                    onTap: () {
-                      final updatedData = Map<String, dynamic>.from(widget.baseUserData);
-                      updatedData['heartRate'] = currentHr.toString();
-                      
-                      Navigator.push(
-                        context, 
-                        MaterialPageRoute(
-                          builder: (_) => AssistantPage(userData: updatedData)
-                        )
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(22),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xff375B86),
-                        borderRadius: BorderRadius.circular(22),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: const [
-                              Text("💡 AI Tips", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                              Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          
-                          _isLoadingTip 
-                            ? Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Padding(
-                                    padding: EdgeInsets.only(top: 2.0),
-                                    child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2)),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      "Analyzing your heart rate data...", 
-                                      style: const TextStyle(color: Colors.white70, fontSize: 14)
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 80),
-                ],
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "$fullRangeName Overview",
+                style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
               ),
             ),
+
+            const SizedBox(height: 10),
+
+            // ── Date navigator ──
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
+                  onPressed: () {
+                    setState(() { dateOffset--; touchedIndex = null; _aggregateData(); });
+                    _animationController.reset();
+                    _animationController.forward();
+                  },
+                ),
+                Text(dateRangeLabel,
+                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                IconButton(
+                  icon: Icon(Icons.chevron_right,
+                    color: dateOffset < 0 ? Colors.white : Colors.white38, size: 30),
+                  onPressed: dateOffset < 0 ? () {
+                    setState(() { dateOffset++; touchedIndex = null; _aggregateData(); });
+                    _animationController.reset();
+                    _animationController.forward();
+                  } : null,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // ── UPDATED: Chart uses MouseRegion + GestureDetector like body weight ──
+            Container(
+              height: 300,
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xff59A2DD),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: _isLoadingChart 
+                ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                : AnimatedBuilder(
+                    animation: _animation,
+                    builder: (context, child) {
+                      return LayoutBuilder(
+                        builder: (context, constraints) {
+                          return MouseRegion(
+                            onHover: (event) => _handleChartInteraction(event.localPosition, constraints.maxWidth),
+                            onExit: (_) {
+                              if (touchedIndex != null) setState(() => touchedIndex = null);
+                            },
+                            child: GestureDetector(
+                              onTapUp: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                              onHorizontalDragUpdate: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                              onHorizontalDragEnd: (_) {
+                                if (touchedIndex != null) setState(() => touchedIndex = null);
+                              },
+                              child: CustomPaint(
+                                size: Size(constraints.maxWidth, constraints.maxHeight),
+                                painter: HeartRateChartPainter(
+                                  timeData:     aggTimes,
+                                  minBpmData:   aggMinBpm,
+                                  maxBpmData:   aggMaxBpm,
+                                  rangeLabel:   selectedRange,
+                                  touchedIndex: touchedIndex,
+                                  dateOffset:   dateOffset,
+                                  progress:     _animation.value,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+            ),
+
+            const SizedBox(height: 14),
+
+            // ── Range filter ──
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade600,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: ["D","W","M","3M","6M","Y"].map(_filterButton).toList(),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // ── Info cards ──
+            Row(
+              children: [
+                Expanded(child: _infoCard("Current HR",  currentHr > 0 ? "$currentHr\nbpm" : "–")),
+                const SizedBox(width: 8),
+                Expanded(child: _infoCard("Resting HR",  restingHr > 0 ? "$restingHr\nbpm" : "–")),
+                const SizedBox(width: 8),
+                Expanded(child: _zoneCard("Zone", zoneText)),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── AI Tips ──
+            InkWell(
+              onTap: () {
+                final updatedData = Map<String, dynamic>.from(widget.baseUserData);
+                updatedData['heartRate'] = currentHr.toString();
+                
+                Navigator.push(
+                  context, 
+                  MaterialPageRoute(
+                    builder: (_) => AssistantPage(userData: updatedData)
+                  )
+                );
+              },
+              borderRadius: BorderRadius.circular(22),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xff375B86),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: const [
+                        Text("💡 AI Tips", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                        Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    _isLoadingTip 
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.only(top: 2.0),
+                              child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                "Analyzing your heart rate data...", 
+                                style: const TextStyle(color: Colors.white70, fontSize: 14)
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 80),
+          ],
+        ),
+      ),
     );
   }
 
