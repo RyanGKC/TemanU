@@ -67,6 +67,7 @@ class _AssistantPageState extends State<AssistantPage> {
     final conditions = widget.userData['healthConditions'] ?? 'None reported';
     
     final steps = widget.userData['steps'] ?? 'unknown';
+    final stepGoal = widget.userData['stepGoal'] ?? 10000;
     final heartRate = widget.userData['heartRate'] ?? 'unknown';
     final oxygen = widget.userData['oxygenSaturation'] ?? 'unknown';
     final calories = widget.userData['calories'] ?? 'unknown';
@@ -101,13 +102,13 @@ class _AssistantPageState extends State<AssistantPage> {
       Today's Live Metrics:
       - Calories Eaten: $calories kcal (Target: $targetIntake kcal)
       - Macros Eaten: Protein: ${pConsumed}g (Target: ${pTarget}g), Carbs: ${cConsumed}g (Target: ${cTarget}g), Fats: ${fConsumed}g (Target: ${fTarget}g)
-      - Steps Taken: $steps steps
+      - Steps Taken: $steps steps (Target: $stepGoal steps)
       - Heart Rate: $heartRate bpm
       - Oxygen Saturation (SpO2): $oxygen%
       - Blood Pressure: $bloodPressure mmHg
       - Blood Glucose: $bloodGlucose mg/dl
       
-      Use this data to provide highly personalized advice. If the user asks about their diet, compare their eaten macros and calories against their targets, taking into account their goal to $bodyGoal.
+      Use this data to provide highly personalized advice. If the user asks about their diet, compare their eaten macros and calories against their targets, taking into account their goal to $bodyGoal. If the user asks about their steps, compare their steps taken against their step goal.
     ''';
 
     _model = GenerativeModel(

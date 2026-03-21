@@ -628,4 +628,47 @@ class ApiService {
       return false;
     }
   }
+
+  static Future<Map<String, dynamic>?> getFitbitIntradaySteps(String date) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return null;
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/fitbit/steps/intraday/$date'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        // --- NEW: Print the exact error from the backend! ---
+        print("Fitbit API Failed: ${response.statusCode} - ${response.body}");
+      }
+    } catch (e) {
+      print("Error fetching intraday steps: $e");
+    }
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> getFitbitTimeSeriesSteps(String period, String date) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return null;
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/fitbit/steps/timeseries/$period/$date'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        print("Fitbit TimeSeries API Failed: ${response.statusCode} - ${response.body}");
+      }
+    } catch (e) {
+      print("Error fetching timeseries steps: $e");
+    }
+    return null;
+  }
 }

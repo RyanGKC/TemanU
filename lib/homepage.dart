@@ -115,13 +115,15 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   double _caloriesBurnTarget = 2200;
   double _proteinTarget = 140, _carbsTarget = 250, _fatsTarget = 70;
   double _proteinConsumed = 0, _carbsConsumed = 0, _fatsConsumed = 0;
+  int _globalStepGoal = 10000;
 
   @override
   void initState() {
     super.initState();
     _metricsData = [
       { "icon": Icons.water_drop,          "title": "Blood Glucose Level", "value": "--",    "unit": "mg/dl", "destination": const BloodGlucose(),                         "isVisible": true, "isShareSelected": true },
-      { "icon": Icons.directions_run,      "title": "Activity",            "value": "--",     "unit": "steps", "destination": const Activity(),                          "isVisible": true, "isShareSelected": true },
+      // --- UPDATED: Activity destination set to SizedBox so we can intercept it dynamically below ---
+      { "icon": Icons.directions_run,      "title": "Activity",            "value": "--",     "unit": "steps", "destination": const SizedBox(),                          "isVisible": true, "isShareSelected": true },
       { "icon": Icons.favorite, "title": "Heart Rate", "value": "--", "unit": "bpm", "destination": const SizedBox(), "isVisible": true, "isShareSelected": true },
       { "icon": Icons.opacity,             "title": "Oxygen Saturation",   "value": "--",     "unit": "%",     "destination": const SizedBox(),              "isVisible": true, "isShareSelected": true },
       { "icon": Icons.monitor_heart,       "title": "Blood Pressure",      "value": "--", "unit": "mmHg",  "destination": const SizedBox(),                 "isVisible": true, "isShareSelected": true },
@@ -218,6 +220,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
       'bodyGoal': _bodyGoal,
       'caloriesIntakeTarget': _caloriesTarget,
       'caloriesBurnTarget': _caloriesBurnTarget,
+      'stepGoal': _globalStepGoal,
       'proteinConsumed': _proteinConsumed,
       'carbsConsumed': _carbsConsumed,
       'fatsConsumed': _fatsConsumed,
@@ -489,6 +492,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
       // 4. Goals and Targets
       _bodyGoal = prefs.getString('body_goal') ?? 'maintain';
       _caloriesTarget = prefs.getDouble('calories_intake_target') ?? 2200;
+      _globalStepGoal = prefs.getInt('step_goal') ?? 10000;
       int goalOffset = prefs.getInt('goal_offset') ?? 500;
 
       int signedOffset = 0;
@@ -681,7 +685,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                                 PdfGenerator.generateAndShare(
                                   selectedMetrics: _selectedMetrics,
                                   patientData: _patientData.toMap(),
-                                  activeMedications: _activeMedications, // <-- ADD THIS
+                                  activeMedications: _activeMedications, 
                                 );
                               },
                               child: const Text(
@@ -709,7 +713,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                               PdfGenerator.generateAndSave(
                                 selectedMetrics: _selectedMetrics,
                                 patientData: _patientData.toMap(),
-                                activeMedications: _activeMedications, // <-- ADD THIS
+                                activeMedications: _activeMedications, 
                                 context: context,
                               );
                             },
@@ -790,36 +794,37 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
     return GestureDetector(
       onTap: () async {
         if (title == 'Calories') {
-          // Intercept the Calories tap to pass the fresh data map
           await Navigator.push(context, MaterialPageRoute(
             builder: (context) => CaloriesMain(
               patientData: _patientData,
-              baseUserData: gatherDataForAI(), // Pass the baton!
+              baseUserData: gatherDataForAI(), 
             )
           ));
           _fetchDatabaseMetrics();
+        } else if (title == 'Activity') {
+          // --- NEW INTERCEPT: Hand off the AI data to Activity! ---
+          await Navigator.push(context, MaterialPageRoute(
+            builder: (context) => Activity(baseUserData: gatherDataForAI())
+          ));
+          _fetchDatabaseMetrics();
         } else if (title == 'Heart Rate') {
-          // NEW: Intercept the Heart Rate tap to pass the fresh data map
           await Navigator.push(context, MaterialPageRoute(
             builder: (context) => HeartRatePage(
-              baseUserData: gatherDataForAI(), // Pass the baton!
+              baseUserData: gatherDataForAI(), 
             )
           ));
           _fetchDatabaseMetrics();
         } else if (title == 'Oxygen Saturation') {
-          // NEW: Intercept Oxygen Saturation tap!
           await Navigator.push(context, MaterialPageRoute(
             builder: (context) => OxygenSaturationPage(baseUserData: gatherDataForAI())
           ));
           _fetchDatabaseMetrics();
         } else if (title == 'Blood Pressure') {
-          // NEW INTERCEPT: Hand off the data!
           await Navigator.push(context, MaterialPageRoute(
             builder: (context) => BloodPressurePage(baseUserData: gatherDataForAI())
           ));
           _fetchDatabaseMetrics();
         } else if (title == 'Body Weight') {
-          // NEW INTERCEPT: Hand off the data!
           await Navigator.push(context, MaterialPageRoute(
             builder: (context) => BodyWeightPage(baseUserData: gatherDataForAI())
           ));
@@ -854,7 +859,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                         width: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xff00E5FF)), // Matches your cyan theme!
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xff00E5FF)), 
                         ),
                       ),
                     )
@@ -867,4 +872,3 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
     );
   }
 }
-
