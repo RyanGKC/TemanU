@@ -155,11 +155,13 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
     final allMetrics = await ApiService.getHealthMetrics(); 
     Map<String, String> newestValues = {};
 
+    // --- THE ROBUST FIX: Sort chronologically to guarantee the newest is last ---
+    allMetrics.sort((a, b) => DateTime.parse(a['timestamp']).compareTo(DateTime.parse(b['timestamp'])));
+
+    // As it loops, it continuously overwrites the map. 
+    // The very last item written will be the absolute newest!
     for (var metric in allMetrics) {
-      String type = metric['metric_type'];
-      if (!newestValues.containsKey(type)) {
-        newestValues[type] = metric['value'].toString();
-      }
+      newestValues[metric['metric_type']] = metric['value'].toString();
     }
 
     final todaysMeals = await ApiService.getTodaysMeals();
@@ -172,11 +174,30 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
 
     if (mounted) {
       setState(() {
-        if (newestValues.containsKey('Body Weight'))       _metricsData.firstWhere((m) => m['title'] == 'Body Weight')['value']         = newestValues['Body Weight'];
-        if (newestValues.containsKey('Heart Rate'))        _metricsData.firstWhere((m) => m['title'] == 'Heart Rate')['value']          = newestValues['Heart Rate'];
-        if (newestValues.containsKey('Blood Glucose'))     _metricsData.firstWhere((m) => m['title'] == 'Blood Glucose Level')['value'] = newestValues['Blood Glucose'];
-        if (newestValues.containsKey('Oxygen Saturation')) _metricsData.firstWhere((m) => m['title'] == 'Oxygen Saturation')['value']   = newestValues['Oxygen Saturation'];
-        if (newestValues.containsKey('Blood Pressure'))    _metricsData.firstWhere((m) => m['title'] == 'Blood Pressure')['value']      = newestValues['Blood Pressure'];
+        // --- THE SINGLE SOURCE OF TRUTH FIX ---
+        if (newestValues.containsKey('Body Weight')) {
+          String latestWeightFromDB = newestValues['Body Weight']!;
+          
+          // 1. Update the Dashboard Card
+          _metricsData.firstWhere((m) => m['title'] == 'Body Weight')['value'] = latestWeightFromDB;
+          
+          // 2. Update the Profile Object directly from the Database!
+          _patientData = PatientData(
+            name: _patientData.name,
+            dob: _patientData.dob,
+            age: _patientData.age,
+            gender: _patientData.gender,
+            height: _patientData.height,
+            weight: latestWeightFromDB, // The DB is now the master controller
+            bloodType: _patientData.bloodType,
+            conditions: _patientData.conditions,
+          );
+        }
+
+        if (newestValues.containsKey('Heart Rate'))        _metricsData.firstWhere((m) => m['title'] == 'Heart Rate')['value']          = newestValues['Heart Rate']!;
+        if (newestValues.containsKey('Blood Glucose'))     _metricsData.firstWhere((m) => m['title'] == 'Blood Glucose Level')['value'] = newestValues['Blood Glucose']!;
+        if (newestValues.containsKey('Oxygen Saturation')) _metricsData.firstWhere((m) => m['title'] == 'Oxygen Saturation')['value']   = newestValues['Oxygen Saturation']!;
+        if (newestValues.containsKey('Blood Pressure'))    _metricsData.firstWhere((m) => m['title'] == 'Blood Pressure')['value']      = newestValues['Blood Pressure']!;
         
         _metricsData.firstWhere((m) => m['title'] == 'Calories')['value'] = totalCalories.toString();
         _activeMedications = meds; 
@@ -411,6 +432,21 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
+      // --- THE FIX: Grab the real name and update the Profile object ---
+      String savedName = prefs.getString('user_name') ?? 'User';
+      
+      _patientData = PatientData(
+        name: savedName, // Overwrites 'James' with the real name!
+        dob: _patientData.dob,
+        age: _patientData.age,
+        gender: _patientData.gender,
+        height: _patientData.height,
+        weight: _patientData.weight,
+        bloodType: _patientData.bloodType,
+        conditions: _patientData.conditions,
+      );
+
+      // --- Keep your existing code below this ---
       for (var metric in _metricsData) {
         metric['isVisible'] = prefs.getBool(metric['title']) ?? true;
       }

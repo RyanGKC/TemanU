@@ -112,11 +112,9 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     final heightParsed = double.tryParse(widget.baseUserData['height'] ?? '');
     if (heightParsed != null) heightCm = heightParsed;
     
-    final weightParsed = double.tryParse(widget.baseUserData['weight'] ?? '');
-    if (weightParsed != null) currentWeight = weightParsed;
-
-    _fetchWeightData(); 
-    _generateAITip();
+    _fetchWeightData().then((_) {
+      _generateAITip();
+    });
   }
 
   @override
