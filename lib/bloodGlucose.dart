@@ -1,277 +1,454 @@
 import 'dart:ui';
-import 'package:flutter/material.dart';
-import 'assistantpage.dart';
 import 'dart:math';
-import 'package:flutter/services.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:temanu/api_service.dart';
+import 'package:temanu/assistantpage.dart';
+import 'package:temanu/button.dart'; 
+import 'package:temanu/textbox.dart';
+
+// ─── Data model ──────────────────────────────────────────────────────────────
+
+class BgReading {
+  final DateTime time;
+  final double value;
+  BgReading(this.time, this.value);
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 class BloodGlucose extends StatefulWidget {
-  const BloodGlucose({super.key});
+  final Map<String, dynamic> baseUserData;
+
+  const BloodGlucose({super.key, required this.baseUserData});
 
   @override
   State<BloodGlucose> createState() => _BloodGlucoseState();
 }
 
-class _BloodGlucoseState extends State<BloodGlucose> {
-  // dummy values
-  //////////////////////////////////////////////////
-
-  double currentBGlevel = 110;
-  double average = 190;
-  double fluctuation = 120;
-
-  double high = 180;
-  double low = 70;
-  double veryHigh = 250;
-  double veryLow = 54;
-  double highFluncuation = 80;
-  double veryHighFlunctuation = 120;
-
-  List<String> dailyLabels = ['12AM', '4AM', '8AM', '12PM', '4PM', '8PM', '12AM'];
-  List<double> dailyValues = [50, 60, 140, 200, 270, 400, 180];
-
-  List<String> weeklyLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thur', 'Fri', 'Sat'];
-  List<double> weeklyHighs = [168, 142, 175, 169, 180, 183, 190];
-  List<double> weeklyLows = [60, 70, 90, 60, 67, 57, 79];
-
-  List<String> monthlyLabels = ['1/3', '2/3', '3/3', '4/3', '5/3', '6/3', '7/3', '8/3', '9/3', '10/3',
-                                '11/3', '12/3', '13/3', '14/3', '15/3', '16/3', '17/3', '18/3', '19/3', '20/3',
-                                '21/3', '22/3', '23/3', '24/3', '25/3', '26/3', '27/3', '28/3', '29/3', '30/3',
-                                '31/3'];
-  List<double> monthlyHighs = [145, 132, 156, 123, 178, 130, 182, 156, 136, 109,
-                                194, 134, 120, 125, 148, 199, 128, 162, 139, 128,
-                                150, 160, 132, 193, 149, 198, 195, 189, 122, 198,
-                                189];
-  List<double> monthlyLows = [58, 62, 76, 83, 48, 80, 42, 76, 46, 79,
-                                94, 34, 60, 45, 78, 59, 98, 82, 93, 86,
-                                80, 30, 75, 33, 79, 48, 95, 89, 92, 38,
-                                69];
-
-  List<String> sixMonthLabels = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
-  List<double> sixMonthHighs = [190, 150, 123, 196, 389, 294];
-  List<double> sixMonthLows = [60, 89, 33, 56, 89, 124];
-
-  List<String> yearlyLabels = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
-  List<double> yearlyHighs = [238, 193, 209, 193, 259, 158, 140, 150, 200, 196, 189, 193];
-  List<double> yearlyLows = [123, 110, 102, 89, 134, 80, 99, 71, 89, 49, 89, 93];
-
-  //////////////////////////////////////////////////
-
-  int _selected = 0;
-
-  List<String> getLabelsList(int selected) {
-     switch (selected) {
-      case 0:
-        return dailyLabels;
-      case 1:
-        return weeklyLabels;
-      case 2:
-        return monthlyLabels;
-      case 3:
-        return sixMonthLabels;
-      case 4:
-        return yearlyLabels;
-      default:
-        return [];
-    }
-  }
-
-  List<double> getHighList(int selected) {
-     switch (selected) {
-      case 0:
-        return dailyValues;
-      case 1:
-        return weeklyHighs;
-      case 2:
-        return monthlyHighs;
-      case 3:
-        return sixMonthHighs;
-      case 4:
-        return yearlyHighs;
-      default:
-        return [];
-    }
-  }
-
-    List<double> getLowList(int selected) {
-     switch (selected) {
-      case 1:
-        return weeklyLows;
-      case 2:
-        return monthlyLows;
-      case 3:
-        return sixMonthLows;
-      case 4:
-        return yearlyLows;
-      default:
-        return [];
-    }
-  }
+class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderStateMixin {
   
+  // ── Live state ──────────────────────────────────────────────────────────────
+  bool _isLoadingChart = true;
+  bool _isLoadingTip   = true;
 
-  List<double> getBGLThresholds() {
-    return [veryHigh, high, low, veryLow];
+  List<BgReading> _liveReadings = [];
+
+  double currentBGlevel = 0;
+  double averageBGlevel = 0;
+  double fluctuation    = 0;
+
+  // ── Hardcoded Thresholds (Average Person) ──────────────────────────────────
+  final double veryHigh = 200;
+  final double high = 140;
+  final double low = 70;
+  final double veryLow = 54;
+  final double highFluctuation = 50;
+  final double veryHighFluctuation = 100;
+
+  // ── Chart aggregation ──────────────────────────────────────────────────────
+  List<DateTime> aggTimes = [];
+  List<double>   aggHighs = [];
+  List<double>   aggLows  = [];
+
+  // ── Range / navigation ────────────────────────────────────────────────────
+  String selectedRange = "D";
+  int?   touchedIndex;
+  int    dateOffset    = 0;
+
+  // ── Animation ─────────────────────────────────────────────────────────────
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+
+  // ── AI tip ────────────────────────────────────────────────────────────────
+  String _dynamicAiTip = "Analyzing your blood glucose data...";
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Date helpers 
+  // ─────────────────────────────────────────────────────────────────────────
+
+  DateTime get _startTime {
+    final now = DateTime.now();
+    switch (selectedRange) {
+      case "D":  return DateTime(now.year, now.month, now.day + dateOffset);
+      case "W":
+        int daysToMonday = now.weekday - 1;
+        return DateTime(now.year, now.month, now.day - daysToMonday + (dateOffset * 7));
+      case "M":  return DateTime(now.year, now.month + dateOffset, 1);
+      case "3M": return DateTime(now.year, now.month - 2 + (dateOffset * 3), 1);
+      case "6M": return DateTime(now.year, now.month - 5 + (dateOffset * 6), 1);
+      case "Y":  return DateTime(now.year + dateOffset, 1, 1);
+      default:   return DateTime(now.year, now.month, now.day);
+    }
   }
 
-  List<double> getFluctuationThresholds() {
-    return [highFluncuation, veryHighFlunctuation];
+  DateTime get _endTime {
+    final now = DateTime.now();
+    switch (selectedRange) {
+      case "D":  return DateTime(now.year, now.month, now.day + dateOffset + 1);
+      case "W":
+        int daysToMonday = now.weekday - 1;
+        return DateTime(now.year, now.month, now.day - daysToMonday + 7 + (dateOffset * 7));
+      case "M":  return DateTime(now.year, now.month + dateOffset + 1, 1);
+      case "3M": return DateTime(now.year, now.month + 1 + (dateOffset * 3), 1);
+      case "6M": return DateTime(now.year, now.month + 1 + (dateOffset * 6), 1);
+      case "Y":  return DateTime(now.year + dateOffset + 1, 1, 1);
+      default:   return DateTime(now.year, now.month, now.day + 1);
+    }
   }
+
+  String get dateRangeLabel {
+    final start     = _startTime;
+    final visualEnd = _endTime.subtract(const Duration(days: 1));
+    const months    = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    switch (selectedRange) {
+      case "D":  return "${start.day} ${months[start.month - 1]} ${start.year}";
+      case "W":  return "${start.day} ${months[start.month - 1]} - ${visualEnd.day} ${months[visualEnd.month - 1]}";
+      case "M":  return "${months[start.month - 1]} ${start.year}";
+      case "3M":
+      case "6M": return "${months[start.month - 1]} - ${months[visualEnd.month - 1]} ${visualEnd.year}";
+      case "Y":  return "${start.year}";
+      default:   return "";
+    }
+  }
+
+  String get fullRangeName {
+    switch (selectedRange) {
+      case "D":  return "Day";
+      case "W":  return "Week";
+      case "M":  return "Month";
+      case "3M": return "3 Months";
+      case "6M": return "6 Months";
+      case "Y":  return "Year";
+      default:   return "Day";
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Colour / zone helpers
+  // ─────────────────────────────────────────────────────────────────────────
 
   Color getBGLColor(double value) {
-    if (value > low && value < high) {
-      return Colors.green;
-    } else if (value > veryHigh || value < veryLow) {
-      return Colors.red;
-    } else {
-      return const Color.fromARGB(255, 200, 200, 0);
+    if (value > low && value < high)         return Colors.green;
+    if (value > veryHigh || value < veryLow) return Colors.red;
+    return const Color.fromARGB(255, 200, 200, 0);
+  }
+
+  String get zoneText {
+    if (currentBGlevel > veryHigh) return "Very High";
+    if (currentBGlevel > high)     return "High";
+    if (currentBGlevel < veryLow)  return "Very Low";
+    if (currentBGlevel < low)      return "Low";
+    return "In Range";
+  }
+
+  Color get zoneColor => getBGLColor(currentBGlevel);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Lifecycle
+  // ─────────────────────────────────────────────────────────────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
+
+    _fetchBgData().then((_) => _generateAITip());
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Data fetching
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<void> _fetchBgData() async {
+    setState(() => _isLoadingChart = true);
+
+    final rawMetrics = await ApiService.getHealthMetrics(metricType: 'Blood Glucose');
+
+    List<BgReading> fetched = [];
+    for (var m in rawMetrics) {
+      String dateStr = m['timestamp'] ?? DateTime.now().toIso8601String();
+      if (!dateStr.endsWith('Z')) dateStr += 'Z';
+      DateTime date = DateTime.parse(dateStr).toLocal();
+      double val = double.tryParse(m['value'].toString()) ?? 0;
+      if (val > 0) fetched.add(BgReading(date, val));
+    }
+
+    if (mounted) {
+      setState(() {
+        _liveReadings = fetched..sort((a, b) => a.time.compareTo(b.time));
+
+        if (_liveReadings.isNotEmpty) {
+          currentBGlevel = _liveReadings.last.value;
+
+          final todayReadings = _liveReadings.where((r) {
+            final now = DateTime.now();
+            return r.time.year == now.year &&
+                   r.time.month == now.month &&
+                   r.time.day   == now.day;
+          }).toList();
+
+          if (todayReadings.isNotEmpty) {
+            averageBGlevel = todayReadings.map((r) => r.value).reduce((a, b) => a + b) / todayReadings.length;
+            double todayMax = todayReadings.map((r) => r.value).reduce(max);
+            double todayMin = todayReadings.map((r) => r.value).reduce(min);
+            fluctuation = todayMax - todayMin;
+          } else {
+            averageBGlevel = currentBGlevel;
+            fluctuation    = 0;
+          }
+        } else {
+          currentBGlevel = 110;
+          averageBGlevel = 110;
+          fluctuation    = 0;
+        }
+
+        _isLoadingChart = false;
+        _aggregateData();
+      });
+      _animationController.reset();
+      _animationController.forward();
     }
   }
 
-  Color getFluctuationColor(double value) {
-    if (value < highFluncuation) {
-      return Colors.green;
-    } else if (value < veryHighFlunctuation) {
-      return const Color.fromARGB(255, 200, 200, 0);
-    } else {
-      return Colors.red;
-    }
-  }
+  // ─────────────────────────────────────────────────────────────────────────
+  // Aggregation
+  // ─────────────────────────────────────────────────────────────────────────
 
-  // helper function to setColorRange()
-  Future<List<double>?> showMultiNumberDialog({
-    required BuildContext context,
-    required String title,
-    required List<String> fieldLabels,
-    bool allowDecimal = false,
-  }) async {
-    List<TextEditingController> controllers = List.generate(
-      fieldLabels.length,
-      (_) => TextEditingController(),
-    );
+  void _aggregateData() {
+    Map<DateTime, List<double>> grouped = {};
 
-    final formatter = allowDecimal
-        ? FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
-        : FilteringTextInputFormatter.digitsOnly;
+    for (var reading in _liveReadings) {
+      if (reading.time.isBefore(_startTime) || reading.time.isAfter(_endTime)) continue;
 
-    return showDialog<List<double>>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(title),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: List.generate(fieldLabels.length, (index) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(fieldLabels[index]),
-                      TextField(
-                        controller: controllers[index],
-                        keyboardType: TextInputType.numberWithOptions(
-                          decimal: allowDecimal,
-                        ),
-                        inputFormatters: [formatter],
-                        decoration: InputDecoration(
-                          hintText: (fieldLabels.length == 2)
-                              ? getFluctuationThresholds()[index].toString()
-                              : getBGLThresholds()[index].toString(),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text("Cancel"),
-            ),
-            TextButton(
-              onPressed: () {
-                try {
-                  List<double> values = [];
-                  for (int i = 0; i < controllers.length; i++) {
-                    if (controllers[i].text.isEmpty) {
-                      values.add(
-                        (controllers.length == 2)
-                            ? getFluctuationThresholds()[i]
-                            : getBGLThresholds()[i],
-                      );
-                    } else {
-                      values.add(double.parse(controllers[i].text));
-                    }
-                  }
-                  Navigator.pop(context, values);
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Please enter valid numbers.")),
-                  );
-                }
-              },
-              child: Text("Submit"),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // pop out a window that ask the user to set color range
-  void setColorRange(int mode) async {
-    List<double>? results = await showMultiNumberDialog(
-      context: context,
-      title: "Edit color Range",
-      // mode = 0: set for blood glucose level (average or current)
-      // mode = 1: set for flunctuation
-      fieldLabels: mode == 0
-          ? [
-              'Very High Threshold',
-              'High Threshold',
-              'Low Threshold',
-              'Very Low Threshold',
-            ]
-          : ['High Threshold', 'Very High Threshold'],
-    );
-    if (results != null) {
-      if (mode == 0) {
-        setState(() {
-          veryHigh = results[0];
-          high = results[1];
-          low = results[2];
-          veryLow = results[3];
-        });
+      DateTime bucket;
+      if (selectedRange == "D") {
+        bucket = DateTime(reading.time.year, reading.time.month, reading.time.day, reading.time.hour);
+      } else if (selectedRange == "W" || selectedRange == "M") {
+        bucket = DateTime(reading.time.year, reading.time.month, reading.time.day);
+      } else if (selectedRange == "3M" || selectedRange == "6M") {
+        bucket = DateTime(reading.time.year, reading.time.month, reading.time.day - reading.time.weekday + 1);
       } else {
+        bucket = DateTime(reading.time.year, reading.time.month, 1);
+      }
+
+      grouped.putIfAbsent(bucket, () => []).add(reading.value);
+    }
+
+    final sortedKeys = grouped.keys.toList()..sort();
+
+    aggTimes.clear();
+    aggHighs.clear();
+    aggLows.clear();
+
+    for (var key in sortedKeys) {
+      final vals = grouped[key]!;
+      aggTimes.add(key);
+      aggHighs.add(vals.reduce(max));
+      aggLows.add(vals.reduce(min));
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Save new reading
+  // ─────────────────────────────────────────────────────────────────────────
+
+  void _addBgData(double value) async {
+    setState(() => _isLoadingChart = true);
+
+    bool success = await ApiService.saveHealthMetric(
+      metricType: "Blood Glucose",
+      value: value.toString(),
+      unit: "mg/dL",
+    );
+
+    if (success) {
+      await _fetchBgData();
+      _generateAITip(forceRefresh: true);
+    } else {
+      setState(() => _isLoadingChart = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to save data. Check your connection.')),
+        );
+      }
+    }
+  }
+
+  void _showAddDataDialog() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          padding: const EdgeInsets.all(25),
+          decoration: BoxDecoration(
+            color: const Color(0xff1A3F6B).withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Add Glucose Data',
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                "Enter your latest blood glucose reading in mg/dL.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+              MyTextField(
+                controller: controller,
+                hintText: 'Value (mg/dL)',
+                prefixIcon: Icons.water_drop_outlined,
+              ),
+              const SizedBox(height: 25),
+              MyRoundedButton(
+                text: 'Save Reading',
+                backgroundColor: const Color(0xff00E5FF),
+                textColor: const Color(0xff040F31),
+                onPressed: () {
+                  final val = double.tryParse(controller.text);
+                  if (val != null && val > 0) _addBgData(val);
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Chart interaction — full hover + tap + drag matching body weight pattern
+  // ─────────────────────────────────────────────────────────────────────────
+
+  void _handleChartInteraction(Offset localPosition, double width) {
+    const double leftPadding = 55.0;
+    final double usableWidth = width - leftPadding - 20.0;
+    final double dx = localPosition.dx;
+
+    if (dx < leftPadding - 15 || dx > width - 5) {
+      if (touchedIndex != null) setState(() => touchedIndex = null);
+      return;
+    }
+
+    if (aggTimes.isEmpty) return;
+
+    final startTime   = _startTime;
+    final endTime     = _endTime;
+    final totalMillis = endTime.difference(startTime).inMilliseconds;
+    
+    int?   closestIndex;
+    double minDistance = double.infinity;
+
+    for (int i = 0; i < aggTimes.length; i++) {
+      final elapsedMillis = aggTimes[i].difference(startTime).inMilliseconds;
+      double timeRatio    = totalMillis > 0 ? elapsedMillis / totalMillis : 0;
+      timeRatio           = timeRatio.clamp(0.0, 1.0);
+      final x             = leftPadding + (usableWidth * timeRatio);
+      final distance      = (x - dx).abs();
+      if (distance < 20 && distance < minDistance) {
+        minDistance  = distance;
+        closestIndex = i;
+      }
+    }
+
+    if (touchedIndex != closestIndex) {
+      setState(() => touchedIndex = closestIndex);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // AI Tip
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<void> _generateAITip({bool forceRefresh = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (!forceRefresh) {
+      final cached = prefs.getString('ai_tip_cached_bg');
+      if (cached != null && cached.isNotEmpty) {
+        if (mounted) setState(() { _dynamicAiTip = cached; _isLoadingTip = false; });
+        return;
+      }
+    }
+
+    if (mounted) setState(() => _isLoadingTip = true);
+
+    try {
+      final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+      if (apiKey.isEmpty) return;
+
+      final model = GenerativeModel(
+        model: 'gemini-2.5-flash',
+        apiKey: apiKey,
+        generationConfig: GenerationConfig(temperature: 0.4),
+      );
+
+      final userName = widget.baseUserData['name'] ?? 'the user';
+      final prompt = '''
+        You are a concise health AI assistant. The user, $userName, has a current blood glucose level of ${currentBGlevel.toInt()} mg/dL.
+        Their daily average is ${averageBGlevel.toInt()} mg/dL and today's fluctuation is ${fluctuation.toInt()} mg/dL.
+        Their status is "$zoneText".
+
+        Write a SHORT, 2-sentence encouraging insight or safety tip based exactly on these numbers.
+        Keep it under 120 characters. Do not use asterisks or markdown formatting.
+      ''';
+
+      final response = await model.generateContent([Content.text(prompt)]);
+
+      if (mounted && response.text != null) {
+        final newTip = response.text!.trim();
+        await prefs.setString('ai_tip_cached_bg', newTip);
+        setState(() { _dynamicAiTip = newTip; _isLoadingTip = false; });
+      }
+    } catch (_) {
+      if (mounted) {
         setState(() {
-          highFluncuation = results[0];
-          veryHighFlunctuation = results[1];
+          _dynamicAiTip = "Keep monitoring your levels! Tap here for personalised insights.";
+          _isLoadingTip = false;
         });
       }
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Build
+  // ─────────────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xff040F31),
-      extendBodyBehindAppBar: false,
+      backgroundColor: const Color(0xff031447),
       extendBody: true,
 
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xff55607D),
         elevation: 0,
         centerTitle: false,
         title: const Text(
-          'Blood Glucose Level',
+          "Blood Glucose",
           style: TextStyle(
+            color: Color(0xff35E0FF),
             fontSize: 25,
             fontWeight: FontWeight.w600,
-            color: Color(0xff00E5FF),
           ),
         ),
         flexibleSpace: ClipRect(
@@ -280,627 +457,580 @@ class _BloodGlucoseState extends State<BloodGlucose> {
             child: Container(color: Colors.white.withValues(alpha: 0.25)),
           ),
         ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xff35E0FF)),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            onPressed: () {}, 
+            icon: const Icon(Icons.ios_share, color: Colors.white),
+          ),
+        ],
       ),
 
       body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(height: 40),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Column(
-                    children: [
-                      // average blood glucose level
-                      MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: GestureDetector(
-                          onTap: () {
-                            setColorRange(0);
-                          },
-                          child: Container(
-                            width: 120,
-                            height: 120,
-                            padding: EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: getBGLColor(average),
-                              border: Border.all(color: Colors.white, width: 5),
-                            ),
-                            child: Center(
-                              child: Text.rich(
-                                textAlign: TextAlign.center,
-                                TextSpan(
-                                  children: [
-                                    TextSpan(
-                                      text: average.toInt().toString(),
-                                      style: TextStyle(
-                                        fontSize: 55,
-                                        color: Colors.white,
-                                        height: 1,
-                                      ),
-                                    ),
-                                    TextSpan(
-                                      text: '\nmg/dL',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
 
-                      SizedBox(height: 5),
-
-                      Text(
-                        'Daily\nAverage',
-                        style: TextStyle(fontSize: 15, color: Colors.white),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-
-                  SizedBox(width: 30),
-
-                  Column(
-                    children: [
-                      // current blood glucose level
-                      MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: GestureDetector(
-                          onTap: () {
-                            setColorRange(0);
-                          },
-                          child: Container(
-                            width: 150,
-                            height: 150,
-                            padding: EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: getBGLColor(currentBGlevel),
-                              border: Border.all(color: Colors.white, width: 5),
-                            ),
-                            child: Center(
-                              child: Text.rich(
-                                textAlign: TextAlign.center,
-                                TextSpan(
-                                  children: [
-                                    TextSpan(
-                                      text: currentBGlevel.toInt().toString(),
-                                      style: TextStyle(
-                                        fontSize: 80,
-                                        color: Colors.white,
-                                        height: 1,
-                                      ),
-                                    ),
-                                    TextSpan(
-                                      text: '\nmg/dL',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(height: 5),
-
-                      Text(
-                        'Current',
-                        style: TextStyle(fontSize: 15, color: Colors.white),
-                      ),
-                    ],
-                  ),
-
-                  SizedBox(width: 30),
-
-                  Column(
-                    children: [
-                      // daily fluctuation
-                      MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: GestureDetector(
-                          onTap: () {
-                            setColorRange(1);
-                          },
-                          child: Container(
-                            width: 120,
-                            height: 120,
-                            padding: EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: getFluctuationColor(fluctuation),
-                              border: Border.all(color: Colors.white, width: 5),
-                            ),
-                            child: Center(
-                              child: Text.rich(
-                                textAlign: TextAlign.center,
-                                TextSpan(
-                                  children: [
-                                    TextSpan(
-                                      text: fluctuation.toInt().toString(),
-                                      style: TextStyle(
-                                        fontSize: 55,
-                                        color: Colors.white,
-                                        height: 1,
-                                      ),
-                                    ),
-                                    TextSpan(
-                                      text: '\nmg/dL',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(height: 5),
-
-                      Text(
-                        'Daily\nFluctuation',
-                        style: TextStyle(fontSize: 15, color: Colors.white),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              SizedBox(height: 30),
-
-              // selection bar
-              // copied from activity.dart
-              Container(
-                padding: EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(25),
-                  color: Color.fromARGB(255, 99, 103, 113),
-                ),
-
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            // ── Header row ──────────────────────────────────────────────────
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // day
-                    Material(
-                      borderRadius: BorderRadius.circular(20),
-                      color: (_selected == 0
-                          ? Color.fromARGB(255, 134, 144, 156)
-                          : Colors.transparent),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () {
-                          setState(() {
-                            _selected = 0;
-                          });
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            vertical: 5,
-                            horizontal: 15,
-                          ),
-                          child: Text(
-                            'Day',
-                            style: TextStyle(
-                              color: (_selected == 0
-                                  ? Color.fromARGB(255, 70, 228, 249)
-                                  : Colors.white),
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // week
-                    Material(
-                      borderRadius: BorderRadius.circular(20),
-                      color: (_selected == 1
-                          ? Color.fromARGB(255, 134, 144, 156)
-                          : Colors.transparent),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () {
-                          setState(() {
-                            _selected = 1;
-                          });
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            vertical: 5,
-                            horizontal: 15,
-                          ),
-                          child: Text(
-                            'Week',
-                            style: TextStyle(
-                              color: (_selected == 1
-                                  ? Color.fromARGB(255, 70, 228, 249)
-                                  : Colors.white),
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // month
-                    Material(
-                      borderRadius: BorderRadius.circular(20),
-                      color: (_selected == 2
-                          ? Color.fromARGB(255, 134, 144, 156)
-                          : Colors.transparent),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () {
-                          setState(() {
-                            _selected = 2;
-                          });
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            vertical: 5,
-                            horizontal: 15,
-                          ),
-                          child: Text(
-                            'Month',
-                            style: TextStyle(
-                              color: (_selected == 2
-                                  ? Color.fromARGB(255, 70, 228, 249)
-                                  : Colors.white),
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // day
-                    Material(
-                      borderRadius: BorderRadius.circular(20),
-                      color: (_selected == 3
-                          ? Color.fromARGB(255, 134, 144, 156)
-                          : Colors.transparent),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () {
-                          setState(() {
-                            _selected = 3;
-                          });
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            vertical: 5,
-                            horizontal: 15,
-                          ),
-                          child: Text(
-                            '6 Months',
-                            style: TextStyle(
-                              color: (_selected == 3
-                                  ? Color.fromARGB(255, 70, 228, 249)
-                                  : Colors.white),
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // year
-                    Material(
-                      borderRadius: BorderRadius.circular(20),
-                      color: (_selected == 4
-                          ? Color.fromARGB(255, 134, 144, 156)
-                          : Colors.transparent),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () {
-                          setState(() {
-                            _selected = 4;
-                          });
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            vertical: 5,
-                            horizontal: 15,
-                          ),
-                          child: Text(
-                            'Year',
-                            style: TextStyle(
-                              color: (_selected == 4
-                                  ? Color.fromARGB(255, 70, 228, 249)
-                                  : Colors.white),
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              SizedBox(height: 30),
-
-              // draw the line chart
-              Container(
-                height: 400,
-                padding: EdgeInsets.all(20),
-                alignment: Alignment.centerLeft,
-                decoration: BoxDecoration(
-                  color: const Color.fromARGB(255, 48, 131, 190),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-
-                  reverse: true,
-                  child: Container(
-                    width: (getLabelsList(_selected).length * 100)
-                        .clamp(300, double.infinity)
-                        .toDouble(),
-                    height: 400,
-                    child: LineChart(
-                      LineChartData(
-                        minX: 0,
-                        maxX: getLabelsList(_selected).length.toDouble(),
-                        minY: 0,
-                        maxY: (getHighList(_selected).reduce(max) > 270)
-                            ? getHighList(_selected).reduce(max) + 80
-                            : 350,
-                        gridData: FlGridData(show: false),
-                        extraLinesData: ExtraLinesData(
-                          extraLinesOnTop: false,
-                          horizontalLines: [
-                            HorizontalLine(
-                              y: veryHigh,
-                              color: Colors.red,
-                              strokeWidth: 1,
-                            ),
-                            HorizontalLine(
-                              y: high,
-                              color: const Color.fromARGB(255, 200, 200, 0),
-                              strokeWidth: 1,
-                            ),
-                            HorizontalLine(
-                              y: low,
-                              color: const Color.fromARGB(255, 200, 200, 0),
-                              strokeWidth: 1,
-                            ),
-                            HorizontalLine(
-                              y: veryLow,
-                              color: Colors.red,
-                              strokeWidth: 1,
-                            ),
-                          ],
-                        ),
-                        titlesData: FlTitlesData(
-                          bottomTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              interval: 1,
-                              reservedSize: 40,
-                              getTitlesWidget: (value, meta) {
-                                int index = value.toInt();
-                                if (index < 0 || index >= getLabelsList(_selected).length) {
-                                  return Container();
-                                }
-                                return Padding(
-                                  padding: const EdgeInsets.only(top: 8.0),
-                                  child: Text(
-                                    getLabelsList(_selected)[index],
-                                    style: TextStyle(
-                                      color: Colors.black,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          leftTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              reservedSize: 50,
-                              interval: 1,
-                              getTitlesWidget: (value, meta) {
-                                if (value == high) {
-                                  return Text(high.toString());
-                                } else if (value == low) {
-                                  return Text(low.toString());
-                                } else if (value == veryHigh) {
-                                  return Text(veryHigh.toString());
-                                } else if (value == veryLow) {
-                                  return Text(veryLow.toString());
-                                } else {
-                                  return SizedBox.shrink();
-                                }
-                              },
-                            ),
-                          ),
-                          topTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          rightTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                        ),
-                        borderData: FlBorderData(
-                          show: true,
-                          border: Border(
-                            top: BorderSide(color: Colors.black, width: 2),
-                            bottom: BorderSide(color: Colors.black, width: 2),
-                            left: BorderSide.none,
-                            right: BorderSide.none,
-                          ),
-                        ),
-                        lineBarsData: [
-                          LineChartBarData(
-                            spots: List.generate(
-                              getLabelsList(_selected).length,
-                              (index) =>
-                                  FlSpot(index.toDouble(), getHighList(_selected)[index]),
-                            ),
-                            isCurved: false,
-                            color: Colors.white,
-                            barWidth: 1,
-                            dotData: FlDotData(
-                              show: true,
-                              getDotPainter: (spot, percent, barData, index) {
-                                return FlDotCirclePainter(
-                                  radius: 3,
-                                  color: getBGLColor(getHighList(_selected)[index]),
-                                  strokeColor: Colors.black,
-                                  strokeWidth: 1.5,
-                                );
-                              },
-                            ),
-                          ),
-                          if (_selected != 0)
-                            LineChartBarData(
-                              spots: List.generate(
-                                getLabelsList(_selected).length,
-                                (index) =>
-                                  FlSpot(index.toDouble(), getLowList(_selected)[index]),
-                              ),
-                              isCurved: false,
-                              color: Colors.white,
-                              barWidth: 1,
-                              dotData: FlDotData(
-                                show: true,
-                                getDotPainter: (spot, percent, barData, index) {
-                                  return FlDotCirclePainter(
-                                    radius: 3,
-                                    color: getBGLColor(getLowList(_selected)[index]),
-                                    strokeColor: Colors.black,
-                                    strokeWidth: 1.5,
-                                  );
-                                },
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              SizedBox(height:20),
-
-              // ai tips, dummy text, needs to implement later
-              // copied from activity.dart
-              Container(
-                padding: EdgeInsets.all(20),
-                alignment: Alignment.centerLeft,
-                decoration: BoxDecoration(
-                  color: const Color.fromARGB(255, 31, 85, 134),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Transform.rotate(
-                          angle: pi,
-                          child: Icon(
-                            Icons.wb_incandescent_outlined,
-                            size: 32,
-                            color: Colors.white,
-                          ),
-                        ),
-
-                        SizedBox(width: 10),
-
-                        Text(
-                          'AI Tips',
-                          style: TextStyle(fontSize: 24, color: Colors.white),
-                        ),
-                      ],
-                    ),
-
-                    SizedBox(height: 10),
-
-                    // placeholder, raplace with real ai tips later
+                    const Text("Current", style: TextStyle(color: Colors.white, fontSize: 16)),
                     Text(
-                      'Nice work! Stretch your calves and hips, rest your feet, stay hydrated, maitain good posture, and aim for consistency-10,000+ steps daily keeps your heart and joints strong.',
-                      style: TextStyle(fontSize: 20, color: Colors.white),
+                      "${currentBGlevel.toInt()} mg/dL",
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
                     ),
+                    Text(zoneText, style: TextStyle(color: zoneColor, fontSize: 16)),
                   ],
                 ),
+                InkWell(
+                  onTap: _showAddDataDialog,
+                  child: Row(
+                    children: const [
+                      Icon(Icons.add_box_outlined, color: Colors.white),
+                      SizedBox(width: 6),
+                      Text("Add data", style: TextStyle(color: Colors.white, fontSize: 18)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 18),
+
+            // ── Range title ──────────────────────────────────────────────────
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "$fullRangeName Overview",
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
               ),
+            ),
 
-              SizedBox(height: 120),
-            ],
-          ),
-        ),
-      ),
+            const SizedBox(height: 10),
 
-      // totally coppied from caloriesMain, better to refactor later
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(left: 20, right: 20, bottom: 30),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 100),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(30),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                    child: Container(
-                      width: double.infinity,
-                      height: 70,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => AssistantPage(),
+            // ── Date navigation ──────────────────────────────────────────────
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
+                  onPressed: () {
+                    setState(() {
+                      dateOffset--;
+                      touchedIndex = null;
+                      _aggregateData();
+                    });
+                    _animationController.reset();
+                    _animationController.forward();
+                  },
+                ),
+                Text(
+                  dateRangeLabel,
+                  style: const TextStyle(
+                      color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.chevron_right,
+                    color: dateOffset < 0 ? Colors.white : Colors.white38,
+                    size: 30,
+                  ),
+                  onPressed: dateOffset < 0
+                      ? () {
+                          setState(() {
+                            dateOffset++;
+                            touchedIndex = null;
+                            _aggregateData();
+                          });
+                          _animationController.reset();
+                          _animationController.forward();
+                        }
+                      : null,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // ── Chart Container — now with MouseRegion + full gesture support ──
+            Container(
+              height: 300,
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xff59A2DD),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: _isLoadingChart 
+                ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                : AnimatedBuilder(
+                    animation: _animation,
+                    builder: (context, child) {
+                      return LayoutBuilder(
+                        builder: (context, constraints) {
+                          return MouseRegion(
+                            onHover: (event) => _handleChartInteraction(event.localPosition, constraints.maxWidth),
+                            onExit: (_) {
+                              if (touchedIndex != null) setState(() => touchedIndex = null);
+                            },
+                            child: GestureDetector(
+                              onTapUp: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                              onHorizontalDragUpdate: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                              onHorizontalDragEnd: (_) {
+                                if (touchedIndex != null) setState(() => touchedIndex = null);
+                              },
+                              child: CustomPaint(
+                                size: Size(constraints.maxWidth, constraints.maxHeight),
+                                painter: BloodGlucoseChartPainter(
+                                  timeData: aggTimes,
+                                  minBgData: aggLows,
+                                  maxBgData: aggHighs,
+                                  rangeLabel: selectedRange,
+                                  touchedIndex: touchedIndex,
+                                  dateOffset: dateOffset,
+                                  progress: _animation.value,
+                                ),
+                              ),
                             ),
                           );
                         },
-                        child: Center(
-                          child: Icon(
-                            Icons.auto_awesome,
-                            size: 28,
-                            color: Colors.white70,
-                          ),
-                        ),
-                      ),
-                    ),
+                      );
+                    }
                   ),
+            ),
+
+            const SizedBox(height: 14),
+
+            // ── Range filter pills ───────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade600,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: ["D", "W", "M", "3M", "6M", "Y"]
+                    .map((r) => _filterButton(r))
+                    .toList(),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Info cards ───────────────────────────────────────────────────
+            Row(
+              children: [
+                Expanded(child: _infoCard("Daily Avg", "${averageBGlevel.toInt()}\nmg/dL", getBGLColor(averageBGlevel))),
+                const SizedBox(width: 8),
+                Expanded(child: _infoCard("Fluctuation", "${fluctuation.toInt()}\nmg/dL", const Color(0xff4DA5E0))),
+                const SizedBox(width: 8),
+                Expanded(child: _infoCard("Status", zoneText, zoneColor)),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── AI tips card ─────────────────────────────────────────────────
+            InkWell(
+              onTap: () {
+                final updatedData = Map<String, dynamic>.from(widget.baseUserData);
+                updatedData['bloodGlucose'] = "${currentBGlevel.toInt()} mg/dL";
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => AssistantPage(userData: updatedData)),
+                );
+              },
+              borderRadius: BorderRadius.circular(22),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xff375B86),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: const [
+                        Text("💡 AI Tips",
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold)),
+                        Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _isLoadingTip
+                        ? Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.only(top: 2),
+                                child: SizedBox(
+                                  height: 16, width: 16,
+                                  child: CircularProgressIndicator(
+                                      color: Colors.white70, strokeWidth: 2),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  "Analyzing your blood glucose data...",
+                                  style: const TextStyle(
+                                      color: Colors.white70, fontSize: 14),
+                                ),
+                              ),
+                            ],
+                          )
+                        : Text(_dynamicAiTip,
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 15, height: 1.5)),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+
+            const SizedBox(height: 40),
+          ],
         ),
       ),
     );
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Small reusable widgets
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Widget _infoCard(String title, String value, Color bgColor) {
+    return Container(
+      height: 95,
+      decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(24)),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontSize: 14)),
+          const SizedBox(height: 6),
+          Text(value,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _filterButton(String label) {
+    final selected = selectedRange == label;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          selectedRange = label;
+          touchedIndex  = null;
+          dateOffset    = 0;
+          _aggregateData();
+        });
+        _animationController.reset();
+        _animationController.forward();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xff6CE5FF) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+              color: selected ? Colors.white : Colors.white70,
+              fontSize: 15,
+              fontWeight: selected ? FontWeight.bold : FontWeight.normal),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Custom Painter
+// ─────────────────────────────────────────────────────────────────────────
+
+class BloodGlucoseChartPainter extends CustomPainter {
+  final List<DateTime> timeData;
+  final List<double> minBgData;
+  final List<double> maxBgData;
+  final String rangeLabel;
+  final int? touchedIndex;
+  final int dateOffset;
+  final double progress;
+
+  BloodGlucoseChartPainter({
+    required this.timeData,
+    required this.minBgData,
+    required this.maxBgData,
+    required this.rangeLabel,
+    this.touchedIndex,
+    required this.dateOffset,
+    required this.progress
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bgPaint       = Paint()..color = const Color(0xff00E5FF)..style = PaintingStyle.fill;
+    final bgColumnPaint = Paint()..color = const Color(0xff00E5FF).withValues(alpha: 0.3)..strokeWidth = 5..strokeCap = StrokeCap.round;
+    final gridPaint     = Paint()..color = Colors.white54..strokeWidth = 1;
+    const textStyle     = TextStyle(color: Colors.white, fontSize: 11);
+
+    // --- Y-AXIS ---
+    final allValues = [...minBgData, ...maxBgData];
+    final minVal = allValues.isEmpty ? 50.0  : max(0.0, ((allValues.reduce(min) - 20) ~/ 10) * 10.0);
+    final maxVal = allValues.isEmpty ? 200.0 : (((allValues.reduce(max) + 20) ~/ 10) * 10).toDouble();
+    final range  = maxVal - minVal == 0 ? 10 : maxVal - minVal;
+
+    const leftPadding   = 55.0;
+    const bottomPadding = 24.0;
+    final chartHeight   = size.height - bottomPadding;
+    final usableWidth   = size.width - leftPadding - 20;
+
+    for (int i = 0; i <= 5; i++) {
+      final y = chartHeight * i / 5;
+      canvas.drawLine(Offset(leftPadding, y), Offset(size.width, y), gridPaint);
+      final value = maxVal - (range * i / 5);
+      final tp = TextPainter(
+        text: TextSpan(text: value.toStringAsFixed(0), style: textStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(8, y - 8));
+    }
+
+    // --- TIME BOUNDS ---
+    final now = DateTime.now();
+    DateTime startTime;
+    DateTime endTime;
+
+    switch (rangeLabel) {
+      case "D":
+        startTime = DateTime(now.year, now.month, now.day + dateOffset);
+        endTime   = DateTime(now.year, now.month, now.day + dateOffset + 1);
+        break;
+      case "W":
+        int dToM  = now.weekday - 1;
+        startTime = DateTime(now.year, now.month, now.day - dToM + (dateOffset * 7));
+        endTime   = DateTime(now.year, now.month, now.day - dToM + 7 + (dateOffset * 7));
+        break;
+      case "M":
+        startTime = DateTime(now.year, now.month + dateOffset, 1);
+        endTime   = DateTime(now.year, now.month + dateOffset + 1, 1);
+        break;
+      case "3M":
+        startTime = DateTime(now.year, now.month - 2 + (dateOffset * 3), 1);
+        endTime   = DateTime(now.year, now.month + 1 + (dateOffset * 3), 1);
+        break;
+      case "6M":
+        startTime = DateTime(now.year, now.month - 5 + (dateOffset * 6), 1);
+        endTime   = DateTime(now.year, now.month + 1 + (dateOffset * 6), 1);
+        break;
+      case "Y":
+        startTime = DateTime(now.year + dateOffset, 1, 1);
+        endTime   = DateTime(now.year + dateOffset + 1, 1, 1);
+        break;
+      default:
+        startTime = DateTime(now.year, now.month, now.day);
+        endTime   = startTime.add(const Duration(days: 1));
+    }
+
+    final totalMillis = endTime.difference(startTime).inMilliseconds;
+
+    // --- X-AXIS LABELS ---
+    for (var label in _getDynamicLabels(rangeLabel, startTime, endTime)) {
+      final elapsed   = label.time.difference(startTime).inMilliseconds;
+      num ratio    = (totalMillis > 0 ? elapsed / totalMillis : 0).clamp(0.0, 1.0);
+      final x         = leftPadding + usableWidth * ratio;
+      final tp        = TextPainter(
+        text: TextSpan(text: label.text, style: textStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(x - tp.width / 2, size.height - 18));
+    }
+
+    // --- DATA POINTS (columns + dots) ---
+    final pointCount = min(timeData.length, minBgData.length);
+    const dotRadius  = 3.5;
+
+    for (int i = 0; i < pointCount; i++) {
+      final elapsed  = timeData[i].difference(startTime).inMilliseconds;
+      num ratio   = (totalMillis > 0 ? elapsed / totalMillis : 0).clamp(0.0, 1.0);
+      final x        = leftPadding + usableWidth * ratio;
+
+      final tMinY    = chartHeight - ((minBgData[i] - minVal) / range) * chartHeight;
+      final tMaxY    = chartHeight - ((maxBgData[i] - minVal) / range) * chartHeight;
+      final minY     = chartHeight - ((chartHeight - tMinY) * progress);
+      final maxY     = chartHeight - ((chartHeight - tMaxY) * progress);
+
+      if (minBgData[i] != maxBgData[i]) {
+        canvas.drawLine(Offset(x, minY), Offset(x, maxY), bgColumnPaint);
+        canvas.drawCircle(Offset(x, minY), dotRadius, bgPaint);
+        canvas.drawCircle(Offset(x, maxY), dotRadius, bgPaint);
+      } else {
+        canvas.drawCircle(Offset(x, minY), dotRadius, bgPaint);
+      }
+
+      // Highlight rings drawn on top of the dot(s) for the touched point
+      if (touchedIndex == i) {
+        canvas.drawCircle(Offset(x, maxY), 8, Paint()..color = Colors.white);
+        canvas.drawCircle(Offset(x, maxY), 5, Paint()..color = const Color(0xff031447));
+        if (minBgData[i] != maxBgData[i]) {
+          canvas.drawCircle(Offset(x, minY), 8, Paint()..color = Colors.white);
+          canvas.drawCircle(Offset(x, minY), 5, Paint()..color = const Color(0xff031447));
+        }
+      }
+    }
+
+    // --- TOOLTIP drawn last so it layers above everything ---
+    if (touchedIndex != null && touchedIndex! < pointCount) {
+      final elapsed  = timeData[touchedIndex!].difference(startTime).inMilliseconds;
+      num ratio   = (totalMillis > 0 ? elapsed / totalMillis : 0).clamp(0.0, 1.0);
+      final x        = leftPadding + usableWidth * ratio;
+      final bMin     = minBgData[touchedIndex!];
+      final bMax     = maxBgData[touchedIndex!];
+      final highestY = chartHeight - ((bMax - minVal) / range) * chartHeight;
+
+      _drawTooltip(canvas, size, x, highestY, bMin, bMax, timeData[touchedIndex!]);
+    }
+  }
+
+  // --- UPDATED: Dark box tooltip matching body weight style ---
+  // Row 1: date/timeframe in white70
+  // Row 2: value in cyan (0xff00E5FF)
+  void _drawTooltip(Canvas canvas, Size size, double x, double highestY, double bMin, double bMax, DateTime date) {
+    const List<String> months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+    // Row 1 — timeframe label
+    String dateStr;
+    if (rangeLabel == "D") {
+      final period = date.hour >= 12 ? "PM" : "AM";
+      int h = date.hour % 12;
+      if (h == 0) h = 12;
+      dateStr = "${date.day} ${months[date.month - 1]}, $h:00 $period";
+    } else if (rangeLabel == "W" || rangeLabel == "M") {
+      dateStr = "${date.day} ${months[date.month - 1]}";
+    } else if (rangeLabel == "3M" || rangeLabel == "6M") {
+      final weekEnd = date.add(const Duration(days: 6));
+      dateStr = "${date.day} ${months[date.month - 1]} - ${weekEnd.day} ${months[weekEnd.month - 1]}";
+    } else {
+      dateStr = "${months[date.month - 1]} ${date.year}";
+    }
+
+    // Row 2 — value (single or range)
+    final valueStr = bMin == bMax
+        ? "${bMax.toInt()} mg/dL"
+        : "${bMin.toInt()}–${bMax.toInt()} mg/dL";
+
+    final textSpan = TextSpan(
+      children: [
+        TextSpan(
+          text: "$dateStr\n",
+          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+        TextSpan(
+          text: valueStr,
+          style: const TextStyle(color: Color(0xff00E5FF), fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+
+    final textPainter = TextPainter(
+      text: textSpan,
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final boxWidth  = textPainter.width + 24;
+    final boxHeight = textPainter.height + 16;
+
+    double rectLeft = (x - boxWidth / 2).clamp(55.0, size.width - boxWidth);
+    double rectTop  = highestY - boxHeight - 15;
+    if (rectTop < 0) rectTop = highestY + 15;
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(rectLeft, rectTop, boxWidth, boxHeight),
+      const Radius.circular(8),
+    );
+
+    // Shadow
+    canvas.drawRRect(rrect.shift(const Offset(0, 3)), Paint()..color = Colors.black26);
+    // Dark box
+    canvas.drawRRect(rrect, Paint()..color = const Color(0xff1A3F6B));
+    // Text
+    textPainter.paint(canvas, Offset(rectLeft + 12, rectTop + 8));
+  }
+
+  List<ChartLabel> _getDynamicLabels(String range, DateTime start, DateTime end) { 
+    const weekdays         = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    const months           = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const singleLetterMonths = ["J","F","M","A","M","J","J","A","S","O","N","D"];
+    
+    switch (range) {
+      case "D": 
+        return [
+          ChartLabel("12 AM", start),
+          ChartLabel("6 AM",  start.add(const Duration(hours: 6))),
+          ChartLabel("12 PM", start.add(const Duration(hours: 12))),
+          ChartLabel("6 PM",  start.add(const Duration(hours: 18))),
+          ChartLabel("12 AM", start.add(const Duration(hours: 24))),
+        ];
+      case "W":
+        return List.generate(7, (i) {
+          final t = start.add(Duration(days: i));
+          return ChartLabel(weekdays[t.weekday - 1], t);
+        });
+      case "M":
+        final days = end.difference(start).inDays;
+        return List.generate(5, (i) {
+          final t = start.add(Duration(days: (i * (days - 1) / 4).round()));
+          return ChartLabel("${t.day} ${months[t.month - 1]}", t);
+        });
+      case "3M":
+      case "6M":
+        final count = range == "3M" ? 3 : 6;
+        return List.generate(count, (i) {
+          final t = DateTime(start.year, start.month + i, 1);
+          return ChartLabel(months[t.month - 1], t);
+        });
+      case "Y":
+        return List.generate(12, (i) {
+          final t = DateTime(start.year, start.month + i, 1);
+          return ChartLabel(singleLetterMonths[t.month - 1], t);
+        });
+      default:
+        return [];
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class ChartLabel {
+  final String text;
+  final DateTime time;
+  ChartLabel(this.text, this.time);
 }

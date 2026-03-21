@@ -503,4 +503,172 @@ class ApiService {
       return [];
     }
   }
+
+  // --- MEDICATION APIS ---
+
+  static Future<List<dynamic>> getMedications() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return [];
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/medications'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return [];
+    } catch (e) {
+      print("Error fetching meds: $e");
+      return [];
+    }
+  }
+
+  static Future<bool> addMedication(String name, String dosage, double inventory, String unit, List<String> times) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return false;
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/medications'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'name': name, 
+          'dosage': dosage, 
+          'inventory': inventory,
+          'unit': unit,
+          'times': times, // Pass the list directly!
+        }),
+      );
+
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<bool> takeMedication(int medId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return false;
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/medications/$medId/take'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<bool> deleteMedication(int medId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return false;
+
+      final response = await http.delete(
+        Uri.parse('$_baseUrl/medications/$medId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print("Error deleting medication: $e");
+      return false;
+    }
+  }
+
+  static Future<int> getMedicationAdherence() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return 0;
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/medications/adherence'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body)['adherence_percentage'] ?? 0;
+      }
+      return 0;
+    } catch (e) {
+      print("Error fetching adherence: $e");
+      return 0;
+    }
+  }
+
+  static Future<bool> editMedication(int medId, String name, String dosage, double inventory, String unit, List<String> times) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return false;
+
+      final response = await http.put(
+        Uri.parse('$_baseUrl/medications/$medId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'name': name, 'dosage': dosage, 'inventory': inventory,
+          'unit': unit, 'times': times,
+        }),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print("Error editing medication: $e");
+      return false;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> getFitbitIntradaySteps(String date) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return null;
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/fitbit/steps/intraday/$date'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        // --- NEW: Print the exact error from the backend! ---
+        print("Fitbit API Failed: ${response.statusCode} - ${response.body}");
+      }
+    } catch (e) {
+      print("Error fetching intraday steps: $e");
+    }
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> getFitbitTimeSeriesSteps(String period, String date) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return null;
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/fitbit/steps/timeseries/$period/$date'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        print("Fitbit TimeSeries API Failed: ${response.statusCode} - ${response.body}");
+      }
+    } catch (e) {
+      print("Error fetching timeseries steps: $e");
+    }
+    return null;
+  }
 }

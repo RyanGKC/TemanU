@@ -1,14 +1,15 @@
 import 'dart:ui';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; 
 import 'package:google_generative_ai/google_generative_ai.dart'; 
 import 'package:shared_preferences/shared_preferences.dart'; 
-import 'package:temanu/api_service.dart'; // <-- NEW: Import your API service
+import 'package:temanu/api_service.dart'; 
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/shareWeightHighlightPage.dart';
-import 'package:temanu/weightLineChartPainter.dart';
+import 'package:temanu/button.dart'; // <-- ADDED
+import 'package:temanu/textbox.dart'; // <-- ADDED
 
-// <-- NEW: We define WeightReading here so we don't need the Mock file anymore!
 class WeightReading {
   final DateTime time;
   final double weight;
@@ -25,7 +26,7 @@ class BodyWeightPage extends StatefulWidget {
 }
 
 class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProviderStateMixin {
-  double currentWeight = 0.0; // Will be overwritten by DB
+  double currentWeight = 0.0; 
   double goalWeight = 80.0;
   double heightCm = 186.0;
   String selectedRange = "W";
@@ -38,10 +39,9 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
 
   String _dynamicAiTip = "Analyzing your body weight data...";
   bool _isLoadingTip = true;
-  bool _isLoadingChart = true; // <-- NEW: Track when the chart is fetching data
+  bool _isLoadingChart = true; 
 
-  // Master lists for the graph
-  List<WeightReading> _liveReadings = []; // <-- NEW: Holds data from Railway
+  List<WeightReading> _liveReadings = []; 
   List<DateTime> aggTimes = [];
   List<double> aggWeights = [];
 
@@ -115,7 +115,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     final weightParsed = double.tryParse(widget.baseUserData['weight'] ?? '');
     if (weightParsed != null) currentWeight = weightParsed;
 
-    // <-- NEW: Fetch live data when the page opens
     _fetchWeightData(); 
     _generateAITip();
   }
@@ -126,7 +125,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     super.dispose();
   }
 
-  // ─── NEW: Fetch data from Railway ─────────────────────────────────────────
   Future<void> _fetchWeightData() async {
     setState(() => _isLoadingChart = true);
 
@@ -134,7 +132,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
 
     List<WeightReading> fetchedData = [];
     for (var m in rawMetrics) {
-      // 🎯 CHANGED THIS LINE to match your database exactly:
       String dateStr = m['timestamp'] ?? DateTime.now().toIso8601String();
       
       if (!dateStr.endsWith('Z')) dateStr += 'Z'; 
@@ -161,7 +158,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     }
   }
 
-  // ─── AI Tip Generator ─────────────────────────────────────────────────────
   Future<void> _generateAITip({bool forceRefresh = false}) async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -224,7 +220,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
   }
 
   void _aggregateData() {
-    // <-- NEW: Use the live readings instead of the Mock file
     final rawData = _liveReadings; 
     Map<DateTime, List<WeightReading>> grouped = {};
     final startTime = _startTime;
@@ -258,29 +253,38 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     }
   }
 
-  void _handleChartTap(TapUpDetails details, double width) {
-    final double leftPadding = 58;
-    final double rightPadding = 20;
-    final double usableWidth = width - leftPadding - rightPadding;
-    final double dx = details.localPosition.dx;
+  void _handleChartInteraction(Offset localPosition, double width) {
+    const double leftPadding = 58.0;
+    final double usableWidth = width - leftPadding - 20.0;
+    final double dx = localPosition.dx;
 
     if (dx < leftPadding - 15 || dx > width - 5) {
-      setState(() => touchedIndex = null);
+      if (touchedIndex != null) setState(() => touchedIndex = null);
       return;
     }
 
     if (aggTimes.isEmpty) return;
 
-    final startTime = _startTime;
-    final endTime = _endTime;
-    final totalMillis = endTime.difference(startTime).inMilliseconds;
+    DateTime effectiveStartTime = _startTime;
+    DateTime effectiveEndTime = _endTime;
+
+    switch (selectedRange) {
+      case "D": effectiveEndTime = _startTime.add(const Duration(hours: 24)); break;
+      case "W": effectiveEndTime = _startTime.add(const Duration(days: 6)); break;
+      case "M": effectiveEndTime = DateTime(_startTime.year, _startTime.month + 1, 0); break; 
+      case "3M": effectiveEndTime = DateTime(_startTime.year, _startTime.month + 2, 1); break;
+      case "6M": effectiveEndTime = DateTime(_startTime.year, _startTime.month + 5, 1); break;
+      case "Y": effectiveEndTime = DateTime(_startTime.year, 12, 1); break;
+    }
+
+    final totalMillis = effectiveEndTime.difference(effectiveStartTime).inMilliseconds;
     
     int? closestIndex;
     double minDistance = double.infinity;
 
     for (int i = 0; i < aggTimes.length; i++) {
-      final elapsedMillis = aggTimes[i].difference(startTime).inMilliseconds;
-      double timeRatio = elapsedMillis / (totalMillis > 0 ? totalMillis : 1);
+      final elapsedMillis = aggTimes[i].difference(effectiveStartTime).inMilliseconds;
+      double timeRatio = totalMillis > 0 ? elapsedMillis / totalMillis : 0;
       timeRatio = timeRatio.clamp(0.0, 1.0);
       final x = leftPadding + (usableWidth * timeRatio);
       
@@ -291,7 +295,9 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
       }
     }
 
-    setState(() => touchedIndex = closestIndex);
+    if (touchedIndex != closestIndex) {
+      setState(() => touchedIndex = closestIndex);
+    }
   }
 
   double get bmi {
@@ -305,11 +311,9 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     return aggWeights.last - aggWeights.first;
   }
 
-  // ─── NEW: Send data to Railway ──────────────────────────────────────────
   void addWeightData(double value) async { 
-    setState(() => _isLoadingChart = true); // Show loading spinner
+    setState(() => _isLoadingChart = true); 
     
-    // 1. Send it to the backend
     bool success = await ApiService.saveHealthMetric(
       metricType: "Body Weight", 
       value: value.toString(), 
@@ -317,11 +321,9 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     );
 
     if (success) {
-      // 2. Save it locally so the AI Assistant knows immediately
       final prefs = await SharedPreferences.getInstance();
       await prefs.setDouble('latest_weight', value);
 
-      // 3. Re-fetch the data to rebuild the graph and generate a new tip
       await _fetchWeightData();
       _generateAITip(forceRefresh: true);
     } else {
@@ -332,39 +334,56 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     }
   }
 
-  void showAddDataDialog() {
+  // --- UPDATED: Glossy Dialog for Adding Weight Data ---
+   void showAddDataDialog() {
     final weightController = TextEditingController();
-
+ 
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Add Weight Data"),
-          content: TextField(
-            controller: weightController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: "Enter new weight (kg)",
-            ),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          padding: const EdgeInsets.all(25),
+          decoration: BoxDecoration(
+            color: const Color(0xff1A3F6B).withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final newWeight = double.tryParse(weightController.text);
-                if (newWeight != null) {
-                  addWeightData(newWeight);
-                }
-                Navigator.pop(context);
-              },
-              child: const Text("Save"),
-            ),
-          ],
-        );
-      },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Add Weight Data',
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                "Enter your latest body weight reading in kg.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+              MyTextField(
+                controller: weightController,
+                hintText: 'Value (kg)',
+                prefixIcon: Icons.monitor_weight_outlined,
+              ),
+              const SizedBox(height: 25),
+              MyRoundedButton(
+                text: 'Save Reading',
+                backgroundColor: const Color(0xff00E5FF),
+                textColor: const Color(0xff040F31),
+                onPressed: () {
+                  final val = double.tryParse(weightController.text);
+                  if (val != null && val > 0) addWeightData(val);
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -517,7 +536,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
                 color: const Color(0xff59A2DD),
                 borderRadius: BorderRadius.circular(30),
               ),
-              // <-- NEW: Show a spinner while the graph data is loading
               child: _isLoadingChart 
                 ? const Center(child: CircularProgressIndicator(color: Colors.white))
                 : AnimatedBuilder(
@@ -525,11 +543,21 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
                     builder: (context, child) {
                       return LayoutBuilder(
                         builder: (context, constraints) {
-                          return GestureDetector(
-                            onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
-                            child: CustomPaint(
-                              size: Size(constraints.maxWidth, constraints.maxHeight),
-                              painter: WeightLineChartPainter(aggTimes, aggWeights, selectedRange, touchedIndex, _animation.value, dateOffset)
+                          return MouseRegion(
+                            onHover: (event) => _handleChartInteraction(event.localPosition, constraints.maxWidth),
+                            onExit: (_) {
+                              if (touchedIndex != null) setState(() => touchedIndex = null);
+                            },
+                            child: GestureDetector(
+                              onTapUp: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                              onHorizontalDragUpdate: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                              onHorizontalDragEnd: (_) {
+                                if (touchedIndex != null) setState(() => touchedIndex = null);
+                              },
+                              child: CustomPaint(
+                                size: Size(constraints.maxWidth, constraints.maxHeight),
+                                painter: WeightLineChartPainter(aggTimes, aggWeights, selectedRange, touchedIndex, _animation.value, dateOffset)
+                              ),
                             ),
                           );
                         },
@@ -676,4 +704,227 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
       ),
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// CUSTOM PAINTER 
+// ─────────────────────────────────────────────────────────────────────────
+class ChartLabel {
+  final String text;
+  final DateTime time;
+  ChartLabel(this.text, this.time);
+}
+
+class WeightLineChartPainter extends CustomPainter {
+  final List<DateTime> timeData; 
+  final List<double> weightData; 
+  final String selectedRange;
+  final int? touchedIndex;
+  final double progress;
+  final int dateOffset;
+
+  WeightLineChartPainter(this.timeData, this.weightData, this.selectedRange, this.touchedIndex, this.progress, this.dateOffset);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final linePaint = Paint()..color = Colors.white..strokeWidth = 2..style = PaintingStyle.stroke;
+    final dotPaint = Paint()..color = const Color(0xff7EF2FF)..style = PaintingStyle.fill;
+    final gridPaint = Paint()..color = Colors.white54..strokeWidth = 1;
+    const textStyle = TextStyle(color: Colors.white, fontSize: 12);
+
+    final axis = _buildDynamicAxis(weightData);
+    final minAxis = axis.$1;
+    final maxAxis = axis.$2;
+    final range = maxAxis - minAxis == 0 ? 1 : maxAxis - minAxis;
+
+    const leftPadding = 58.0;
+    const bottomPadding = 24.0;
+    final chartHeight = size.height - bottomPadding;
+    final usableWidth = size.width - leftPadding - 20;
+
+    // Grid
+    for (int i = 0; i <= 5; i++) {
+      final y = chartHeight * i / 5;
+      canvas.drawLine(Offset(leftPadding, y), Offset(size.width, y), gridPaint);
+      final value = maxAxis - (range * i / 5);
+      final tp = TextPainter(text: TextSpan(text: "${value.toStringAsFixed(1)}kg", style: textStyle), textDirection: TextDirection.ltr)..layout();
+      tp.paint(canvas, Offset(0, y - 8));
+    }
+
+    // --- GAP FIX: Time Bounds Calculation ---
+    final now = DateTime.now();
+    DateTime startTime;
+    DateTime endTime; 
+    DateTime effectiveEndTime; 
+
+    switch (selectedRange) {
+      case "D": 
+        startTime = DateTime(now.year, now.month, now.day + dateOffset); 
+        endTime = startTime.add(const Duration(days: 1)); 
+        effectiveEndTime = startTime.add(const Duration(hours: 24));
+        break;
+      case "W": 
+        int dToM = now.weekday - 1; 
+        startTime = DateTime(now.year, now.month, now.day - dToM + (dateOffset * 7)); 
+        endTime = startTime.add(const Duration(days: 7)); 
+        effectiveEndTime = startTime.add(const Duration(days: 6));
+        break;
+      case "M": 
+        startTime = DateTime(now.year, now.month + dateOffset, 1); 
+        endTime = DateTime(now.year, now.month + dateOffset + 1, 1); 
+        effectiveEndTime = DateTime(startTime.year, startTime.month + 1, 0); 
+        break;
+      case "3M": 
+        startTime = DateTime(now.year, now.month - 2 + (dateOffset * 3), 1); 
+        endTime = DateTime(now.year, now.month + 1 + (dateOffset * 3), 1); 
+        effectiveEndTime = DateTime(startTime.year, startTime.month + 2, 1);
+        break;
+      case "6M": 
+        startTime = DateTime(now.year, now.month - 5 + (dateOffset * 6), 1); 
+        endTime = DateTime(now.year, now.month + 1 + (dateOffset * 6), 1); 
+        effectiveEndTime = DateTime(startTime.year, startTime.month + 5, 1);
+        break;
+      case "Y": 
+        startTime = DateTime(now.year + dateOffset, 1, 1); 
+        endTime = DateTime(now.year + dateOffset + 1, 1, 1); 
+        effectiveEndTime = DateTime(startTime.year, 12, 1);
+        break;
+      default: 
+        startTime = DateTime(now.year, now.month, now.day); 
+        endTime = startTime.add(const Duration(days: 1));
+        effectiveEndTime = startTime.add(const Duration(hours: 24));
+    }
+
+    final totalMillis = effectiveEndTime.difference(startTime).inMilliseconds;
+
+    // Draw Line & Dots
+    final path = Path();
+    for (int i = 0; i < timeData.length; i++) {
+      final elapsedMillis = timeData[i].difference(startTime).inMilliseconds;
+      double timeRatio = totalMillis > 0 ? elapsedMillis / totalMillis : 0;
+      timeRatio = timeRatio.clamp(0.0, 1.0);
+      final x = leftPadding + (usableWidth * timeRatio);
+      
+      final targetY = chartHeight - ((weightData[i] - minAxis) / range) * chartHeight;
+      final y = chartHeight - ((chartHeight - targetY) * progress);
+
+      if (i == 0) path.moveTo(x, y);
+      else path.lineTo(x, y);
+      
+      canvas.drawCircle(Offset(x, y), 5, dotPaint);
+    }
+    if (timeData.isNotEmpty) canvas.drawPath(path, linePaint);
+
+    // Dynamic Labels
+    final labels = _getDynamicLabels(selectedRange, startTime, endTime);
+    for (var label in labels) {
+      final elapsedMillis = label.time.difference(startTime).inMilliseconds;
+      double timeRatio = totalMillis > 0 ? elapsedMillis / totalMillis : 0;
+      timeRatio = timeRatio.clamp(0.0, 1.0); 
+      final x = leftPadding + (usableWidth * timeRatio);
+      final tp = TextPainter(text: TextSpan(text: label.text, style: textStyle), textDirection: TextDirection.ltr)..layout();
+      tp.paint(canvas, Offset(x - tp.width / 2, size.height - 18));
+    }
+
+    // Tooltip Highlight
+    if (touchedIndex != null && touchedIndex! < timeData.length) {
+      final elapsedMillis = timeData[touchedIndex!].difference(startTime).inMilliseconds;
+      double timeRatio = totalMillis > 0 ? elapsedMillis / totalMillis : 0;
+      timeRatio = timeRatio.clamp(0.0, 1.0);
+      final x = leftPadding + (usableWidth * timeRatio);
+      final y = chartHeight - ((weightData[touchedIndex!] - minAxis) / range) * chartHeight;
+      
+      canvas.drawCircle(Offset(x, y), 8, Paint()..color = Colors.white);
+      canvas.drawCircle(Offset(x, y), 5, Paint()..color = const Color(0xff031447));
+      _drawTooltip(canvas, size, x, y, weightData[touchedIndex!], timeData[touchedIndex!]);
+    }
+  }
+
+  (double, double) _buildDynamicAxis(List<double> values) {
+    if (values.isEmpty) return (0.0, 10.0); 
+    double minVal = values.reduce(min);
+    double maxVal = values.reduce(max);
+    double minAxis = (minVal - 1).roundToDouble();
+    double maxAxis = (maxVal + 1).roundToDouble();
+    if (minAxis >= maxAxis) { minAxis -= 1; maxAxis += 1; }
+    return (minAxis, maxAxis);
+  }
+
+  List<ChartLabel> _getDynamicLabels(String range, DateTime start, DateTime end) {
+    const List<String> weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const List<String> months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const List<String> singleLetterMonths = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]; 
+    
+    switch (range) {
+      case "D": 
+        return [
+          ChartLabel("12 AM", start), 
+          ChartLabel("6 AM", start.add(const Duration(hours: 6))), 
+          ChartLabel("12 PM", start.add(const Duration(hours: 12))), 
+          ChartLabel("6 PM", start.add(const Duration(hours: 18))), 
+          ChartLabel("12 AM", start.add(const Duration(hours: 24)))
+        ];
+      case "W": return List.generate(7, (i) { DateTime t = start.add(Duration(days: i)); return ChartLabel(weekdays[t.weekday - 1], t); });
+      case "M": 
+        int daysInMonth = DateTime(start.year, start.month + 1, 0).day; 
+        return List.generate(5, (i) { 
+          DateTime t = start.add(Duration(days: (i * (daysInMonth - 1) / 4).round())); 
+          return ChartLabel("${t.day}/${t.month}", t); 
+        });
+      case "3M": return List.generate(3, (i) { DateTime t = DateTime(start.year, start.month + i, 1); return ChartLabel(months[t.month - 1], t); });
+      case "6M": return List.generate(6, (i) { DateTime t = DateTime(start.year, start.month + i, 1); return ChartLabel(months[t.month - 1], t); });
+      case "Y": return List.generate(12, (i) { 
+        DateTime t = DateTime(start.year, start.month + i, 1); 
+        return ChartLabel(singleLetterMonths[t.month - 1], t); 
+      });
+      default: return [];
+    }
+  }
+
+  void _drawTooltip(Canvas canvas, Size size, double x, double y, double value, DateTime date) {
+    const List<String> months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    
+    String dateStr;
+    if (selectedRange == "D") {
+      String period = date.hour >= 12 ? "PM" : "AM";
+      int h = date.hour % 12; if (h == 0) h = 12;
+      dateStr = "${date.day} ${months[date.month - 1]}, $h:00 $period"; 
+    } else if (selectedRange == "W" || selectedRange == "M") {
+      dateStr = "${date.day} ${months[date.month - 1]}"; 
+    } else if (selectedRange == "3M" || selectedRange == "6M") {
+      final weekEnd = date.add(const Duration(days: 6));
+      dateStr = "${date.day} ${months[date.month - 1]} - ${weekEnd.day} ${months[weekEnd.month - 1]}";
+    } else {
+      dateStr = "${months[date.month - 1]} ${date.year}"; 
+    }
+
+    final textSpan = TextSpan(
+      children: [
+        TextSpan(
+          text: "$dateStr\n", 
+          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)
+        ),
+        TextSpan(
+          text: "${value.toStringAsFixed(1)} kg", 
+          style: const TextStyle(color: Color(0xff00E5FF), fontSize: 14, fontWeight: FontWeight.bold)
+        ),
+      ]
+    );
+
+    final textPainter = TextPainter(text: textSpan, textAlign: TextAlign.center, textDirection: TextDirection.ltr)..layout();
+
+    final boxWidth = textPainter.width + 24;
+    final boxHeight = textPainter.height + 16;
+    
+    double rectLeft = (x - boxWidth / 2).clamp(58.0, size.width - boxWidth);
+    double rectTop = y - boxHeight - 15;
+    if (rectTop < 0) rectTop = y + 15; 
+
+    final rrect = RRect.fromRectAndRadius(Rect.fromLTWH(rectLeft, rectTop, boxWidth, boxHeight), const Radius.circular(8));
+    
+    canvas.drawRRect(rrect.shift(const Offset(0, 3)), Paint()..color = Colors.black26); 
+    canvas.drawRRect(rrect, Paint()..color = const Color(0xff1A3F6B)); 
+    textPainter.paint(canvas, Offset(rectLeft + 12, rectTop + 8)); 
+  }
+  @override bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

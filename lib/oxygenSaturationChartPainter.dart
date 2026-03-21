@@ -20,18 +20,20 @@ class OxygenSaturationChartPainter extends CustomPainter {
     required this.progress
   });
 
+  // --- UPDATED: High-visibility "Electric Spring Green" ---
+  // This luminous green pops beautifully and clearly against the blue 0xff59A2DD background.
+  static const Color _dotColor = Color(0xff00FF7F); 
+  static const Color _columnColor = Color(0x6600FF7F); // 40% opacity version for the column
+
   @override
   void paint(Canvas canvas, Size size) {
-    // Crisp Cyan for Oxygen
-    final oxyPaint = Paint()..color = const Color(0xff00E5FF)..style = PaintingStyle.fill;
-    final oxyColumnPaint = Paint()..color = const Color(0xff00E5FF).withValues(alpha: 0.3)..strokeWidth = 5..strokeCap = StrokeCap.round;
+    final oxyPaint = Paint()..color = _dotColor..style = PaintingStyle.fill;
+    final oxyColumnPaint = Paint()..color = _columnColor..strokeWidth = 5..strokeCap = StrokeCap.round;
     final gridPaint = Paint()..color = Colors.white54..strokeWidth = 1;
     const textStyle = TextStyle(color: Colors.white, fontSize: 11);
 
     // --- Y-AXIS CALCULATION (Tailored for SpO2) ---
     final allValues = [...minSpO2Data, ...maxSpO2Data];
-    // SpO2 rarely drops below 85% in normal circumstances. 
-    // We lock the max at 100% since you can't have more than 100% oxygen saturation.
     final minVal = allValues.isEmpty ? 85.0 : max(0.0, ((allValues.reduce(min) - 2) ~/ 5) * 5.0);
     const maxVal = 100.0;
     final range = maxVal - minVal == 0 ? 5 : maxVal - minVal;
@@ -51,7 +53,7 @@ class OxygenSaturationChartPainter extends CustomPainter {
       tp.paint(canvas, Offset(8, y - 8));
     }
 
-    // --- TIME BOUNDS & LABELS ---
+    // --- TIME BOUNDS ---
     final now = DateTime.now();
     DateTime startTime;
     DateTime endTime;
@@ -125,9 +127,20 @@ class OxygenSaturationChartPainter extends CustomPainter {
       } else {
         canvas.drawCircle(Offset(x, minY), dotRadius, oxyPaint); 
       }
+
+      // Highlight rings for touched point — drawn on top of dots
+      if (touchedIndex == i) {
+        canvas.drawCircle(Offset(x, maxY), 8, Paint()..color = Colors.white);
+        canvas.drawCircle(Offset(x, maxY), 5, Paint()..color = const Color(0xff031447));
+        // If range shown (min != max), also ring the bottom dot
+        if (minSpO2Data[i] != maxSpO2Data[i]) {
+          canvas.drawCircle(Offset(x, minY), 8, Paint()..color = Colors.white);
+          canvas.drawCircle(Offset(x, minY), 5, Paint()..color = const Color(0xff031447));
+        }
+      }
     }
 
-    // --- DRAW HIGHLIGHT TOOLTIP ---
+    // --- DRAW TOOLTIP (drawn last so it sits above everything) ---
     if (touchedIndex != null && touchedIndex! < pointCount) {
       final elapsedMillis = timeData[touchedIndex!].difference(startTime).inMilliseconds;
       double timeRatio = elapsedMillis / (totalMillis > 0 ? totalMillis : 1);
@@ -138,56 +151,69 @@ class OxygenSaturationChartPainter extends CustomPainter {
       final sMax = maxSpO2Data[touchedIndex!];
       final highestY = chartHeight - ((sMax - minVal) / range) * chartHeight;
 
-      _drawTooltip(canvas, size, x, highestY, chartHeight, sMin, sMax, timeData[touchedIndex!]);
+      _drawTooltip(canvas, size, x, highestY, sMin, sMax, timeData[touchedIndex!]);
     }
   }
 
-  void _drawTooltip(Canvas canvas, Size size, double x, double highestY, double chartHeight, int sMin, int sMax, DateTime date) {
+  void _drawTooltip(Canvas canvas, Size size, double x, double highestY, int sMin, int sMax, DateTime date) {
     const List<String> months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     
-    String period = date.hour >= 12 ? "PM" : "AM";
-    int h = date.hour % 12;
-    if (h == 0) h = 12;
-    
+    // Row 1: date/timeframe label
     String dateStr;
     if (rangeLabel == "D") {
-      dateStr = "${date.day} ${months[date.month - 1]}, $h:00 $period"; 
+      String period = date.hour >= 12 ? "PM" : "AM";
+      int h = date.hour % 12;
+      if (h == 0) h = 12;
+      dateStr = "${date.day} ${months[date.month - 1]}, $h:00 $period";
     } else if (rangeLabel == "W" || rangeLabel == "M") {
-      dateStr = "${date.day} ${months[date.month - 1]}"; 
+      dateStr = "${date.day} ${months[date.month - 1]}";
     } else if (rangeLabel == "3M" || rangeLabel == "6M") {
       final weekEnd = date.add(const Duration(days: 6));
       dateStr = "${date.day} ${months[date.month - 1]} - ${weekEnd.day} ${months[weekEnd.month - 1]}";
     } else {
-      dateStr = "${months[date.month - 1]} ${date.year}"; 
+      dateStr = "${months[date.month - 1]} ${date.year}";
     }
 
-    String oxyText = sMin == sMax ? "SpO2: $sMax%" : "SpO2: $sMin% - $sMax%";
-    String text = "$oxyText\n$dateStr";
+    // Row 2: value
+    String valueStr = sMin == sMax ? "$sMax%" : "$sMin–$sMax%";
 
-    final textSpan = TextSpan(text: text, style: const TextStyle(color: Color(0xff031447), fontSize: 12, fontWeight: FontWeight.bold));
-    final textPainter = TextPainter(text: textSpan, textAlign: TextAlign.center, textDirection: TextDirection.ltr);
-    textPainter.layout();
-
-    final boxWidth = textPainter.width + 20;
-    final boxHeight = textPainter.height + 14;
-    
-    double rectTop = highestY - boxHeight - 15;
-    if (rectTop < 0) rectTop = highestY + 15; 
-
-    double rectLeft = x - boxWidth / 2;
-    if (rectLeft < 55) rectLeft = 55;
-    if (rectLeft + boxWidth > size.width) rectLeft = size.width - boxWidth;
-
-    final rrect = RRect.fromRectAndRadius(Rect.fromLTWH(rectLeft, rectTop, boxWidth, boxHeight), const Radius.circular(10));
-
-    canvas.drawLine(
-      Offset(x, 0), Offset(x, chartHeight), 
-      Paint()..color = Colors.white.withValues(alpha: 0.6)..strokeWidth = 1.5
+    final textSpan = TextSpan(
+      children: [
+        TextSpan(
+          text: "$dateStr\n",
+          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+        TextSpan(
+          text: valueStr,
+          style: const TextStyle(color: Color(0xff00E5FF), fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+      ],
     );
 
-    canvas.drawRRect(rrect.shift(const Offset(0, 3)), Paint()..color = Colors.black26); 
-    canvas.drawRRect(rrect, Paint()..color = Colors.white);
-    textPainter.paint(canvas, Offset(rectLeft + 10, rectTop + 7));
+    final textPainter = TextPainter(
+      text: textSpan,
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final boxWidth = textPainter.width + 24;
+    final boxHeight = textPainter.height + 16;
+
+    double rectLeft = (x - boxWidth / 2).clamp(55.0, size.width - boxWidth);
+    double rectTop = highestY - boxHeight - 15;
+    if (rectTop < 0) rectTop = highestY + 15;
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(rectLeft, rectTop, boxWidth, boxHeight),
+      const Radius.circular(8),
+    );
+
+    // Shadow
+    canvas.drawRRect(rrect.shift(const Offset(0, 3)), Paint()..color = Colors.black26);
+    // Dark box
+    canvas.drawRRect(rrect, Paint()..color = const Color(0xff1A3F6B));
+    // Text
+    textPainter.paint(canvas, Offset(rectLeft + 12, rectTop + 8));
   }
 
   List<ChartLabel> _getDynamicLabels(String range, DateTime start, DateTime end) { 

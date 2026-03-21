@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; 
 import 'package:google_generative_ai/google_generative_ai.dart'; 
 import 'package:shared_preferences/shared_preferences.dart'; 
-import 'package:temanu/api_service.dart'; // <-- NEW: Import API Service
+import 'package:temanu/api_service.dart'; 
 import 'package:temanu/bloodPressureSharePage.dart';
 import 'package:temanu/bloodPresureChartPainter.dart';
 import 'package:temanu/assistantpage.dart';
-
-// <-- Removed the MockBpData import!
+import 'package:temanu/button.dart';
+import 'package:temanu/textbox.dart';
 
 class BpReading {
   final DateTime time;
@@ -28,20 +28,19 @@ class BloodPressurePage extends StatefulWidget {
 }
 
 class _BloodPressurePageState extends State<BloodPressurePage> with SingleTickerProviderStateMixin {
-  int systolic = 0; // Will be populated by DB
-  int diastolic = 0; // Will be populated by DB
+  int systolic = 0;
+  int diastolic = 0;
   String selectedRange = "D";
   int? touchedIndex;
   int dateOffset = 0;
 
   String _dynamicAiTip = "Analyzing your blood pressure data...";
   bool _isLoadingTip = true;
-  bool _isLoadingChart = true; // <-- NEW: Track loading state for the chart
+  bool _isLoadingChart = true;
 
   late AnimationController _animationController;
   late Animation<double> _animation;
 
-  // <-- NEW: Holds the live data from your Railway backend
   List<BpReading> _liveReadings = []; 
 
   DateTime get _startTime {
@@ -114,7 +113,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
     _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
     
-    // <-- NEW: Fetch live data on load
     _fetchBpData();
     _generateAITip();
   }
@@ -125,7 +123,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
     super.dispose();
   }
 
-  // ─── NEW: Fetch data from Railway ─────────────────────────────────────────
   Future<void> _fetchBpData() async {
     setState(() => _isLoadingChart = true);
 
@@ -137,7 +134,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
       if (!dateStr.endsWith('Z')) dateStr += 'Z'; 
       DateTime date = DateTime.parse(dateStr).toLocal();
       
-      // 🎯 THE SPLIT MAGIC: "120/80" becomes ["120", "80"]
       String combinedValue = m['value'].toString();
       List<String> parts = combinedValue.split('/');
       
@@ -157,7 +153,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
           systolic = _liveReadings.last.sys;
           diastolic = _liveReadings.last.dia;
         } else {
-          // Fallback if the user has no data yet
           systolic = 118;
           diastolic = 76;
         }
@@ -169,8 +164,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
       _animationController.forward();
     }
   }
-
-  // ─── AI Tip Generator ─────────────────────────────────────────────────────
 
   Future<void> _generateAITip({bool forceRefresh = false}) async {
     final prefs = await SharedPreferences.getInstance();
@@ -232,7 +225,6 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
   }
 
   void _aggregateData() {
-    // <-- NEW: Use live readings instead of Mock data
     final rawData = _liveReadings; 
     Map<DateTime, List<BpReading>> grouped = {};
 
@@ -299,18 +291,18 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
     }
   }
 
-  void _handleChartTap(TapUpDetails details, double width) {
-    final double leftPadding = 55.0;
+  // --- UPDATED: Mirrors the body weight interaction handler with hover support ---
+  void _handleChartInteraction(Offset localPosition, double width) {
+    const double leftPadding = 55.0;
     final double usableWidth = width - leftPadding - 20.0;
-    final double dx = details.localPosition.dx;
+    final double dx = localPosition.dx;
 
     if (dx < leftPadding - 15 || dx > width - 5) {
-      setState(() => touchedIndex = null);
+      if (touchedIndex != null) setState(() => touchedIndex = null);
       return;
     }
 
-    final timeData = aggTimes;
-    if (timeData.isEmpty) return;
+    if (aggTimes.isEmpty) return;
 
     final startTime = _startTime;
     final endTime = _endTime;
@@ -319,9 +311,9 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
     int? closestIndex;
     double minDistance = double.infinity;
 
-    for (int i = 0; i < timeData.length; i++) {
-      final elapsedMillis = timeData[i].difference(startTime).inMilliseconds;
-      double timeRatio = elapsedMillis / (totalMillis > 0 ? totalMillis : 1);
+    for (int i = 0; i < aggTimes.length; i++) {
+      final elapsedMillis = aggTimes[i].difference(startTime).inMilliseconds;
+      double timeRatio = totalMillis > 0 ? elapsedMillis / totalMillis : 0;
       timeRatio = timeRatio.clamp(0.0, 1.0);
       final x = leftPadding + (usableWidth * timeRatio);
       
@@ -332,14 +324,14 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
       }
     }
 
-    setState(() => touchedIndex = closestIndex);
+    if (touchedIndex != closestIndex) {
+      setState(() => touchedIndex = closestIndex);
+    }
   }
 
-  // ─── NEW: Send data to Railway ──────────────────────────────────────────
   void addBpData(int sys, int dia) async { 
     setState(() => _isLoadingChart = true);
     
-    // 1. Combine them into the single string your backend expects
     String combinedValue = "$sys/$dia";
 
     bool success = await ApiService.saveHealthMetric(
@@ -362,50 +354,64 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
     }
   }
 
+  // --- UPDATED: Glossy dialog matching body weight style, no cancel button ---
   void showAddDataDialog() {
     final sysController = TextEditingController();
     final diaController = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Add Blood Pressure Data"),
-          content: Column(
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          padding: const EdgeInsets.all(25),
+          decoration: BoxDecoration(
+            color: const Color(0xff1A3F6B).withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
+          ),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
+              const Text(
+                'Add Blood Pressure Data',
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                "Enter your systolic and diastolic readings in mmHg.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+              MyTextField(
                 controller: sysController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Systolic (mmHg)"),
+                hintText: 'Systolic (mmHg)',
+                prefixIcon: Icons.favorite_outline,
               ),
               const SizedBox(height: 12),
-              TextField(
+              MyTextField(
                 controller: diaController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Diastolic (mmHg)"),
+                hintText: 'Diastolic (mmHg)',
+                prefixIcon: Icons.favorite_border,
+              ),
+              const SizedBox(height: 25),
+              MyRoundedButton(
+                text: 'Save Reading',
+                backgroundColor: const Color(0xff00E5FF),
+                textColor: const Color(0xff040F31),
+                onPressed: () {
+                  final sys = int.tryParse(sysController.text);
+                  final dia = int.tryParse(diaController.text);
+                  if (sys != null && dia != null) addBpData(sys, dia);
+                  Navigator.pop(context);
+                },
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final sys = int.tryParse(sysController.text);
-                final dia = int.tryParse(diaController.text);
-                if (sys != null && dia != null) {
-                  addBpData(sys, dia);
-                }
-                Navigator.pop(context);
-              },
-              child: const Text("Save"),
-            ),
-          ],
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -540,7 +546,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
 
             const SizedBox(height: 10),
 
-            // Chart Container
+            // --- UPDATED: Chart now uses MouseRegion + GestureDetector like body weight ---
             Container(
               height: 300,
               width: double.infinity,
@@ -556,20 +562,30 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
                     builder: (context, child) {
                       return LayoutBuilder(
                         builder: (context, constraints) {
-                          return GestureDetector(
-                            onTapUp: (details) => _handleChartTap(details, constraints.maxWidth),
-                            child: CustomPaint(
-                              size: Size(constraints.maxWidth, constraints.maxHeight),
-                              painter: BloodPressureChartPainter(
-                                timeData: aggTimes,
-                                sysMinData: aggSysMin,
-                                sysMaxData: aggSysMax,
-                                diaMinData: aggDiaMin,
-                                diaMaxData: aggDiaMax,
-                                rangeLabel: selectedRange,
-                                touchedIndex: touchedIndex,
-                                dateOffset: dateOffset,
-                                progress: _animation.value, 
+                          return MouseRegion(
+                            onHover: (event) => _handleChartInteraction(event.localPosition, constraints.maxWidth),
+                            onExit: (_) {
+                              if (touchedIndex != null) setState(() => touchedIndex = null);
+                            },
+                            child: GestureDetector(
+                              onTapUp: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                              onHorizontalDragUpdate: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                              onHorizontalDragEnd: (_) {
+                                if (touchedIndex != null) setState(() => touchedIndex = null);
+                              },
+                              child: CustomPaint(
+                                size: Size(constraints.maxWidth, constraints.maxHeight),
+                                painter: BloodPressureChartPainter(
+                                  timeData: aggTimes,
+                                  sysMinData: aggSysMin,
+                                  sysMaxData: aggSysMax,
+                                  diaMinData: aggDiaMin,
+                                  diaMaxData: aggDiaMax,
+                                  rangeLabel: selectedRange,
+                                  touchedIndex: touchedIndex,
+                                  dateOffset: dateOffset,
+                                  progress: _animation.value, 
+                                ),
                               ),
                             ),
                           );
