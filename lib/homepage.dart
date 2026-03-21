@@ -51,7 +51,7 @@ class _HomePageState extends State<HomePage> {
         elevation: 0,
         centerTitle: false,
         title: Text(
-          'Hi, $_firstName', // <-- NEW: Dynamic name!
+          'Hi, $_firstName',
           style: const TextStyle(
             fontSize: 25,
             fontWeight: FontWeight.w600,
@@ -68,7 +68,6 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
       backgroundColor: const Color(0xff040F31),
-      // --- NEW: RefreshIndicator for Pull-to-Refresh ---
       body: RefreshIndicator(
         onRefresh: () async {
           await widget.dashboardKey.currentState?.forceSyncFitbit();
@@ -77,7 +76,6 @@ class _HomePageState extends State<HomePage> {
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             children: [
-              // Pass the key to the dashboard content
               HealthDashboardContent(key: widget.dashboardKey),
               const Padding(
                 padding: EdgeInsets.only(left: 20.0, right: 20.0, top: 10.0),
@@ -99,14 +97,13 @@ class HealthDashboardContent extends StatefulWidget {
   State<HealthDashboardContent> createState() => HealthDashboardContentState();
 }
 
-// Made this state public (removed the underscore) so the GlobalKey can access it
 class HealthDashboardContentState extends State<HealthDashboardContent> {
   PatientData _patientData = const PatientData(
     name: 'James', dob: '15 May 1990', age: '35', gender: 'Male',
     height: '180', weight: '75', bloodType: 'O+', conditions: 'None',
   );
   bool _isLoading = true;
-  List<dynamic> _activeMedications = []; // --- NEW: Holds the med list for the PDF ---
+  List<dynamic> _activeMedications = [];
 
   Timer? _backgroundSyncTimer;
   late List<Map<String, dynamic>> _metricsData;
@@ -121,14 +118,15 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   void initState() {
     super.initState();
     _metricsData = [
-      { "icon": Icons.water_drop,          "title": "Blood Glucose Level", "value": "--",    "unit": "mg/dl", "destination": const BloodGlucose(),                         "isVisible": true, "isShareSelected": true },
-      // --- UPDATED: Activity destination set to SizedBox so we can intercept it dynamically below ---
-      { "icon": Icons.directions_run,      "title": "Activity",            "value": "--",     "unit": "steps", "destination": const SizedBox(),                          "isVisible": true, "isShareSelected": true },
-      { "icon": Icons.favorite, "title": "Heart Rate", "value": "--", "unit": "bpm", "destination": const SizedBox(), "isVisible": true, "isShareSelected": true },
-      { "icon": Icons.opacity,             "title": "Oxygen Saturation",   "value": "--",     "unit": "%",     "destination": const SizedBox(),              "isVisible": true, "isShareSelected": true },
-      { "icon": Icons.monitor_heart,       "title": "Blood Pressure",      "value": "--", "unit": "mmHg",  "destination": const SizedBox(),                 "isVisible": true, "isShareSelected": true },
-      { "icon": Icons.local_fire_department, "title": "Calories",          "value": "--",   "unit": "kcal",  "destination": const SizedBox(),   "isVisible": true, "isShareSelected": true },
-      { "icon": Icons.monitor_weight,      "title": "Body Weight",         "value": "--",   "unit": "kg",    "destination": const SizedBox(),                    "isVisible": true, "isShareSelected": true },
+      // FIX: BloodGlucose now requires baseUserData, so use SizedBox() as
+      // placeholder and intercept navigation in healthCard's onTap below.
+      { "icon": Icons.water_drop,            "title": "Blood Glucose Level", "value": "--",  "unit": "mg/dl", "destination": const SizedBox(), "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.directions_run,        "title": "Activity",            "value": "--",  "unit": "steps", "destination": const SizedBox(), "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.favorite,              "title": "Heart Rate",          "value": "--",  "unit": "bpm",   "destination": const SizedBox(), "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.opacity,               "title": "Oxygen Saturation",   "value": "--",  "unit": "%",     "destination": const SizedBox(), "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.monitor_heart,         "title": "Blood Pressure",      "value": "--",  "unit": "mmHg",  "destination": const SizedBox(), "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.local_fire_department, "title": "Calories",            "value": "--",  "unit": "kcal",  "destination": const SizedBox(), "isVisible": true, "isShareSelected": true },
+      { "icon": Icons.monitor_weight,        "title": "Body Weight",         "value": "--",  "unit": "kg",    "destination": const SizedBox(), "isVisible": true, "isShareSelected": true },
     ];
     _loadPreferences();
     _fetchDatabaseMetrics();
@@ -137,7 +135,6 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
       _checkInitialFitbitSync();
     });
 
-    // The silent 15-minute background timer
     _backgroundSyncTimer = Timer.periodic(const Duration(minutes: 15), (timer) async {
       String? token = await FitbitService.getSilentToken();
       if (token != null) {
@@ -153,10 +150,8 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   }
   
   Future<void> _fetchDatabaseMetrics() async {
-    // 1. Turn on the loading spinner
     setState(() { _isLoading = true; }); 
 
-    // --- FETCH GENERAL METRICS ---
     final allMetrics = await ApiService.getHealthMetrics(); 
     Map<String, String> newestValues = {};
 
@@ -167,37 +162,29 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
       }
     }
 
-    // --- FETCH TODAY'S MEALS ---
     final todaysMeals = await ApiService.getTodaysMeals();
     int totalCalories = 0;
     for (var meal in todaysMeals) {
       totalCalories += (meal['calories'] as num).toInt();
     }
     
-    // --- THE FIX: Fetch the full medication list instead of just the score! ---
     final meds = await ApiService.getMedications();
-    // --------------------------------------------------------------------------
 
     if (mounted) {
       setState(() {
-        if (newestValues.containsKey('Body Weight')) _metricsData.firstWhere((m) => m['title'] == 'Body Weight')['value'] = newestValues['Body Weight'];
-        if (newestValues.containsKey('Heart Rate')) _metricsData.firstWhere((m) => m['title'] == 'Heart Rate')['value'] = newestValues['Heart Rate'];
-        if (newestValues.containsKey('Blood Glucose')) _metricsData.firstWhere((m) => m['title'] == 'Blood Glucose Level')['value'] = newestValues['Blood Glucose'];
-        if (newestValues.containsKey('Oxygen Saturation')) _metricsData.firstWhere((m) => m['title'] == 'Oxygen Saturation')['value'] = newestValues['Oxygen Saturation'];
-        if (newestValues.containsKey('Blood Pressure')) _metricsData.firstWhere((m) => m['title'] == 'Blood Pressure')['value'] = newestValues['Blood Pressure'];
+        if (newestValues.containsKey('Body Weight'))       _metricsData.firstWhere((m) => m['title'] == 'Body Weight')['value']         = newestValues['Body Weight'];
+        if (newestValues.containsKey('Heart Rate'))        _metricsData.firstWhere((m) => m['title'] == 'Heart Rate')['value']          = newestValues['Heart Rate'];
+        if (newestValues.containsKey('Blood Glucose'))     _metricsData.firstWhere((m) => m['title'] == 'Blood Glucose Level')['value'] = newestValues['Blood Glucose'];
+        if (newestValues.containsKey('Oxygen Saturation')) _metricsData.firstWhere((m) => m['title'] == 'Oxygen Saturation')['value']   = newestValues['Oxygen Saturation'];
+        if (newestValues.containsKey('Blood Pressure'))    _metricsData.firstWhere((m) => m['title'] == 'Blood Pressure')['value']      = newestValues['Blood Pressure'];
         
         _metricsData.firstWhere((m) => m['title'] == 'Calories')['value'] = totalCalories.toString();
-        
-        // --- Save the meds to pass to the PDF ---
         _activeMedications = meds; 
-        
-        // 2. Turn off the loading spinner
         _isLoading = false; 
       });
     }
   }
 
-  // Helper method to gather all data for the AI
   Map<String, dynamic> gatherDataForAI() {
     String getMetricValue(String title) {
       return _metricsData.firstWhere((m) => m['title'] == title, orElse: () => {'value': '--'})['value'];
@@ -239,46 +226,35 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
     }
   }
 
-  // --- SILENT CACHED SYNC ---
   Future<void> _autoSyncFitbit(String token) async {
     String? realSteps = await FitbitService.getTodaysSteps(token);
     String? realHeartRate = await FitbitService.getHeartRate(token);
     
     if (mounted) {
       setState(() {
-        if (realSteps != null) {
-          _metricsData.firstWhere((m) => m['title'] == 'Activity')['value'] = realSteps;
-        }
-        if (realHeartRate != null) {
-          _metricsData.firstWhere((m) => m['title'] == 'Heart Rate')['value'] = realHeartRate;
-        }
+        if (realSteps != null)     _metricsData.firstWhere((m) => m['title'] == 'Activity')['value']   = realSteps;
+        if (realHeartRate != null) _metricsData.firstWhere((m) => m['title'] == 'Heart Rate')['value'] = realHeartRate;
       });
     }
   }
 
-  // --- NEW: CUSTOM TOP TOAST NOTIFICATION ---
   void _showTopToast(BuildContext context, String message, {bool isSuccess = false}) {
     final overlay = Overlay.of(context);
     late OverlayEntry overlayEntry;
 
     overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
-        // Places it just below the notch / status bar of the phone
         top: MediaQuery.of(context).padding.top + 10, 
         left: 20,
         right: 20,
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.0, end: 1.0),
           duration: const Duration(milliseconds: 400),
-          curve: Curves.easeOutBack, // Gives it a slick, natural bounce!
+          curve: Curves.easeOutBack,
           builder: (context, value, child) {
             return Transform.translate(
-              // Animates it sliding down from above the screen
               offset: Offset(0, -50 * (1 - value)),
-              child: Opacity(
-                opacity: value.clamp(0.0, 1.0),
-                child: child,
-              ),
+              child: Opacity(opacity: value.clamp(0.0, 1.0), child: child),
             );
           },
           child: Material(
@@ -291,7 +267,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                 border: isSuccess ? null : Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
                 boxShadow: [
                   BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 5))
-                ]
+                ],
               ),
               child: Row(
                 children: [
@@ -316,41 +292,26 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
       ),
     );
 
-    // Show the notification
     overlay.insert(overlayEntry);
-
-    // Automatically remove it after a few seconds
     Future.delayed(Duration(seconds: isSuccess ? 3 : 2), () {
-      if (overlayEntry.mounted) {
-        overlayEntry.remove();
-      }
+      if (overlayEntry.mounted) overlayEntry.remove();
     });
   }
 
-  // --- MANUAL OVERRIDE SYNC (Triggered by button or pull-to-refresh) ---
   Future<void> forceSyncFitbit() async {
     String? token = await FitbitService.getValidToken(); 
     
     if (token != null) {
-      if (mounted) {
-        // Trigger the dark blue "syncing" toast from the top
-        _showTopToast(context, "Syncing latest Fitbit data...", isSuccess: false);
-      }
+      if (mounted) _showTopToast(context, "Syncing latest Fitbit data...", isSuccess: false);
 
-      String? realSteps = await FitbitService.getTodaysSteps(token, forceRefresh: true);
+      String? realSteps     = await FitbitService.getTodaysSteps(token, forceRefresh: true);
       String? realHeartRate = await FitbitService.getHeartRate(token, forceRefresh: true);
       
       if (mounted) {
         setState(() {
-          if (realSteps != null) {
-            _metricsData.firstWhere((m) => m['title'] == 'Activity')['value'] = realSteps;
-          }
-          if (realHeartRate != null) {
-            _metricsData.firstWhere((m) => m['title'] == 'Heart Rate')['value'] = realHeartRate;
-          }
+          if (realSteps != null)     _metricsData.firstWhere((m) => m['title'] == 'Activity')['value']   = realSteps;
+          if (realHeartRate != null) _metricsData.firstWhere((m) => m['title'] == 'Heart Rate')['value'] = realHeartRate;
         });
-
-        // Trigger the bright cyan "success" toast from the top
         _showTopToast(context, "Dashboard Updated!", isSuccess: true);
       }
     }
@@ -422,9 +383,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                             onTap: () async {
                               Navigator.pop(context); 
                               String? newToken = await FitbitService.getValidToken();
-                              if (newToken != null) {
-                                _autoSyncFitbit(newToken);
-                              }
+                              if (newToken != null) _autoSyncFitbit(newToken);
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -452,12 +411,10 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      // 1. Dashboard visibility
       for (var metric in _metricsData) {
         metric['isVisible'] = prefs.getBool(metric['title']) ?? true;
       }
 
-      // 2. Calories (Dynamic List Calculation)
       final String? mealsJson = prefs.getString('tracked_meals');
       double dynamicallyCalculatedCalories = 0;
       if (mealsJson != null) {
@@ -467,33 +424,25 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
         }
         _metricsData.firstWhere((m) => m['title'] == 'Calories')['value'] = dynamicallyCalculatedCalories.toInt().toString();
       } else {
-        // --- THE FIX: Changed from '--' to '0' ---
         _metricsData.firstWhere((m) => m['title'] == 'Calories')['value'] = '0';
       }
 
-      // 3. FETCH THE REST OF THE LIVE DATA (from offline cache)!
-      
-      // Heart Rate
       int latestHr = prefs.getInt('latest_hr') ?? 0; 
       _metricsData.firstWhere((m) => m['title'] == 'Heart Rate')['value'] = latestHr > 0 ? latestHr.toString() : '--';
 
-      // Blood Pressure (Changed to default to '--')
       String? latestBp = prefs.getString('latest_bp');
       _metricsData.firstWhere((m) => m['title'] == 'Blood Pressure')['value'] = latestBp ?? '--';
 
-      // Oxygen Saturation (Changed to default to '--')
       int? latestSpo2 = prefs.getInt('latest_spo2');
       _metricsData.firstWhere((m) => m['title'] == 'Oxygen Saturation')['value'] = latestSpo2 != null ? latestSpo2.toString() : '--';
 
-      // Body Weight (Changed to default to '--')
       double? latestWeight = prefs.getDouble('latest_weight');
       _metricsData.firstWhere((m) => m['title'] == 'Body Weight')['value'] = latestWeight != null ? latestWeight.toStringAsFixed(1) : '--';
 
-      // 4. Goals and Targets
-      _bodyGoal = prefs.getString('body_goal') ?? 'maintain';
-      _caloriesTarget = prefs.getDouble('calories_intake_target') ?? 2200;
-      _globalStepGoal = prefs.getInt('step_goal') ?? 10000;
-      int goalOffset = prefs.getInt('goal_offset') ?? 500;
+      _bodyGoal        = prefs.getString('body_goal') ?? 'maintain';
+      _caloriesTarget  = prefs.getDouble('calories_intake_target') ?? 2200;
+      _globalStepGoal  = prefs.getInt('step_goal') ?? 10000;
+      int goalOffset   = prefs.getInt('goal_offset') ?? 500;
 
       int signedOffset = 0;
       if (_bodyGoal == 'deficit') signedOffset = goalOffset;
@@ -512,11 +461,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
       context,
       MaterialPageRoute(builder: (_) => const ProfileInformationPage()),
     );
-    if (result != null) {
-      setState(() {
-        _patientData = result;
-      });
-    }
+    if (result != null) setState(() { _patientData = result; });
   }
 
   List<Map<String, dynamic>> get _selectedMetrics => _metricsData
@@ -543,17 +488,12 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                   Container(
                     margin: const EdgeInsets.only(top: 15, bottom: 10),
                     height: 5, width: 50,
-                    decoration: BoxDecoration(
-                        color: Colors.white38,
-                        borderRadius: BorderRadius.circular(10)),
+                    decoration: BoxDecoration(color: Colors.white38, borderRadius: BorderRadius.circular(10)),
                   ),
                   const Padding(
                     padding: EdgeInsets.all(15.0),
                     child: Text("Customize Dashboard",
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold)),
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
                   Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
                   Expanded(
@@ -563,15 +503,11 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                         final metric = _metricsData[index];
                         return SwitchListTile(
                           activeThumbColor: const Color(0xff00E5FF),
-                          activeTrackColor:
-                              const Color(0xff00E5FF).withValues(alpha: 0.3),
+                          activeTrackColor: const Color(0xff00E5FF).withValues(alpha: 0.3),
                           inactiveThumbColor: Colors.white54,
-                          inactiveTrackColor:
-                              Colors.white.withValues(alpha: 0.1),
-                          secondary:
-                              Icon(metric['icon'], color: Colors.white70),
-                          title: Text(metric['title'],
-                              style: const TextStyle(color: Colors.white)),
+                          inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
+                          secondary: Icon(metric['icon'], color: Colors.white70),
+                          title: Text(metric['title'], style: const TextStyle(color: Colors.white)),
                           value: metric['isVisible'],
                           onChanged: (bool value) {
                             setModalState(() => metric['isVisible'] = value);
@@ -589,16 +525,12 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xff00E5FF),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                           padding: const EdgeInsets.symmetric(vertical: 15),
                         ),
                         onPressed: () => Navigator.pop(context),
                         child: const Text("Done",
-                            style: TextStyle(
-                                color: Color(0xff040F31),
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold)),
+                            style: TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ),
@@ -630,17 +562,12 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                   Container(
                     margin: const EdgeInsets.only(top: 15, bottom: 10),
                     height: 5, width: 50,
-                    decoration: BoxDecoration(
-                        color: Colors.white38,
-                        borderRadius: BorderRadius.circular(10)),
+                    decoration: BoxDecoration(color: Colors.white38, borderRadius: BorderRadius.circular(10)),
                   ),
                   const Padding(
                     padding: EdgeInsets.all(15.0),
                     child: Text("Select Data to Export",
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold)),
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
                   Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
                   Expanded(
@@ -652,14 +579,11 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                           activeColor: const Color(0xff00E5FF),
                           checkColor: const Color(0xff040F31),
                           side: const BorderSide(color: Colors.white70),
-                          secondary:
-                              Icon(metric['icon'], color: Colors.white70),
-                          title: Text(metric['title'],
-                              style: const TextStyle(color: Colors.white)),
+                          secondary: Icon(metric['icon'], color: Colors.white70),
+                          title: Text(metric['title'], style: const TextStyle(color: Colors.white)),
                           value: metric['isShareSelected'],
                           onChanged: (bool? value) {
-                            setModalState(
-                                () => metric['isShareSelected'] = value ?? false);
+                            setModalState(() => metric['isShareSelected'] = value ?? false);
                           },
                         );
                       },
@@ -673,28 +597,20 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                           Expanded(
                             child: OutlinedButton(
                               style: OutlinedButton.styleFrom(
-                                side: const BorderSide(
-                                    color: Color(0xff00E5FF), width: 1.5),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(15)),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 15),
+                                side: const BorderSide(color: Color(0xff00E5FF), width: 1.5),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                padding: const EdgeInsets.symmetric(vertical: 15),
                               ),
                               onPressed: () {
                                 Navigator.pop(context);
                                 PdfGenerator.generateAndShare(
                                   selectedMetrics: _selectedMetrics,
                                   patientData: _patientData.toMap(),
-                                  activeMedications: _activeMedications, 
+                                  activeMedications: _activeMedications,
                                 );
                               },
-                              child: const Text(
-                                "Share PDF",
-                                style: TextStyle(
-                                    color: Color(0xff00E5FF),
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold),
-                              ),
+                              child: const Text("Share PDF",
+                                  style: TextStyle(color: Color(0xff00E5FF), fontSize: 16, fontWeight: FontWeight.bold)),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -703,27 +619,20 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xff00E5FF),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(15)),
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 15),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                              padding: const EdgeInsets.symmetric(vertical: 15),
                             ),
                             onPressed: () {
                               Navigator.pop(context);
                               PdfGenerator.generateAndSave(
                                 selectedMetrics: _selectedMetrics,
                                 patientData: _patientData.toMap(),
-                                activeMedications: _activeMedications, 
+                                activeMedications: _activeMedications,
                                 context: context,
                               );
                             },
-                            child: const Text(
-                              "Save PDF",
-                              style: TextStyle(
-                                  color: Color(0xff040F31),
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold),
-                            ),
+                            child: const Text("Save PDF",
+                                style: TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ],
@@ -750,7 +659,9 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
           LayoutBuilder(
             builder: (context, constraints) {
               bool isWideScreen = constraints.maxWidth > 800;
-              double cardWidth = isWideScreen ? (constraints.maxWidth - 16) / 2 : constraints.maxWidth;
+              double cardWidth = isWideScreen
+                  ? (constraints.maxWidth - 16) / 2
+                  : constraints.maxWidth;
 
               return Wrap(
                 spacing: 15,
@@ -759,29 +670,32 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                   return SizedBox(
                     width: cardWidth,
                     child: healthCard(
-                      context, metric['icon'], metric['title'], metric['value'], metric['unit'], metric['destination'],
+                      context,
+                      metric['icon'],
+                      metric['title'],
+                      metric['value'],
+                      metric['unit'],
+                      metric['destination'],
                     ),
                   );
                 }).toList(),
               );
             },
           ),
-          // Edit, Sync, & Share Buttons
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween, 
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
                 icon: const Icon(Icons.edit_note, color: Colors.white, size: 30),
-                onPressed: _showEditMetricsBottomSheet, 
+                onPressed: _showEditMetricsBottomSheet,
               ),
-              // --- NEW: Dedicated Sync Button on the Home Page! ---
               IconButton(
                 icon: const Icon(Icons.sync, color: Color(0xff00E5FF), size: 28),
-                onPressed: forceSyncFitbit, // Triggers the forced API pull
+                onPressed: forceSyncFitbit,
               ),
               IconButton(
                 icon: const Icon(Icons.ios_share, color: Colors.white, size: 28),
-                onPressed: _showShareMetricsBottomSheet, 
+                onPressed: _showShareMetricsBottomSheet,
               ),
             ],
           ),
@@ -793,40 +707,43 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   Widget healthCard(BuildContext context, IconData icon, String title, String value, String unit, Widget destinationPage) {
     return GestureDetector(
       onTap: () async {
-        if (title == 'Calories') {
+        if (title == 'Blood Glucose Level') {
+          // FIX: Pass baseUserData just like every other page that requires it
+          await Navigator.push(context, MaterialPageRoute(
+            builder: (context) => BloodGlucose(baseUserData: gatherDataForAI()),
+          ));
+          _fetchDatabaseMetrics();
+        } else if (title == 'Calories') {
           await Navigator.push(context, MaterialPageRoute(
             builder: (context) => CaloriesMain(
               patientData: _patientData,
-              baseUserData: gatherDataForAI(), 
-            )
+              baseUserData: gatherDataForAI(),
+            ),
           ));
           _fetchDatabaseMetrics();
         } else if (title == 'Activity') {
-          // --- NEW INTERCEPT: Hand off the AI data to Activity! ---
           await Navigator.push(context, MaterialPageRoute(
-            builder: (context) => Activity(baseUserData: gatherDataForAI())
+            builder: (context) => Activity(baseUserData: gatherDataForAI()),
           ));
           _fetchDatabaseMetrics();
         } else if (title == 'Heart Rate') {
           await Navigator.push(context, MaterialPageRoute(
-            builder: (context) => HeartRatePage(
-              baseUserData: gatherDataForAI(), 
-            )
+            builder: (context) => HeartRatePage(baseUserData: gatherDataForAI()),
           ));
           _fetchDatabaseMetrics();
         } else if (title == 'Oxygen Saturation') {
           await Navigator.push(context, MaterialPageRoute(
-            builder: (context) => OxygenSaturationPage(baseUserData: gatherDataForAI())
+            builder: (context) => OxygenSaturationPage(baseUserData: gatherDataForAI()),
           ));
           _fetchDatabaseMetrics();
         } else if (title == 'Blood Pressure') {
           await Navigator.push(context, MaterialPageRoute(
-            builder: (context) => BloodPressurePage(baseUserData: gatherDataForAI())
+            builder: (context) => BloodPressurePage(baseUserData: gatherDataForAI()),
           ));
           _fetchDatabaseMetrics();
         } else if (title == 'Body Weight') {
           await Navigator.push(context, MaterialPageRoute(
-            builder: (context) => BodyWeightPage(baseUserData: gatherDataForAI())
+            builder: (context) => BodyWeightPage(baseUserData: gatherDataForAI()),
           ));
           _fetchDatabaseMetrics();
         } else if (destinationPage is ProfileInformationPage) {
@@ -852,18 +769,19 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
               children: [
                 Text(title, style: const TextStyle(color: Colors.white70, fontSize: 14)),
                 _isLoading
-                  ? const Padding(
-                      padding: EdgeInsets.only(top: 8.0),
-                      child: SizedBox(
-                        height: 20, 
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xff00E5FF)), 
+                    ? const Padding(
+                        padding: EdgeInsets.only(top: 8.0),
+                        child: SizedBox(
+                          height: 20, width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xff00E5FF)),
+                          ),
                         ),
-                      ),
-                    )
-                  : Text("$value $unit", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                      )
+                    : Text("$value $unit",
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
               ],
             ),
           ],
