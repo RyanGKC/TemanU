@@ -6,12 +6,12 @@ import 'package:temanu/button.dart';
 import 'package:temanu/mainscreen.dart';
 
 class AboutYou extends StatefulWidget {
-  // --- NEW: Catching the baton from Step 1! ---
   final String email;
   final String name;
   final String preferredName;
   final String username;
   final String password;
+  final String otpCode; // Catching the verified code from the first screen!
 
   const AboutYou({
     super.key, 
@@ -19,7 +19,8 @@ class AboutYou extends StatefulWidget {
     required this.name, 
     required this.preferredName, 
     required this.username, 
-    required this.password
+    required this.password,
+    required this.otpCode,
   });
 
   @override
@@ -54,22 +55,21 @@ class AboutYouState extends State<AboutYou> {
     }
   }
 
-  // --- THE GRAND FINALE: Save everything at once ---
+  // --- Submit everything to the Backend ---
   Future<void> _submitData() async {
+    // Note: Blood Type is NO LONGER mandatory here!
     if (selectedGender == null || 
         dateOfBirthcontroller.text.isEmpty || 
         heightController.text.isEmpty || 
-        weightController.text.isEmpty || 
-        bloodTypeController.text.isEmpty) {
+        weightController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill out all fields.')),
+        const SnackBar(content: Text('Please fill out all mandatory fields.')),
       );
       return;
     }
 
     setState(() => _isLoading = true);
 
-    // 1. Create the User in the database with ALL data
     final result = await ApiService.register(
       email: widget.email,
       name: widget.name,
@@ -78,39 +78,28 @@ class AboutYouState extends State<AboutYou> {
       password: widget.password,
       gender: selectedGender!,
       dob: dateOfBirthcontroller.text,
-      bloodType: bloodTypeController.text,
+      // If blood type is empty, default to "Unknown"
+      bloodType: bloodTypeController.text.isEmpty ? "Unknown" : bloodTypeController.text,
+      otpCode: widget.otpCode, // Send the verified code to the backend!
     );
 
     if (mounted) {
       if (result['success'] == true) {
-        // 2. Log them in to get the JWT Token
+        // Success! Log them in
         bool loginSuccess = await ApiService.login(widget.username, widget.password);
 
         if (loginSuccess) {
-          // 3. Save to SharedPreferences for local AI usage
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('gender', selectedGender!);
           await prefs.setString('dob', dateOfBirthcontroller.text);
           await prefs.setString('height', heightController.text);
           await prefs.setString('weight', weightController.text);
           await prefs.setDouble('latest_weight', double.parse(weightController.text));
-          await prefs.setString('blood_type', bloodTypeController.text);
+          await prefs.setString('blood_type', bloodTypeController.text.isEmpty ? "Unknown" : bloodTypeController.text);
 
-          // 4. Push Height and Weight to the HealthMetrics table
-          await ApiService.saveHealthMetric(
-            metricType: "Height", 
-            value: heightController.text, 
-            unit: "cm"
-          );
-          await ApiService.saveHealthMetric(
-            metricType: "Body Weight", 
-            value: weightController.text, 
-            unit: "kg"
-          );
+          await ApiService.saveHealthMetric(metricType: "Height", value: heightController.text, unit: "cm");
+          await ApiService.saveHealthMetric(metricType: "Body Weight", value: weightController.text, unit: "kg");
 
-          setState(() => _isLoading = false);
-
-          // 5. Fire them into the dashboard!
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) => const MainScreen()),
@@ -160,37 +149,17 @@ class AboutYouState extends State<AboutYou> {
                 constraints: const BoxConstraints(maxWidth: 400),
                 child: Column(
                   children: [
-                    const Text(
-                      'About You',
-                      style: TextStyle(
-                        fontSize: 25,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600
-                      )
-                    ),
+                    const Text('About You', style: TextStyle(fontSize: 25, color: Colors.white, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 30),
                     DropdownButtonFormField<String>(
                       initialValue: selectedGender,
-                      hint: const Text(
-                        'Gender',
-                        style: TextStyle(
-                          color: Color(0xff3183BE), 
-                          fontWeight: FontWeight.w500
-                        ),
-                      ),
+                      hint: const Text('Gender', style: TextStyle(color: Color(0xff3183BE), fontWeight: FontWeight.w500)),
                       decoration: myInput('Gender'),
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          selectedGender = newValue;
-                        });
-                      },
+                      onChanged: (String? newValue) => setState(() => selectedGender = newValue),
                       items: genderOptions.map<DropdownMenuItem<String>>((String value) {
                         return DropdownMenuItem<String>(
                           value: value,
-                          child: Text(
-                            value,
-                            style: TextStyle(fontWeight: FontWeight.w200),
-                          ),
+                          child: Text(value, style: const TextStyle(fontWeight: FontWeight.w200)),
                         );
                       }).toList(),
                     ),
@@ -212,45 +181,27 @@ class AboutYouState extends State<AboutYou> {
                     TextFormField(
                       controller: weightController,
                       keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,1}')), // Allows decimals for weight!
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,1}'))],
                       decoration: myInput('Weight (kg)'),
                     ),
                     const SizedBox(height: 15),
                     DropdownButtonFormField<String>(
-                      hint: const Text(
-                        'Blood Type',
-                        style: TextStyle(
-                          color: Color(0xff3183BE), 
-                          fontWeight: FontWeight.w500
-                        ),
-                      ),
-                      decoration: myInput('Blood Type'),
+                      hint: const Text('Blood Type (Optional)', style: TextStyle(color: Color(0xff3183BE), fontWeight: FontWeight.w500)),
+                      decoration: myInput('Blood Type (Optional)'),
                       items: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
-                          .map((label) => DropdownMenuItem(
-                            value: label, 
-                            child: Text(
-                              label,
-                              style: const TextStyle(fontWeight: FontWeight.w200),
-                            )))
+                          .map((label) => DropdownMenuItem(value: label, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w200))))
                           .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          bloodTypeController.text = value!;
-                        });
-                      },
+                      onChanged: (value) => setState(() => bloodTypeController.text = value!),
                     ),
                     const SizedBox(height: 25),
                     
-                    // <-- NEW: Show spinner while saving data
                     _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
                       : MyRoundedButton(
                           text: 'Complete Registration', 
                           backgroundColor: const Color(0xff3183BE), 
                           textColor: Colors.white, 
-                          onPressed: _submitData, // <-- Trigger the save function
+                          onPressed: _submitData, 
                         ),
                   ],
                 )
@@ -261,15 +212,10 @@ class AboutYouState extends State<AboutYou> {
             bottom: 20, 
             left: 20,   
             child: IconButton(
-              onPressed: () {
-                Navigator.pop(context); 
-              },
+              onPressed: () => Navigator.pop(context),
               icon: const Icon(Icons.arrow_back_ios_new),
               color: Colors.white,
-              style: IconButton.styleFrom(
-                backgroundColor: Colors.black26, 
-                padding: const EdgeInsets.all(12),
-              ),
+              style: IconButton.styleFrom(backgroundColor: Colors.black26, padding: const EdgeInsets.all(12)),
             ),
           ),
         ],
@@ -285,13 +231,7 @@ InputDecoration myInput (String hint) {
     filled: true,
     fillColor: Colors.white,
     contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(30),
-      borderSide: BorderSide.none,
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(30),
-      borderSide: const BorderSide(color: Color(0xff3183BE), width: 2),
-    ),
+    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: const BorderSide(color: Color(0xff3183BE), width: 2)),
   );
 }

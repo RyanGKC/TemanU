@@ -88,6 +88,7 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Container(
+            constraints: const BoxConstraints(maxWidth: 400),
             padding: const EdgeInsets.all(25),
             decoration: BoxDecoration(
               color: const Color(0xff1A3F6B).withValues(alpha: 0.9),

@@ -10,6 +10,79 @@ class ApiService {
   
   static const _storage = FlutterSecureStorage();
 
+  static Future<Map<String, dynamic>> requestRegistrationOtp(String email, String username, String password) async {
+    try {
+      final url = Uri.parse('$_baseUrl/register/request-otp');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'username': username,
+          'password': password,
+        }),
+      );
+      
+      if (response.statusCode == 200) {
+        return {'success': true};
+      } else {
+        // Decode the FastAPI error and send it back to the UI
+        final decoded = jsonDecode(response.body);
+        return {'success': false, 'message': decoded['detail'] ?? 'Failed to send OTP'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Cannot connect to server. Please check your internet.'};
+    }
+  }
+
+  static Future<bool> verifyRegistrationOtp(String email, String code) async {
+    try {
+      final url = Uri.parse('$_baseUrl/register/verify-otp');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'code': code}),
+      );
+      
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<bool> updateProfile({
+    String? name,
+    String? preferredName,
+    String? gender,
+    String? dob,
+    String? bloodType,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return false;
+
+      final url = Uri.parse('$_baseUrl/users/me');
+      final response = await http.put(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'name': name,
+          'preferred_name': preferredName,
+          'gender': gender,
+          'dob': dob,
+          'blood_type': bloodType,
+        }),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
   // ─── AUTHENTICATION ───
   static Future<Map<String, dynamic>> register({
     required String email,
@@ -18,12 +91,14 @@ class ApiService {
     required String username,
     required String password,
     required String gender,
-    required String dob,         
-    required String bloodType,  
+    required String dob,
+    required String bloodType,
+    required String otpCode, // <-- NEW
   }) async {
     try {
+      final url = Uri.parse('$_baseUrl/register');
       final response = await http.post(
-        Uri.parse('$_baseUrl/register'),
+        url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': email,
@@ -31,21 +106,21 @@ class ApiService {
           'preferred_name': preferredName,
           'username': username,
           'password': password,
-          'gender': gender,         
-          'dob': dob,               
-          'blood_type': bloodType,  
+          'gender': gender,
+          'dob': dob,
+          'blood_type': bloodType,
+          'otp_code': otpCode, // <-- NEW
         }),
       );
 
-      final data = jsonDecode(response.body);
-      
       if (response.statusCode == 200) {
-        return {'success': true, 'message': 'Account created!'};
+        return {'success': true};
       } else {
-        return {'success': false, 'message': data['detail'] ?? 'Registration failed'};
+        final decoded = jsonDecode(response.body);
+        return {'success': false, 'message': decoded['detail'] ?? 'Registration failed'};
       }
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: $e'};
+      return {'success': false, 'message': 'Cannot connect to server. Please check your internet.'};
     }
   }
 
