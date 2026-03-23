@@ -30,8 +30,8 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
   String _bloodType = "O+";
   DateTime _dateOfBirth = DateTime(1990, 5, 15);
 
-  Uint8List? _profileImageBytes; // Holds image in memory
-  String? _base64Image;          // Holds image to save
+  Uint8List? _profileImageBytes; 
+  String? _base64Image;          
 
   final List<String> _availableConditions = [
     "Asthma", "Diabetes Type 1", "Diabetes Type 2", 
@@ -79,7 +79,6 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
           _dateOfBirth = DateTime(1990, 5, 15);
         }
 
-        // Load existing profile image
         _base64Image = prefs.getString('profile_image_base64');
         if (_base64Image != null && _base64Image!.isNotEmpty) {
           _profileImageBytes = base64Decode(_base64Image!);
@@ -90,21 +89,20 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
     }
   }
 
-  // Image Picker Function
   Future<void> _pickImage() async {
-    if (!_isEditing) return; // Only allow picking when editing
+    if (!_isEditing) return; 
     
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery, 
-      imageQuality: 50, // Compress slightly for storage
+      imageQuality: 50, 
     ); 
     
     if (image != null) {
       final bytes = await image.readAsBytes();
       setState(() {
         _profileImageBytes = bytes;
-        _base64Image = base64Encode(bytes); // Ready to save to SharedPreferences
+        _base64Image = base64Encode(bytes); 
       });
     }
   }
@@ -132,7 +130,6 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
         await prefs.setString('blood_type', _bloodType);
         await prefs.setString('height', _heightController.text);
 
-        // Save the base64 image string locally
         if (_base64Image != null) {
           await prefs.setString('profile_image_base64', _base64Image!);
         }
@@ -142,6 +139,14 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
 
         await ApiService.saveHealthMetric(metricType: "Height", value: _heightController.text, unit: "cm");
         await ApiService.saveHealthMetric(metricType: "Body Weight", value: _weightController.text, unit: "kg");
+
+        await ApiService.updateProfile(
+          name: _fullNameController.text,
+          preferredName: _preferredNameController.text,
+          gender: _gender,
+          dob: _formattedDob,
+          bloodType: _bloodType,
+        );
 
         if (mounted) {
           setState(() {
@@ -240,156 +245,203 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
           key: _formKey,
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+            child: Center(
+              // Wrap the main content to prevent it getting TOO massive on ultra-wide screens
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1200),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
 
-                // PROFILE PICTURE SECTION
-                Center(
-                  child: GestureDetector(
-                    onTap: _pickImage, // Trigger image picker on tap
-                    child: Stack(
-                      alignment: Alignment.bottomRight,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: const BoxDecoration(color: Color(0xff00E5FF), shape: BoxShape.circle),
-                          child: CircleAvatar(
-                            radius: 50,
-                            backgroundColor: const Color(0xff1A3F6B),
-                            backgroundImage: _profileImageBytes != null 
-                              ? MemoryImage(_profileImageBytes!) 
-                              : null,
-                            child: _profileImageBytes == null 
-                              ? const Icon(Icons.person, size: 50, color: Colors.white) 
-                              : null,
-                          ),
+                    // --- PROFILE PICTURE SECTION ---
+                    Center(
+                      child: GestureDetector(
+                        onTap: _pickImage, 
+                        child: Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: const BoxDecoration(color: Color(0xff00E5FF), shape: BoxShape.circle),
+                              child: CircleAvatar(
+                                radius: 50,
+                                backgroundColor: const Color(0xff1A3F6B),
+                                backgroundImage: _profileImageBytes != null 
+                                  ? MemoryImage(_profileImageBytes!) 
+                                  : null,
+                                child: _profileImageBytes == null 
+                                  ? const Icon(Icons.person, size: 50, color: Colors.white) 
+                                  : null,
+                              ),
+                            ),
+                            if (_isEditing)
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: const BoxDecoration(color: Color(0xff00E5FF), shape: BoxShape.circle),
+                                child: const Icon(Icons.camera_alt, color: Color(0xff040F31), size: 20),
+                              ),
+                          ],
                         ),
-                        if (_isEditing)
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: const BoxDecoration(color: Color(0xff00E5FF), shape: BoxShape.circle),
-                            child: const Icon(Icons.camera_alt, color: Color(0xff040F31), size: 20),
-                          ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 30),
+                    const SizedBox(height: 30),
 
-                _buildSectionHeader("Personal Details"),
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xff1A3F6B),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildTextField(
-                        "Full Name", 
-                        _fullNameController,
-                        validator: (value) => value!.isEmpty ? "Full name is required" : null,
-                      ),
-                      const SizedBox(height: 15),
-                      _buildTextField(
-                        "Preferred Name", 
-                        _preferredNameController,
-                        validator: (value) => value!.isEmpty ? "Preferred name is required" : null,
-                      ),
-                      const SizedBox(height: 15),
-                      _buildTextField(
-                        "Username", 
-                        _usernameController,
-                        isReadOnly: true,
-                      ),
-                      const SizedBox(height: 15),
-                      _buildDropdownField("Gender", ["Male", "Female", "Non-binary", "Prefer not to say"], _gender, (val) => setState(() => _gender = val!)),
-                      const SizedBox(height: 15),
-                      _buildDateField("Date of Birth", _formattedDob),
-                    ],
-                  ),
-                ),
+                    // --- RESPONSIVE LAYOUT BUILDER ---
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        bool isWideScreen = MediaQuery.of(context).size.width > 800;
 
-                const SizedBox(height: 30),
-
-                _buildSectionHeader("Health & Metrics"),
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xff1A3F6B),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: _buildTextField(
-                            "Height (cm)", 
-                            _heightController, 
-                            isNumber: true,
-                            validator: _validateNumber,
-                          )),
-                          const SizedBox(width: 15),
-                          Expanded(child: _buildTextField(
-                            "Weight (kg)", 
-                            _weightController, 
-                            isNumber: true,
-                            validator: _validateNumber,
-                          )),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      _buildDropdownField("Blood Type", ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Unknown"], _bloodType, (val) => setState(() => _bloodType = val!)),
-                      const SizedBox(height: 25),
-                      
-                      const Text("Health Conditions", style: TextStyle(color: Colors.white54, fontSize: 13)),
-                      const SizedBox(height: 10),
-                      
-                      if (_isEditing)
-                        GestureDetector(
-                          onTap: () => _showHealthConditionsBottomSheet(context),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xff00E5FF).withValues(alpha: 0.5)),
+                        // BLOCK 1: Personal Details
+                        Widget personalDetailsBlock = Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSectionHeader("Personal Details"),
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: const Color(0xff1A3F6B),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildTextField(
+                                    "Full Name", 
+                                    _fullNameController,
+                                    validator: (value) => value!.isEmpty ? "Full name is required" : null,
+                                  ),
+                                  const SizedBox(height: 15),
+                                  _buildTextField(
+                                    "Preferred Name", 
+                                    _preferredNameController,
+                                    validator: (value) => value!.isEmpty ? "Preferred name is required" : null,
+                                  ),
+                                  const SizedBox(height: 15),
+                                  _buildTextField(
+                                    "Username", 
+                                    _usernameController,
+                                    isReadOnly: true,
+                                  ),
+                                  const SizedBox(height: 15),
+                                  _buildDropdownField("Gender", ["Male", "Female", "Non-binary", "Prefer not to say"], _gender, (val) => setState(() => _gender = val!)),
+                                  const SizedBox(height: 15),
+                                  _buildDateField("Date of Birth", _formattedDob),
+                                ],
+                              ),
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  _selectedConditions.isEmpty 
-                                    ? "Select Conditions" 
-                                    : "${_selectedConditions.length} Selected",
-                                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                                ),
-                                const Icon(Icons.arrow_drop_down, color: Color(0xff00E5FF)),
-                              ],
+                          ],
+                        );
+
+                        // BLOCK 2: Health & Metrics
+                        Widget healthMetricsBlock = Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSectionHeader("Health & Metrics"),
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: const Color(0xff1A3F6B),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(child: _buildTextField(
+                                        "Height (cm)", 
+                                        _heightController, 
+                                        isNumber: true,
+                                        validator: _validateNumber,
+                                      )),
+                                      const SizedBox(width: 15),
+                                      Expanded(child: _buildTextField(
+                                        "Weight (kg)", 
+                                        _weightController, 
+                                        isNumber: true,
+                                        validator: _validateNumber,
+                                      )),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 15),
+                                  _buildDropdownField("Blood Type", ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Unknown"], _bloodType, (val) => setState(() => _bloodType = val!)),
+                                  const SizedBox(height: 25),
+                                  
+                                  const Text("Health Conditions", style: TextStyle(color: Colors.white54, fontSize: 13)),
+                                  const SizedBox(height: 10),
+                                  
+                                  if (_isEditing)
+                                    GestureDetector(
+                                      onTap: () => _showHealthConditionsBottomSheet(context),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.05),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: const Color(0xff00E5FF).withValues(alpha: 0.5)),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              _selectedConditions.isEmpty 
+                                                ? "Select Conditions" 
+                                                : "${_selectedConditions.length} Selected",
+                                              style: const TextStyle(color: Colors.white, fontSize: 16),
+                                            ),
+                                            const Icon(Icons.arrow_drop_down, color: Color(0xff00E5FF)),
+                                          ],
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: _selectedConditions.isEmpty 
+                                        ? [const Text("None reported", style: TextStyle(color: Colors.white, fontSize: 16))]
+                                        : _selectedConditions.map((condition) => Chip(
+                                            label: Text(condition, style: const TextStyle(color: Colors.white)),
+                                            backgroundColor: const Color(0xff040F31),
+                                            side: const BorderSide(color: Color(0xff00E5FF), width: 1),
+                                          )).toList(),
+                                    ),
+                                ],
+                              ),
                             ),
-                          ),
-                        )
-                      else
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _selectedConditions.isEmpty 
-                            ? [const Text("None reported", style: TextStyle(color: Colors.white, fontSize: 16))]
-                            : _selectedConditions.map((condition) => Chip(
-                                label: Text(condition, style: const TextStyle(color: Colors.white)),
-                                backgroundColor: const Color(0xff040F31),
-                                side: const BorderSide(color: Color(0xff00E5FF), width: 1),
-                              )).toList(),
-                        ),
-                    ],
-                  ),
+                          ],
+                        );
+
+                        // --- RENDER LOGIC ---
+                        if (isWideScreen) {
+                          // Display in two columns on wide screens
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: personalDetailsBlock),
+                              const SizedBox(width: 30), // Gap between columns
+                              Expanded(child: healthMetricsBlock),
+                            ],
+                          );
+                        } else {
+                          // Stack vertically on mobile
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              personalDetailsBlock,
+                              const SizedBox(height: 30),
+                              healthMetricsBlock,
+                            ],
+                          );
+                        }
+                      },
+                    ),
+
+                    const SizedBox(height: 40),
+                  ],
                 ),
-                const SizedBox(height: 40),
-              ],
+              ),
             ),
           ),
         ),

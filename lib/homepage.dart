@@ -352,6 +352,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
               child: Container(
+                constraints: const BoxConstraints(maxWidth: 400),
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
                   color: const Color(0xff1A3F6B).withValues(alpha: 0.8),
@@ -694,7 +695,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
           const SizedBox(height: 20),
           LayoutBuilder(
             builder: (context, constraints) {
-              bool isWideScreen = constraints.maxWidth > 800;
+              bool isWideScreen = MediaQuery.of(context).size.width > 800;
               double cardWidth = isWideScreen
                   ? (constraints.maxWidth - 16) / 2
                   : constraints.maxWidth;

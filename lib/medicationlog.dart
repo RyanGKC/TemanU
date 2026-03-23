@@ -37,8 +37,6 @@ class _MedicationLogState extends State<MedicationLog> {
   }
 
   // ── Silent refresh — data is updated in the background with no spinner ────
-  // Use this for take/edit/delete so the existing list stays on screen and
-  // the widget tree never collapses and re-expands (which causes the jerk).
   Future<void> _silentRefresh() async {
     final meds = await ApiService.getMedications();
     if (mounted) {
@@ -238,7 +236,6 @@ class _MedicationLogState extends State<MedicationLog> {
                                   success = await ApiService.addMedication(name, dosage, inv, unit, selectedTimes);
                                 }
                                 
-                                // Silent refresh — no spinner flash after saving
                                 if (success) _silentRefresh();
                               }
                             },
@@ -375,17 +372,31 @@ class _MedicationLogState extends State<MedicationLog> {
               padding: EdgeInsets.symmetric(vertical: 20.0),
               child: Center(child: Text("No medications scheduled.", style: TextStyle(color: Colors.white54))),
             )
-          else if (_activeTab == 0)
-            _buildScheduleTab()
           else
-            _buildManageTab(),
+            // --- NEW: LayoutBuilder makes the tabs responsive! ---
+            LayoutBuilder(
+              builder: (context, constraints) {
+                // If screen is wide, calculate width for 2 columns. Otherwise, take full width.
+                // Subtracting 16 pixels accounts for the gap between the columns.
+                bool isWideScreen = MediaQuery.of(context).size.width > 800;
+                double itemWidth = isWideScreen 
+                    ? ((constraints.maxWidth - 16) / 2).floorToDouble() 
+                    : constraints.maxWidth;
+
+                if (_activeTab == 0) {
+                  return _buildScheduleTab(itemWidth);
+                } else {
+                  return _buildManageTab(itemWidth);
+                }
+              },
+            ),
         ],
       ),
     );
   }
 
   // --- TAB 1: SCHEDULE VIEW ---
-  Widget _buildScheduleTab() {
+  Widget _buildScheduleTab(double itemWidth) {
     final schedule = _generateChronologicalSchedule();
     
     if (schedule.isEmpty) {
@@ -402,48 +413,50 @@ class _MedicationLogState extends State<MedicationLog> {
       );
     }
 
-    return Column(
+    // --- NEW: Using Wrap instead of Column ---
+    return Wrap(
+      spacing: 15, // Horizontal gap between columns
+      runSpacing: 12, // Vertical gap between rows
       children: schedule.map((event) {
         final med = event['med'];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(15)),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: () async {
-                  // Optimistically remove this dose from local state immediately
-                  // so the UI responds at once, then sync quietly in the background.
-                  setState(() {
-                    final idx = _medications.indexWhere((m) => m['id'] == med['id']);
-                    if (idx != -1) {
-                      final current = _medications[idx]['doses_taken_today'] as int? ?? 0;
-                      _medications[idx] = Map<String, dynamic>.from(_medications[idx])
-                        ..['doses_taken_today'] = current + 1;
-                    }
-                  });
-                  // Fire the API call and silently reconcile — no spinner, no jerk.
-                  final success = await ApiService.takeMedication(med['id']);
-                  if (success) _silentRefresh();
-                },
-                child: Container(
-                  height: 28, width: 28,
-                  decoration: BoxDecoration(border: Border.all(color: Colors.white54, width: 2), shape: BoxShape.circle),
+        return SizedBox(
+          width: itemWidth,
+          child: Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(15)),
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () async {
+                    setState(() {
+                      final idx = _medications.indexWhere((m) => m['id'] == med['id']);
+                      if (idx != -1) {
+                        final current = _medications[idx]['doses_taken_today'] as int? ?? 0;
+                        _medications[idx] = Map<String, dynamic>.from(_medications[idx])
+                          ..['doses_taken_today'] = current + 1;
+                      }
+                    });
+                    final success = await ApiService.takeMedication(med['id']);
+                    if (success) _silentRefresh();
+                  },
+                  child: Container(
+                    height: 28, width: 28,
+                    decoration: BoxDecoration(border: Border.all(color: Colors.white54, width: 2), shape: BoxShape.circle),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(med['name'], style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    Text("Take ${med['dosage']} ${med['unit']} at ${event['time_str']}", style: const TextStyle(color: Color(0xff00E5FF), fontSize: 13, fontWeight: FontWeight.w600)),
-                  ],
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(med['name'], style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      Text("Take ${med['dosage']} ${med['unit']} at ${event['time_str']}", style: const TextStyle(color: Color(0xff00E5FF), fontSize: 13, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       }).toList(),
@@ -451,117 +464,121 @@ class _MedicationLogState extends State<MedicationLog> {
   }
 
   // --- TAB 2: MANAGE VIEW ---
-  Widget _buildManageTab() {
-    return Column(
+  Widget _buildManageTab(double itemWidth) {
+    // --- NEW: Using Wrap instead of Column ---
+    return Wrap(
+      spacing: 15,
+      runSpacing: 12,
       children: _medications.map((med) {
         num inventory = med['inventory'];
         String unit = med['unit'];
         double dosageAmount = double.tryParse(med['dosage'].toString()) ?? 1.0;
         bool lowStock = (inventory / dosageAmount) < 5; 
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(15)),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        return SizedBox(
+          width: itemWidth,
+          child: Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(15)),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(med['name'], style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                          ),
+                          const SizedBox(width: 8),
+                          Builder(
+                            builder: (context) {
+                              int adherence = med['adherence_score'] ?? 100;
+                              
+                              Color badgeColor = adherence >= 80 ? const Color(0xff00E676) 
+                                               : adherence >= 50 ? Colors.orangeAccent 
+                                               : Colors.redAccent;
+                              
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: badgeColor.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: badgeColor.withValues(alpha: 0.5)),
+                                ),
+                                child: Text(
+                                  "$adherence%", 
+                                  style: TextStyle(color: badgeColor, fontSize: 11, fontWeight: FontWeight.bold)
+                                ),
+                              );
+                            }
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text("${med['dosage']} $unit • ${(med['times'] as List).join(', ')}", style: const TextStyle(color: Colors.white54, fontSize: 13)),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Row(
                       children: [
-                        Flexible(
-                          child: Text(med['name'], style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                        GestureDetector(
+                          onTap: () => _showMedicationDialog(existingMed: med), 
+                          child: const Padding(padding: EdgeInsets.all(6.0), child: Icon(Icons.edit, color: Color(0xff00E5FF), size: 20)),
                         ),
-                        const SizedBox(width: 8),
-                        Builder(
-                          builder: (context) {
-                            int adherence = med['adherence_score'] ?? 100;
-                            
-                            Color badgeColor = adherence >= 80 ? const Color(0xff00E676) 
-                                             : adherence >= 50 ? Colors.orangeAccent 
-                                             : Colors.redAccent;
-                            
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: badgeColor.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: badgeColor.withValues(alpha: 0.5)),
-                              ),
-                              child: Text(
-                                "$adherence%", 
-                                style: TextStyle(color: badgeColor, fontSize: 11, fontWeight: FontWeight.bold)
+                        GestureDetector(
+                          onTap: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                backgroundColor: const Color(0xff1A3F6B),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                title: const Text("Delete Medication?", style: TextStyle(color: Colors.white)),
+                                content: Text("Are you sure you want to remove ${med['name']} from your schedule?", style: const TextStyle(color: Colors.white70)),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel", style: TextStyle(color: Colors.white54))),
+                                  TextButton(
+                                    onPressed: () async {
+                                      Navigator.pop(context);
+                                      bool success = await ApiService.deleteMedication(med['id']);
+                                      if (success) _silentRefresh();
+                                    },
+                                    child: const Text("Delete", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
                               ),
                             );
-                          }
+                          },
+                          child: const Padding(padding: EdgeInsets.all(6.0), child: Icon(Icons.delete_outline, color: Colors.white24, size: 20)),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text("${med['dosage']} $unit • ${(med['times'] as List).join(', ')}", style: const TextStyle(color: Colors.white54, fontSize: 13)),
+                    if (lowStock)
+                      Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(color: Colors.orangeAccent.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orangeAccent)),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 12),
+                            const SizedBox(width: 4),
+                            Text("$inventory left", style: const TextStyle(color: Colors.orangeAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Text("$inventory left", style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                      ),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => _showMedicationDialog(existingMed: med), 
-                        child: const Padding(padding: EdgeInsets.all(6.0), child: Icon(Icons.edit, color: Color(0xff00E5FF), size: 20)),
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              backgroundColor: const Color(0xff1A3F6B),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                              title: const Text("Delete Medication?", style: TextStyle(color: Colors.white)),
-                              content: Text("Are you sure you want to remove ${med['name']} from your schedule?", style: const TextStyle(color: Colors.white70)),
-                              actions: [
-                                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel", style: TextStyle(color: Colors.white54))),
-                                TextButton(
-                                  onPressed: () async {
-                                    Navigator.pop(context);
-                                    // Silent refresh — no spinner after deleting
-                                    bool success = await ApiService.deleteMedication(med['id']);
-                                    if (success) _silentRefresh();
-                                  },
-                                  child: const Text("Delete", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                        child: const Padding(padding: EdgeInsets.all(6.0), child: Icon(Icons.delete_outline, color: Colors.white24, size: 20)),
-                      ),
-                    ],
-                  ),
-                  if (lowStock)
-                    Container(
-                      margin: const EdgeInsets.only(top: 4),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: Colors.orangeAccent.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orangeAccent)),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent, size: 12),
-                          const SizedBox(width: 4),
-                          Text("$inventory left", style: const TextStyle(color: Colors.orangeAccent, fontSize: 11, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    )
-                  else
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: Text("$inventory left", style: const TextStyle(color: Colors.white38, fontSize: 12)),
-                    ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         );
       }).toList(),

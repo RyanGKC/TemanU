@@ -19,7 +19,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   String _userName = "Loading...";
   String _userEmail = "Loading...";
-  Uint8List? _profileImageBytes; // <-- NEW: Holds the profile picture
+  Uint8List? _profileImageBytes; 
 
   @override
   void initState() {
@@ -34,7 +34,6 @@ class _SettingsPageState extends State<SettingsPage> {
         _userName = prefs.getString('user_name') ?? "User";
         _userEmail = prefs.getString('user_email') ?? "No email linked";
         
-        // <-- NEW: Load the saved image -->
         final base64String = prefs.getString('profile_image_base64');
         if (base64String != null && base64String.isNotEmpty) {
           _profileImageBytes = base64Decode(base64String);
@@ -71,207 +70,236 @@ class _SettingsPageState extends State<SettingsPage> {
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 30),
-              
-              // 1. PROFILE HEADER
-              Center(
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: const BoxDecoration(
-                        color: Color(0xff00E5FF), 
-                        shape: BoxShape.circle,
-                      ),
-                      // <-- UPDATED: Display the image if it exists -->
-                      child: CircleAvatar(
-                        radius: 50,
-                        backgroundColor: const Color(0xff1A3F6B),
-                        backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
-                        child: _profileImageBytes == null ? const Icon(Icons.person, size: 50, color: Colors.white) : null,
-                      ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1200),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 30),
+                  
+                  // 1. PROFILE HEADER
+                  Center(
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(
+                            color: Color(0xff00E5FF), 
+                            shape: BoxShape.circle,
+                          ),
+                          child: CircleAvatar(
+                            radius: 50,
+                            backgroundColor: const Color(0xff1A3F6B),
+                            backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
+                            child: _profileImageBytes == null ? const Icon(Icons.person, size: 50, color: Colors.white) : null,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        Text(
+                          _userName, 
+                          style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          _userEmail, 
+                          style: const TextStyle(color: Colors.white70, fontSize: 16),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 15),
-                    Text(
-                      _userName, 
-                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      _userEmail, 
-                      style: const TextStyle(color: Colors.white70, fontSize: 16),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 40),
-
-              // 2. PROFILE & SECURITY
-              const Text(
-                "Profile & Security",
-                style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xff1A3F6B),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Column(
-                    children: [
-                      _buildSettingsTile(
-                        icon: Icons.person_outline, 
-                        title: "Profile Information", 
-                        onTap: () async {
-                          // <-- THE FIX: AWAIT the navigator, then reload! -->
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const ProfileInformationPage()),
-                          );
-                          _loadProfileData(); // Instantly updates when returning!
-                        }
-                      ),
-                      _buildDivider(),
-                      _buildSettingsTile(
-                        icon: Icons.lock_outline, 
-                        title: "Change Password", 
-                        onTap: () {
-                          showDialog(
-                            context: context, 
-                            barrierColor: Colors.black.withValues(alpha: 0.6),
-                            builder: (context) => const ChangePasswordDialog(),
-                          );
-                        }
-                      ),
-                      _buildDivider(),
-                      _buildSettingsTile(
-                        icon: Icons.sync, 
-                        title: "Sync Fitbit Data", 
-                        onTap: () async {
-                          String? token = await FitbitService.getSilentToken();
-                          bool isConnected = token != null;
-                          if (context.mounted) {
-                            _showFitbitSyncDialog(context, isConnected);
-                          }
-                        }
-                      ),
-                    ],
                   ),
-                ),
-              ),
 
-              const SizedBox(height: 30),
+                  const SizedBox(height: 40),
 
-              // 3. DANGER ZONE
-              const Text(
-                "Account Management",
-                style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xff1A3F6B),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  children: [
-                    _buildSettingsTile(
-                      icon: Icons.logout, 
-                      title: "Log Out", 
-                      textColor: Colors.redAccent,
-                      iconColor: Colors.redAccent,
-                      hideArrow: true,
-                      onTap: () {
-                        _showConfirmationDialog(
-                          context,
-                          title: "Log Out",
-                          content: "Are you sure you want to log out of your account? You will need to sign back in to view your health data.",
-                          actionText: "Log Out",
-                          actionColor: const Color.fromARGB(168, 0, 229, 255),
-                          onConfirm: () async {
-                            await FitbitService.logout();
-                            
-                            final prefs = await SharedPreferences.getInstance();
-                            await prefs.clear(); 
-                            
-                            if (context.mounted) {
-                              Navigator.pushAndRemoveUntil(
-                                context,
-                                MaterialPageRoute(builder: (context) => const LoginDetails()),
-                                (route) => false, 
-                              );
-                            }
-                          },
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      bool isWideScreen = MediaQuery.of(context).size.width > 800;
+
+                      Widget profileSecurityBlock = Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Profile & Security",
+                            style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 10),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xff1A3F6B),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: Column(
+                                children: [
+                                  _buildSettingsTile(
+                                    icon: Icons.person_outline, 
+                                    title: "Profile Information", 
+                                    onTap: () async {
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (context) => const ProfileInformationPage()),
+                                      );
+                                      _loadProfileData(); 
+                                    }
+                                  ),
+                                  _buildDivider(),
+                                  _buildSettingsTile(
+                                    icon: Icons.lock_outline, 
+                                    title: "Change Password", 
+                                    onTap: () {
+                                      showDialog(
+                                        context: context, 
+                                        barrierColor: Colors.black.withValues(alpha: 0.6),
+                                        builder: (context) => const ChangePasswordDialog(),
+                                      );
+                                    }
+                                  ),
+                                  _buildDivider(),
+                                  _buildSettingsTile(
+                                    icon: Icons.sync, 
+                                    title: "Sync Fitbit Data", 
+                                    onTap: () async {
+                                      String? token = await FitbitService.getSilentToken();
+                                      bool isConnected = token != null;
+                                      if (context.mounted) {
+                                        _showFitbitSyncDialog(context, isConnected);
+                                      }
+                                    }
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+
+                      Widget accountManagementBlock = Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Account Management",
+                            style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 10),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xff1A3F6B),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Column(
+                              children: [
+                                _buildSettingsTile(
+                                  icon: Icons.logout, 
+                                  title: "Log Out", 
+                                  textColor: Colors.redAccent,
+                                  iconColor: Colors.redAccent,
+                                  hideArrow: true,
+                                  onTap: () {
+                                    _showConfirmationDialog(
+                                      context,
+                                      title: "Log Out",
+                                      content: "Are you sure you want to log out of your account? You will need to sign back in to view your health data.",
+                                      actionText: "Log Out",
+                                      actionColor: const Color.fromARGB(168, 0, 229, 255),
+                                      onConfirm: () async {
+                                        await FitbitService.logout();
+                                        
+                                        final prefs = await SharedPreferences.getInstance();
+                                        await prefs.clear(); 
+                                        
+                                        if (context.mounted) {
+                                          Navigator.pushAndRemoveUntil(
+                                            context,
+                                            MaterialPageRoute(builder: (context) => const LoginDetails()),
+                                            (route) => false, 
+                                          );
+                                        }
+                                      },
+                                    );
+                                  }
+                                ),
+                                _buildDivider(),
+                                _buildSettingsTile(
+                                    icon: Icons.delete_forever, 
+                                    title: "Delete Account", 
+                                    textColor: Colors.redAccent,
+                                    iconColor: Colors.redAccent,
+                                    hideArrow: true,
+                                    onTap: () {
+                                      _showConfirmationDialog(
+                                        context,
+                                        title: "Delete Account",
+                                        content: "Are you absolutely sure? This action cannot be undone. All of your health data, settings, and profile information will be permanently erased.",
+                                        actionText: "Delete",
+                                        actionColor: Colors.redAccent,
+                                        onConfirm: () async {
+                                          showDialog(
+                                            context: context,
+                                            barrierDismissible: false,
+                                            builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.redAccent)),
+                                          );
+
+                                          bool success = await ApiService.deleteAccount();
+
+                                          if (context.mounted) Navigator.pop(context);
+
+                                          if (success) {
+                                            await FitbitService.logout();
+                                            
+                                            final prefs = await SharedPreferences.getInstance();
+                                            await prefs.clear(); 
+                                            
+                                            if (context.mounted) {
+                                              Navigator.pushAndRemoveUntil(
+                                                context,
+                                                MaterialPageRoute(builder: (context) => const LoginDetails()),
+                                                (route) => false, 
+                                              );
+                                            }
+                                          } else {
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text("Failed to delete account. Please try again later.")),
+                                              );
+                                            }
+                                          }
+                                        },
+                                      );
+                                    }
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+
+                      if (isWideScreen) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: profileSecurityBlock),
+                            const SizedBox(width: 30),
+                            Expanded(child: accountManagementBlock),
+                          ],
+                        );
+                      } else {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            profileSecurityBlock,
+                            const SizedBox(height: 30),
+                            accountManagementBlock,
+                          ],
                         );
                       }
-                    ),
-                    _buildDivider(),
-                    _buildSettingsTile(
-                        icon: Icons.delete_forever, 
-                        title: "Delete Account", 
-                        textColor: Colors.redAccent,
-                        iconColor: Colors.redAccent,
-                        hideArrow: true,
-                        onTap: () {
-                          _showConfirmationDialog(
-                            context,
-                            title: "Delete Account",
-                            content: "Are you absolutely sure? This action cannot be undone. All of your health data, settings, and profile information will be permanently erased.",
-                            actionText: "Delete",
-                            actionColor: Colors.redAccent,
-                            onConfirm: () async {
-                              // 1. Show a loading indicator (optional but good practice)
-                              showDialog(
-                                context: context,
-                                barrierDismissible: false,
-                                builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.redAccent)),
-                              );
+                    },
+                  ),
 
-                              // 2. Tell the server to nuke the account
-                              bool success = await ApiService.deleteAccount();
-
-                              // Pop the loading circle
-                              if (context.mounted) Navigator.pop(context);
-
-                              if (success) {
-                                // 3. Disconnect third-party services
-                                await FitbitService.logout();
-                                
-                                // 4. Wipe the local storage
-                                final prefs = await SharedPreferences.getInstance();
-                                await prefs.clear(); 
-                                
-                                // 5. Kick them to the login screen and destroy the back button history
-                                if (context.mounted) {
-                                  Navigator.pushAndRemoveUntil(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const LoginDetails()),
-                                    (route) => false, 
-                                  );
-                                }
-                              } else {
-                                // Show an error if the server failed
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text("Failed to delete account. Please try again later.")),
-                                  );
-                                }
-                              }
-                            },
-                          );
-                        }
-                      ),
-                  ],
-                ),
+                  const SizedBox(height: 120),
+                ],
               ),
-              const SizedBox(height: 120),
-            ],
+            ),
           ),
         ),
       ),
@@ -339,6 +367,8 @@ class _SettingsPageState extends State<SettingsPage> {
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
               child: Container(
+                // --- THE FIX: Prevents the dialog from stretching on wide screens ---
+                constraints: const BoxConstraints(maxWidth: 400),
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
                   color: const Color(0xff1A3F6B).withValues(alpha: 0.8), 
@@ -452,6 +482,8 @@ class _SettingsPageState extends State<SettingsPage> {
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
               child: Container(
+                // --- THE FIX: Prevents the dialog from stretching on wide screens ---
+                constraints: const BoxConstraints(maxWidth: 400),
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
                   color: const Color(0xff1A3F6B).withValues(alpha: 0.8), 
