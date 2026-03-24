@@ -63,7 +63,7 @@ class _SettingsPageState extends State<SettingsPage> {
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(color: Colors.white.withValues(alpha: 0.25))
+            child: Container(color: AppTheme.background.withOpacity(0.5))
           ),
         ),
       ),
@@ -188,7 +188,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             decoration: BoxDecoration(
                               color: AppTheme.cardBackground,
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)),
+                              border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
                             ),
                             child: Column(
                               children: [
@@ -327,7 +327,7 @@ class _SettingsPageState extends State<SettingsPage> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.1), 
+                color: iconColor.withOpacity(0.1), 
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: iconColor, size: 24),
@@ -349,7 +349,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildDivider() {
     return Divider(
-      color: Colors.white.withValues(alpha: 0.1),
+      color: Colors.white.withOpacity(0.1),
       height: 1,
       thickness: 1,
       indent: 65, 
@@ -360,7 +360,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void _showFitbitSyncDialog(BuildContext context, bool isConnected) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.6), 
+      barrierColor: Colors.black.withOpacity(0.6), 
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent, 
@@ -374,9 +374,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 constraints: const BoxConstraints(maxWidth: 400),
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
-                  color: AppTheme.cardBackground.withValues(alpha: 0.8), 
+                  color: AppTheme.cardBackground.withOpacity(0.8), 
                   borderRadius: BorderRadius.circular(25),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5), 
+                  border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5), 
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min, 
@@ -384,7 +384,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     Container(
                       padding: const EdgeInsets.all(15),
                       decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                        color: AppTheme.primaryColor.withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(isConnected ? Icons.sync : Icons.watch, color: AppTheme.primaryColor, size: 40),
@@ -475,7 +475,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.6), 
+      barrierColor: Colors.black.withOpacity(0.6), 
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent, 
@@ -489,9 +489,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 constraints: const BoxConstraints(maxWidth: 400),
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
-                  color: AppTheme.cardBackground.withValues(alpha: 0.8), 
+                  color: AppTheme.cardBackground.withOpacity(0.8), 
                   borderRadius: BorderRadius.circular(25),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5), 
+                  border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5), 
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min, 

@@ -1157,8 +1157,8 @@ class MyBarChart extends StatelessWidget {
         barTouchData: BarTouchData(
           enabled: true,
           touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (group) => AppTheme.background.withOpacity(0.95), 
-            tooltipBorderRadius: BorderRadius.circular(8),
+            getTooltipColor: (group) => AppTheme.background.withValues(alpha: 0.95), 
+            tooltipRoundedRadius: 8,
             tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             tooltipMargin: 8,
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
@@ -1286,8 +1286,7 @@ class MyBarChart extends StatelessWidget {
             ],
           );
         }),
-      ),
-      duration: const Duration(milliseconds: 0),
+      ), // Closing parenthesis for BarChartData
     );
   }
 }
