@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:temanu/theme.dart';
 
 class BloodPressureChartPainter extends CustomPainter {
   final List<DateTime> timeData;
@@ -26,12 +27,12 @@ class BloodPressureChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final sysPaint = Paint()..color = Colors.orange..style = PaintingStyle.fill;
-    final diaPaint = Paint()..color = Colors.greenAccent..style = PaintingStyle.fill;
-    final sysColumnPaint = Paint()..color = Colors.orange.withValues(alpha: 0.3)..strokeWidth = 5..strokeCap = StrokeCap.round;
-    final diaColumnPaint = Paint()..color = Colors.greenAccent.withValues(alpha: 0.3)..strokeWidth = 5..strokeCap = StrokeCap.round;
-    final gridPaint = Paint()..color = Colors.white54..strokeWidth = 1;
-    const textStyle = TextStyle(color: Colors.white, fontSize: 11);
+    final sysPaint = Paint()..color = AppTheme.warning..style = PaintingStyle.fill;
+    final diaPaint = Paint()..color = AppTheme.success..style = PaintingStyle.fill;
+    final sysColumnPaint = Paint()..color = AppTheme.warning.withOpacity(0.3)..strokeWidth = 5..strokeCap = StrokeCap.round;
+    final diaColumnPaint = Paint()..color = AppTheme.success.withOpacity(0.3)..strokeWidth = 5..strokeCap = StrokeCap.round;
+    final gridPaint = Paint()..color = AppTheme.textSecondary.withOpacity(0.5)..strokeWidth = 1;
+    const textStyle = TextStyle(color: AppTheme.textPrimary, fontSize: 11);
 
     // --- Y-AXIS CALCULATION ---
     final allValues = [...sysMinData, ...sysMaxData, ...diaMinData, ...diaMaxData];
@@ -146,11 +147,11 @@ class BloodPressureChartPainter extends CustomPainter {
       // Highlight ring for touched point — drawn on top of all dots
       if (touchedIndex == i) {
         // Draw highlight rings on the systolic dot(s)
-        canvas.drawCircle(Offset(x, sysMaxY), 8, Paint()..color = Colors.white);
-        canvas.drawCircle(Offset(x, sysMaxY), 5, Paint()..color = const Color(0xff031447));
+        canvas.drawCircle(Offset(x, sysMaxY), 8, Paint()..color = AppTheme.textPrimary);
+        canvas.drawCircle(Offset(x, sysMaxY), 5, Paint()..color = AppTheme.background);
         // Draw highlight rings on the diastolic dot(s)
-        canvas.drawCircle(Offset(x, diaMinY), 8, Paint()..color = Colors.white);
-        canvas.drawCircle(Offset(x, diaMinY), 5, Paint()..color = const Color(0xff031447));
+        canvas.drawCircle(Offset(x, diaMinY), 8, Paint()..color = AppTheme.textPrimary);
+        canvas.drawCircle(Offset(x, diaMinY), 5, Paint()..color = AppTheme.background);
       }
     }
 
@@ -201,11 +202,11 @@ class BloodPressureChartPainter extends CustomPainter {
       children: [
         TextSpan(
           text: "$dateStr\n",
-          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
         ),
         TextSpan(
           text: valueStr,
-          style: const TextStyle(color: Color(0xff00E5FF), fontSize: 14, fontWeight: FontWeight.bold),
+          style: const TextStyle(color: AppTheme.primaryColor, fontSize: 14, fontWeight: FontWeight.bold),
         ),
       ],
     );
@@ -231,7 +232,7 @@ class BloodPressureChartPainter extends CustomPainter {
     // Shadow
     canvas.drawRRect(rrect.shift(const Offset(0, 3)), Paint()..color = Colors.black26);
     // Dark box (matches body weight)
-    canvas.drawRRect(rrect, Paint()..color = const Color(0xff1A3F6B));
+    canvas.drawRRect(rrect, Paint()..color = AppTheme.background);
     // Text
     textPainter.paint(canvas, Offset(rectLeft + 12, rectTop + 8));
   }

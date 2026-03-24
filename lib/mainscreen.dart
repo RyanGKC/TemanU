@@ -3,6 +3,7 @@ import 'package:temanu/bottomNavBar.dart';
 import 'package:temanu/homepage.dart'; 
 import 'package:temanu/settingspage.dart'; 
 import 'package:temanu/assistantpage.dart'; 
+import 'package:temanu/theme.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -39,7 +40,7 @@ class _MainScreenState extends State<MainScreen> {
 
     return Scaffold(
       resizeToAvoidBottomInset: false, 
-      backgroundColor: const Color(0xff040F31), 
+      backgroundColor: AppTheme.background, 
       extendBody: true, 
       body: pages[_currentIndex], 
       

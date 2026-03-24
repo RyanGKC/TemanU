@@ -17,6 +17,7 @@ import 'package:temanu/pdfGenerator.dart';
 import 'package:temanu/profileInformation.dart';
 import 'package:temanu/fitbitService.dart';
 import 'dart:convert';
+import 'package:temanu/theme.dart';
 
 class HomePage extends StatefulWidget {
   final GlobalKey<HealthDashboardContentState> dashboardKey;
@@ -55,19 +56,19 @@ class _HomePageState extends State<HomePage> {
           style: const TextStyle(
             fontSize: 25,
             fontWeight: FontWeight.w600,
-            color: Color(0xff00E5FF),
+            color: AppTheme.primaryColor,
           ),
         ),
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
             child: Container(
-              color: Colors.white.withValues(alpha: 0.25),
+              color: AppTheme.background.withOpacity(0.5),
             ),
           ),
         ),
       ),
-      backgroundColor: const Color(0xff040F31),
+      backgroundColor: AppTheme.background,
       body: RefreshIndicator(
         onRefresh: () async {
           await widget.dashboardKey.currentState?.forceSyncFitbit();
@@ -283,24 +284,24 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
               decoration: BoxDecoration(
-                color: isSuccess ? const Color(0xff00E5FF) : const Color(0xff1A3F6B).withValues(alpha: 0.95),
+                color: isSuccess ? AppTheme.primaryColor : AppTheme.cardBackground,
                 borderRadius: BorderRadius.circular(20),
-                border: isSuccess ? null : Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
+                border: isSuccess ? null : Border.all(color: AppTheme.textSecondary.withOpacity(0.2), width: 1.5),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 5))
+                  BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 5))
                 ],
               ),
               child: Row(
                 children: [
                   Icon(
                     isSuccess ? Icons.check_circle : Icons.sync,
-                    color: isSuccess ? const Color(0xff040F31) : const Color(0xff00E5FF),
+                    color: isSuccess ? AppTheme.textPrimary : AppTheme.primaryColor,
                   ),
                   const SizedBox(width: 15),
                   Text(
                     message,
                     style: TextStyle(
-                      color: isSuccess ? const Color(0xff040F31) : Colors.white,
+                      color: isSuccess ? AppTheme.textPrimary : AppTheme.textPrimary,
                       fontSize: 15,
                       fontWeight: isSuccess ? FontWeight.bold : FontWeight.w500,
                     ),
@@ -355,9 +356,9 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                 constraints: const BoxConstraints(maxWidth: 400),
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
-                  color: const Color(0xff1A3F6B).withValues(alpha: 0.8),
+                  color: AppTheme.cardBackground.withOpacity(0.8),
                   borderRadius: BorderRadius.circular(25),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
+                  border: Border.all(color: AppTheme.textSecondary.withOpacity(0.2), width: 1.5),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -365,22 +366,22 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                     Container(
                       padding: const EdgeInsets.all(15),
                       decoration: BoxDecoration(
-                        color: const Color(0xff00E5FF).withValues(alpha: 0.1),
+                        color: AppTheme.primaryColor.withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.watch, color: Color(0xff00E5FF), size: 40),
+                      child: const Icon(Icons.watch, color: AppTheme.primaryColor, size: 40),
                     ),
                     const SizedBox(height: 15),
                     const Text(
                       "Connect Your Health Data",
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: AppTheme.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 10),
                     const Text(
                       "Link your Fitbit account to automatically track your daily steps, heart rate, and sleep directly on your dashboard.",
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                     ),
                     const SizedBox(height: 30),
                     Row(
@@ -392,10 +393,10 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(15),
-                                border: Border.all(color: Colors.white38, width: 1.5),
+                                border: Border.all(color: AppTheme.textSecondary, width: 1.5),
                               ),
                               alignment: Alignment.center,
-                              child: const Text("Not Now", style: TextStyle(color: Colors.white, fontSize: 16)),
+                              child: const Text("Not Now", style: TextStyle(color: AppTheme.textPrimary, fontSize: 16)),
                             ),
                           ),
                         ),
@@ -410,11 +411,11 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               decoration: BoxDecoration(
-                                color: const Color(0xff00E5FF),
+                                color: AppTheme.primaryColor,
                                 borderRadius: BorderRadius.circular(15),
                               ),
                               alignment: Alignment.center,
-                              child: const Text("Connect", style: TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold)),
+                              child: const Text("Connect", style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
                             ),
                           ),
                         ),
@@ -517,7 +518,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
             return Container(
               height: MediaQuery.of(context).size.height * 0.65,
               decoration: const BoxDecoration(
-                color: Color(0xff1A3F6B),
+                color: AppTheme.cardBackground,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
               ),
               child: Column(
@@ -525,26 +526,26 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                   Container(
                     margin: const EdgeInsets.only(top: 15, bottom: 10),
                     height: 5, width: 50,
-                    decoration: BoxDecoration(color: Colors.white38, borderRadius: BorderRadius.circular(10)),
+                    decoration: BoxDecoration(color: AppTheme.textSecondary.withOpacity(0.5), borderRadius: BorderRadius.circular(10)),
                   ),
                   const Padding(
                     padding: EdgeInsets.all(15.0),
                     child: Text("Customize Dashboard",
-                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                        style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
-                  Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
+                  Divider(color: AppTheme.textSecondary.withOpacity(0.1), height: 1),
                   Expanded(
                     child: ListView.builder(
                       itemCount: _metricsData.length,
                       itemBuilder: (context, index) {
                         final metric = _metricsData[index];
                         return SwitchListTile(
-                          activeThumbColor: const Color(0xff00E5FF),
-                          activeTrackColor: const Color(0xff00E5FF).withValues(alpha: 0.3),
-                          inactiveThumbColor: Colors.white54,
-                          inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
-                          secondary: Icon(metric['icon'], color: Colors.white70),
-                          title: Text(metric['title'], style: const TextStyle(color: Colors.white)),
+                          activeThumbColor: AppTheme.primaryColor,
+                          activeTrackColor: AppTheme.primaryColor.withOpacity(0.3),
+                          inactiveThumbColor: AppTheme.textSecondary,
+                          inactiveTrackColor: AppTheme.textSecondary.withOpacity(0.1),
+                          secondary: Icon(metric['icon'], color: AppTheme.textSecondary),
+                          title: Text(metric['title'], style: const TextStyle(color: AppTheme.textPrimary)),
                           value: metric['isVisible'],
                           onChanged: (bool value) {
                             setModalState(() => metric['isVisible'] = value);
@@ -561,13 +562,13 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xff00E5FF),
+                          backgroundColor: AppTheme.primaryColor,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                           padding: const EdgeInsets.symmetric(vertical: 15),
                         ),
                         onPressed: () => Navigator.pop(context),
                         child: const Text("Done",
-                            style: TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold)),
+                            style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ),
@@ -591,7 +592,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
             return Container(
               height: MediaQuery.of(context).size.height * 0.75,
               decoration: const BoxDecoration(
-                color: Color(0xff1A3F6B),
+                color: AppTheme.cardBackground,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
               ),
               child: Column(
@@ -599,25 +600,25 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                   Container(
                     margin: const EdgeInsets.only(top: 15, bottom: 10),
                     height: 5, width: 50,
-                    decoration: BoxDecoration(color: Colors.white38, borderRadius: BorderRadius.circular(10)),
+                    decoration: BoxDecoration(color: AppTheme.textSecondary.withOpacity(0.5), borderRadius: BorderRadius.circular(10)),
                   ),
                   const Padding(
                     padding: EdgeInsets.all(15.0),
                     child: Text("Select Data to Export",
-                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                        style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
-                  Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
+                  Divider(color: AppTheme.textSecondary.withOpacity(0.1), height: 1),
                   Expanded(
                     child: ListView.builder(
                       itemCount: _metricsData.length,
                       itemBuilder: (context, index) {
                         final metric = _metricsData[index];
                         return CheckboxListTile(
-                          activeColor: const Color(0xff00E5FF),
-                          checkColor: const Color(0xff040F31),
-                          side: const BorderSide(color: Colors.white70),
-                          secondary: Icon(metric['icon'], color: Colors.white70),
-                          title: Text(metric['title'], style: const TextStyle(color: Colors.white)),
+                          activeColor: AppTheme.primaryColor,
+                          checkColor: AppTheme.textPrimary,
+                          side: const BorderSide(color: AppTheme.textSecondary),
+                          secondary: Icon(metric['icon'], color: AppTheme.textSecondary),
+                          title: Text(metric['title'], style: const TextStyle(color: AppTheme.textPrimary)),
                           value: metric['isShareSelected'],
                           onChanged: (bool? value) {
                             setModalState(() => metric['isShareSelected'] = value ?? false);
@@ -634,7 +635,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                           Expanded(
                             child: OutlinedButton(
                               style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Color(0xff00E5FF), width: 1.5),
+                                side: const BorderSide(color: AppTheme.primaryColor, width: 1.5),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                                 padding: const EdgeInsets.symmetric(vertical: 15),
                               ),
@@ -647,7 +648,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                                 );
                               },
                               child: const Text("Share PDF",
-                                  style: TextStyle(color: Color(0xff00E5FF), fontSize: 16, fontWeight: FontWeight.bold)),
+                                  style: TextStyle(color: AppTheme.primaryColor, fontSize: 16, fontWeight: FontWeight.bold)),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -655,7 +656,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                         Expanded(
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xff00E5FF),
+                              backgroundColor: AppTheme.primaryColor,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                               padding: const EdgeInsets.symmetric(vertical: 15),
                             ),
@@ -669,7 +670,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                               );
                             },
                             child: const Text("Save PDF",
-                                style: TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold)),
+                                style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ],
@@ -723,15 +724,15 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                icon: const Icon(Icons.edit_note, color: Colors.white, size: 30),
+                icon: const Icon(Icons.edit_note, color: AppTheme.textPrimary, size: 30),
                 onPressed: _showEditMetricsBottomSheet,
               ),
               IconButton(
-                icon: const Icon(Icons.sync, color: Color(0xff00E5FF), size: 28),
+                icon: const Icon(Icons.sync, color: AppTheme.primaryColor, size: 28),
                 onPressed: forceSyncFitbit,
               ),
               IconButton(
-                icon: const Icon(Icons.ios_share, color: Colors.white, size: 28),
+                icon: const Icon(Icons.ios_share, color: AppTheme.textPrimary, size: 28),
                 onPressed: _showShareMetricsBottomSheet,
               ),
             ],
@@ -794,17 +795,17 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
         margin: const EdgeInsets.only(bottom: 15),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xff1A3F6B),
+          color: AppTheme.cardBackground,
           borderRadius: BorderRadius.circular(25),
         ),
         child: Row(
           children: [
-            Icon(icon, color: Colors.white, size: 35),
+            Icon(icon, color: AppTheme.textPrimary, size: 35),
             const SizedBox(width: 20),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                Text(title, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
                 _isLoading
                     ? const Padding(
                         padding: EdgeInsets.only(top: 8.0),
@@ -812,13 +813,13 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                           height: 20, width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xff00E5FF)),
+                            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
                           ),
                         ),
                       )
                     : Text("$value $unit",
                         style: const TextStyle(
-                            color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                            color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
               ],
             ),
           ],

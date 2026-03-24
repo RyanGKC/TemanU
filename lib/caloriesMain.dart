@@ -7,6 +7,7 @@ import 'package:temanu/assistantpage.dart';
 import 'package:temanu/cameraCapture.dart';
 import 'package:temanu/fitbitService.dart';
 import 'package:temanu/patientData.dart';
+import 'package:temanu/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temanu/api_service.dart';
 import 'dart:math';
@@ -253,7 +254,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
             Color goalColor() {
               if (tempGoal == 'deficit') return Colors.orangeAccent;
               if (tempGoal == 'surplus') return Colors.greenAccent;
-              return const Color(0xff00E5FF);
+              return AppTheme.primaryColor;
             }
 
             String goalDescription() {
@@ -278,7 +279,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
               padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
               child: Container(
                 decoration: const BoxDecoration(
-                  color: Color(0xff1A3F6B),
+                  color: AppTheme.cardBackground,
                   borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
                 ),
                 child: SingleChildScrollView(
@@ -336,7 +337,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                                 _dividerLine(),
                                 _bmrStat("Age",    "${widget.patientData.age} yrs",   Colors.white70),
                                 _dividerLine(),
-                                _bmrStat("BMR",    "${bmr.toInt()} kcal",             const Color(0xff00E5FF)),
+                                _bmrStat("BMR",    "${bmr.toInt()} kcal",             AppTheme.primaryColor),
                               ],
                             ),
                       ),
@@ -363,11 +364,11 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? const Color(0xff00E5FF).withValues(alpha: 0.12)
+                                  ? AppTheme.primaryColor.withOpacity(0.12)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: isSelected ? const Color(0xff00E5FF) : Colors.white12,
+                                color: isSelected ? AppTheme.primaryColor : Colors.white12,
                                 width: isSelected ? 1.5 : 1,
                               ),
                             ),
@@ -379,7 +380,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                                     children: [
                                       Text(_activityLabels[level]!,
                                         style: TextStyle(
-                                          color: isSelected ? const Color(0xff00E5FF) : Colors.white,
+                                          color: isSelected ? AppTheme.primaryColor : Colors.white,
                                           fontSize: 14,
                                           fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                                         )),
@@ -390,7 +391,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                                   ),
                                 ),
                                 if (isSelected)
-                                  const Icon(Icons.check_circle, color: Color(0xff00E5FF), size: 18),
+                                  const Icon(Icons.check_circle, color: AppTheme.primaryColor, size: 18),
                               ],
                             ),
                           ),
@@ -572,10 +573,10 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                           padding: const EdgeInsets.symmetric(vertical: 18),
                           decoration: BoxDecoration(
                             color: patientDataMissing
-                                ? Colors.white.withValues(alpha: 0.05)
-                                : const Color(0xff00E5FF).withValues(alpha: 0.1),
+                                ? Colors.white.withOpacity(0.05)
+                                : AppTheme.primaryColor.withOpacity(0.1),
                             border: Border.all(
-                              color: patientDataMissing ? Colors.white12 : const Color(0xff00E5FF),
+                              color: patientDataMissing ? Colors.white12 : AppTheme.primaryColor,
                               width: 2,
                             ),
                             borderRadius: BorderRadius.circular(20),
@@ -584,7 +585,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                             child: Text(
                               patientDataMissing ? "Complete your profile first" : "Save Goals",
                               style: TextStyle(
-                                color: patientDataMissing ? Colors.white24 : const Color(0xff00E5FF),
+                                color: patientDataMissing ? Colors.white24 : AppTheme.primaryColor,
                                 fontSize: 17,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -713,29 +714,29 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: const Color(0xff040F31),
+        backgroundColor: AppTheme.background,
         appBar: AppBar(
-          backgroundColor: const Color(0xff55607D),
+          backgroundColor: Colors.transparent,
           elevation: 0,
           centerTitle: false,
           title: const Text("Calories",
-            style: TextStyle(color: Color(0xff35E0FF), fontSize: 25, fontWeight: FontWeight.w600)),
+            style: TextStyle(color: AppTheme.primaryColor, fontSize: 25, fontWeight: FontWeight.w600)),
           flexibleSpace: ClipRect(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-              child: Container(color: Colors.white.withValues(alpha: 0.25)),
+              child: Container(color: AppTheme.background.withOpacity(0.5)),
             ),
           ),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xff35E0FF)),
+            icon: const Icon(Icons.arrow_back, color: AppTheme.primaryColor),
             onPressed: () => Navigator.pop(context),
           ),
           actions: [
             IconButton(
               icon: _isFitbitLoading
                   ? const SizedBox(height: 20, width: 20,
-                      child: CircularProgressIndicator(color: Color(0xff35E0FF), strokeWidth: 2))
-                  : const Icon(Icons.sync, color: Color(0xff35E0FF)),
+                      child: CircularProgressIndicator(color: AppTheme.primaryColor, strokeWidth: 2))
+                  : const Icon(Icons.sync, color: AppTheme.primaryColor),
               onPressed: _isFitbitLoading ? null : () {
                 _loadFitbitCalories(forceRefresh: true);
                 _loadWeeklyInsights();
@@ -748,9 +749,9 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
           ],
           // --- THE NEW TABS ---
           bottom: const TabBar(
-            indicatorColor: Color(0xff00E5FF),
-            labelColor: Color(0xff00E5FF),
-            unselectedLabelColor: Colors.white54,
+            indicatorColor: AppTheme.primaryColor,
+            labelColor: AppTheme.primaryColor,
+            unselectedLabelColor: AppTheme.textSecondary,
             indicatorWeight: 3,
             tabs: [
               Tab(text: "Today"),
@@ -804,11 +805,11 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xff1A3F6B),
+        backgroundColor: AppTheme.cardBackground,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            const Icon(Icons.lightbulb_outline, color: Color(0xff00E5FF)),
+            const Icon(Icons.lightbulb_outline, color: AppTheme.primaryColor),
             const SizedBox(width: 10),
             Expanded(
               child: Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
@@ -829,7 +830,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
   // ─── TAB 2: INSIGHTS & TRENDS ─────────────────────────────────────────────
   Widget _buildInsightsTab() {
     if (_isLoadingInsights) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xff00E5FF)));
+      return const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor));
     }
 
     final double bottomSafeArea = MediaQuery.paddingOf(context).bottom;
@@ -864,9 +865,9 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
               width: double.infinity,
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
-                color: const Color(0xff1A3F6B),
+                color: AppTheme.cardBackground,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: projectionColor.withValues(alpha: 0.5), width: 1.5),
+                border: Border.all(color: projectionColor.withOpacity(0.5), width: 1.5),
               ),
               child: Column(
                 children: [
@@ -916,13 +917,17 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
             const SizedBox(height: 15),
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: const Color(0xff1A3F6B), borderRadius: BorderRadius.circular(20)),
+              decoration: BoxDecoration(
+                color: AppTheme.cardBackground, 
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+              ),
               child: Column(
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.circle, color: Color(0xff00E5FF), size: 10),
+                      const Icon(Icons.circle, color: AppTheme.primaryColor, size: 10),
                       const SizedBox(width: 5),
                       const Text("Consumed", style: TextStyle(color: Colors.white70, fontSize: 12)),
                       const SizedBox(width: 20),
@@ -951,17 +956,17 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                           verticalOffset: 20, // Gives it some breathing room from the bars
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                           decoration: BoxDecoration(
-                            color: const Color(0xff040F31).withValues(alpha: 0.95), // Deep dark blue
+                            color: AppTheme.background.withOpacity(0.95), // Deep dark blue
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xff00E5FF).withValues(alpha: 0.5)), // Cyan border
+                            border: Border.all(color: AppTheme.primaryColor.withOpacity(0.5)), // Cyan border
                           ),
                           textStyle: const TextStyle(color: Colors.white, fontSize: 13, height: 1.5),
                           richMessage: TextSpan(
                             children: [
                               TextSpan(text: "${dayData['day']}\n", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                              TextSpan(text: "Consumed: ", style: TextStyle(color: Colors.white.withValues(alpha: 0.7))),
-                              TextSpan(text: "${dayData['consumed'].toInt()} kcal\n", style: const TextStyle(color: Color(0xff00E5FF), fontWeight: FontWeight.bold)),
-                              TextSpan(text: "Burned: ", style: TextStyle(color: Colors.white.withValues(alpha: 0.7))),
+                              TextSpan(text: "Consumed: ", style: TextStyle(color: Colors.white.withOpacity(0.7))),
+                              TextSpan(text: "${dayData['consumed'].toInt()} kcal\n", style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold)),
+                              TextSpan(text: "Burned: ", style: TextStyle(color: Colors.white.withOpacity(0.7))),
                               TextSpan(text: "${dayData['burned'].toInt()} kcal", style: const TextStyle(color: Color(0xff00E676), fontWeight: FontWeight.bold)),
                             ]
                           ),
@@ -971,7 +976,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
-                                  Container(width: 10, height: consumedHeight, decoration: BoxDecoration(color: const Color(0xff00E5FF), borderRadius: BorderRadius.circular(5))),
+                                  Container(width: 10, height: consumedHeight, decoration: BoxDecoration(color: AppTheme.primaryColor, borderRadius: BorderRadius.circular(5))),
                                   const SizedBox(width: 4),
                                   Container(width: 10, height: burnedHeight, decoration: BoxDecoration(color: const Color(0xff00E676), borderRadius: BorderRadius.circular(5))),
                                 ],
@@ -1010,7 +1015,11 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
             const SizedBox(height: 15),
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: const Color(0xff1A3F6B), borderRadius: BorderRadius.circular(20)),
+              decoration: BoxDecoration(
+                color: AppTheme.cardBackground, 
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
@@ -1064,7 +1073,11 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: const Color(0xff375B86), borderRadius: BorderRadius.circular(22)),
+        decoration: BoxDecoration(
+          color: AppTheme.cardBackground, 
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1113,7 +1126,11 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
-          decoration: BoxDecoration(color: const Color(0xff1A3F6B), borderRadius: BorderRadius.circular(25)),
+          decoration: BoxDecoration(
+            color: AppTheme.cardBackground, 
+            borderRadius: BorderRadius.circular(25),
+            border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+          ),
           child: Column(
             children: [
               GestureDetector(
@@ -1132,7 +1149,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildRing(label: "Consumed", currentValue: (caloriesConsumed * _animation.value).toInt(), target: caloriesIntakeTarget.toInt(), progress: consumedProgress, ringColor: const Color(0xff00E5FF), isLoading: false),
+                  _buildRing(label: "Consumed", currentValue: (caloriesConsumed * _animation.value).toInt(), target: caloriesIntakeTarget.toInt(), progress: consumedProgress, ringColor: AppTheme.primaryColor, isLoading: false),
                   Container(height: 120, width: 1, color: Colors.white12),
                   _buildRing(label: "Burned", currentValue: (caloriesBurned * _animation.value).toInt(), target: caloriesBurnedTarget.toInt(), progress: burnedProgress, ringColor: const Color(0xff00E676), isLoading: _isFitbitLoading),
                 ],
@@ -1172,7 +1189,11 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 25, horizontal: 10),
-      decoration: BoxDecoration(color: const Color(0xff3183BE), borderRadius: BorderRadius.circular(25)),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBackground, 
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
@@ -1217,7 +1238,11 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: const Color(0xff1A3F6B), borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBackground, 
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1229,7 +1254,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                 child: Text(meal["name"], style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis),
               ),
               const SizedBox(width: 12),
-              Text("${meal["calories"]} kcal", style: const TextStyle(color: Color(0xff00E5FF), fontSize: 16, fontWeight: FontWeight.bold)),
+              Text("${meal["calories"]} kcal", style: const TextStyle(color: AppTheme.primaryColor, fontSize: 16, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 12),

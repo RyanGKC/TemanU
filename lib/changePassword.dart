@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:temanu/api_service.dart'; // Make sure this path is correct
+import 'package:temanu/api_service.dart';
+import 'package:temanu/theme.dart';
 
 class ChangePasswordDialog extends StatefulWidget {
   const ChangePasswordDialog({super.key});
@@ -91,9 +92,9 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
             constraints: const BoxConstraints(maxWidth: 400),
             padding: const EdgeInsets.all(25),
             decoration: BoxDecoration(
-              color: const Color(0xff1A3F6B).withValues(alpha: 0.9),
+              color: AppTheme.cardBackground,
               borderRadius: BorderRadius.circular(25),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
+              border: Border.all(color: AppTheme.textSecondary.withOpacity(0.2), width: 1.5),
             ),
             child: _step == 1 ? _buildStep1Request() : _buildStep2Verify(),
           ),
@@ -110,22 +111,22 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
         Container(
           padding: const EdgeInsets.all(15),
           decoration: BoxDecoration(
-            color: const Color(0xff00E5FF).withValues(alpha: 0.1),
+            color: AppTheme.primaryColor.withOpacity(0.1),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.security, color: Color(0xff00E5FF), size: 40),
+          child: const Icon(Icons.security, color: AppTheme.primaryColor, size: 40),
         ),
         const SizedBox(height: 15),
         const Text(
           "Secure Password Change",
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+          style: TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 10),
         const Text(
           "To protect your account, we need to verify your identity. Click below to send a 6-digit one-time password (OTP) to your registered email address.",
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white70, fontSize: 14),
+          style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
         ),
         const SizedBox(height: 25),
         Row(
@@ -137,10 +138,10 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: Colors.white38, width: 1.5),
+                    border: Border.all(color: AppTheme.textSecondary, width: 1.5),
                   ),
                   alignment: Alignment.center,
-                  child: const Text("Cancel", style: TextStyle(color: Colors.white, fontSize: 16)),
+                  child: const Text("Cancel", style: TextStyle(color: AppTheme.textPrimary, fontSize: 16)),
                 ),
               ),
             ),
@@ -151,13 +152,13 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
-                    color: const Color(0xff00E5FF),
+                    color: AppTheme.primaryColor,
                     borderRadius: BorderRadius.circular(15),
                   ),
                   alignment: Alignment.center,
                   child: _isLoading 
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Color(0xff040F31), strokeWidth: 2))
-                      : const Text("Send OTP", style: TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold)),
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: AppTheme.textPrimary, strokeWidth: 2))
+                      : const Text("Send OTP", style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
             ),
@@ -172,11 +173,11 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.mark_email_read, color: Color(0xff00E5FF), size: 40),
+        const Icon(Icons.mark_email_read, color: AppTheme.primaryColor, size: 40),
         const SizedBox(height: 15),
         const Text(
           "Check Your Email",
-          style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+          style: TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 15),
         
@@ -185,14 +186,14 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
           controller: _otpController,
           keyboardType: TextInputType.number,
           maxLength: 6,
-          style: const TextStyle(color: Colors.white, letterSpacing: 5, fontSize: 18),
+          style: const TextStyle(color: AppTheme.textPrimary, letterSpacing: 5, fontSize: 18),
           textAlign: TextAlign.center,
           decoration: InputDecoration(
             counterText: "",
             hintText: "Enter 6-digit OTP",
-            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), letterSpacing: 0, fontSize: 16),
+            hintStyle: TextStyle(color: AppTheme.textSecondary.withOpacity(0.3), letterSpacing: 0, fontSize: 16),
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.1),
+            fillColor: AppTheme.background,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
           ),
         ),
@@ -202,15 +203,15 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
         TextField(
           controller: _newPasswordController,
           obscureText: !_isPasswordVisible,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: AppTheme.textPrimary),
           decoration: InputDecoration(
             hintText: "New Password",
-            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+            hintStyle: TextStyle(color: AppTheme.textSecondary.withOpacity(0.3)),
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.1),
+            fillColor: AppTheme.background,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
             suffixIcon: IconButton(
-              icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off, color: Colors.white54),
+              icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off, color: AppTheme.textSecondary),
               onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
             ),
           ),
@@ -226,10 +227,10 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: Colors.white38, width: 1.5),
+                    border: Border.all(color: AppTheme.textSecondary, width: 1.5),
                   ),
                   alignment: Alignment.center,
-                  child: const Text("Cancel", style: TextStyle(color: Colors.white, fontSize: 16)),
+                  child: const Text("Cancel", style: TextStyle(color: AppTheme.textPrimary, fontSize: 16)),
                 ),
               ),
             ),
@@ -240,13 +241,13 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
-                    color: const Color(0xff00E5FF),
+                    color: AppTheme.primaryColor,
                     borderRadius: BorderRadius.circular(15),
                   ),
                   alignment: Alignment.center,
                   child: _isLoading 
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Color(0xff040F31), strokeWidth: 2))
-                      : const Text("Update", style: TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold)),
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: AppTheme.textPrimary, strokeWidth: 2))
+                      : const Text("Update", style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
             ),

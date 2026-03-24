@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:temanu/api_service.dart';
-import 'package:temanu/button.dart'; // Assuming you have your custom button
-import 'package:temanu/textbox.dart'; // Assuming you have your custom text field
+import 'package:temanu/button.dart';
+import 'package:temanu/textbox.dart';
+import 'package:temanu/theme.dart';
 
 enum ResetStep { email, otpAndNewPassword }
 
@@ -92,16 +93,16 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
       child: Container(
         padding: const EdgeInsets.all(25),
         decoration: BoxDecoration(
-          color: const Color(0xff1A3F6B).withValues(alpha: 0.95),
+          color: AppTheme.cardBackground,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
+          border: Border.all(color: AppTheme.textSecondary.withOpacity(0.2), width: 1.5),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
               'Reset Password',
-              style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+              style: TextStyle(color: AppTheme.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
             
@@ -110,7 +111,7 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
               const Text(
                 "Enter your registered email address and we will send you a 6-digit verification code.",
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white70, fontSize: 14),
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
               ),
               const SizedBox(height: 20),
               MyTextField(
@@ -120,11 +121,11 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
               ),
               const SizedBox(height: 25),
               _isLoading
-                  ? const CircularProgressIndicator(color: Color(0xff00E5FF))
+                  ? const CircularProgressIndicator(color: AppTheme.primaryColor)
                   : MyRoundedButton(
                       text: 'Send OTP',
-                      backgroundColor: const Color(0xff00E5FF),
-                      textColor: const Color(0xff040F31),
+                      backgroundColor: AppTheme.primaryColor,
+                      textColor: AppTheme.textPrimary,
                       onPressed: _handleSendOTP,
                     ),
             ],
@@ -134,7 +135,7 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
               Text(
                 "OTP sent to ${_emailController.text}",
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
               ),
               const SizedBox(height: 20),
               MyTextField(
@@ -158,11 +159,11 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
               ),
               const SizedBox(height: 25),
               _isLoading
-                  ? const CircularProgressIndicator(color: Color(0xff00E5FF))
+                  ? const CircularProgressIndicator(color: AppTheme.primaryColor)
                   : MyRoundedButton(
                       text: 'Reset Password',
-                      backgroundColor: const Color(0xff00E5FF),
-                      textColor: const Color(0xff040F31),
+                      backgroundColor: AppTheme.primaryColor,
+                      textColor: AppTheme.textPrimary,
                       onPressed: _handleResetPassword,
                     ),
             ],
@@ -170,7 +171,7 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
             const SizedBox(height: 15),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+              child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
             ),
           ],
         ),

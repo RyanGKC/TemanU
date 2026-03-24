@@ -6,6 +6,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:temanu/theme.dart';
 
 class ChatMessage {
   final String text;
@@ -218,13 +219,13 @@ class _AssistantPageState extends State<AssistantPage> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
-        backgroundColor: const Color(0xff040F31), 
+        backgroundColor: AppTheme.background, 
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
           centerTitle: false,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+            icon: const Icon(Icons.arrow_back_ios_new, color: AppTheme.primaryColor),
             onPressed: () {
               FocusScope.of(context).unfocus();
               if (widget.onBackTabPressed != null) {
@@ -236,7 +237,7 @@ class _AssistantPageState extends State<AssistantPage> {
           ),
           title: const Text(
             'AI Assistant',
-            style: TextStyle(fontSize: 25, fontWeight: FontWeight.w600, color: Color(0xff00E5FF))
+            style: TextStyle(fontSize: 25, fontWeight: FontWeight.w600, color: AppTheme.primaryColor)
           ),
           flexibleSpace: ClipRect(
             child: BackdropFilter(
@@ -295,7 +296,7 @@ class _AssistantPageState extends State<AssistantPage> {
           maxWidth: MediaQuery.of(context).size.width * 0.75, 
         ),
         decoration: BoxDecoration(
-          color: isUser ? const Color(0xff00E5FF) : const Color(0xff1A3F6B),
+          color: isUser ? AppTheme.primaryColor : AppTheme.cardBackground,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(20),
             topRight: const Radius.circular(20),
@@ -325,18 +326,18 @@ class _AssistantPageState extends State<AssistantPage> {
                 styleSheet: MarkdownStyleSheet(
                   // Default text style (paragraphs)
                   p: TextStyle(
-                    color: isUser ? const Color(0xff040F31) : Colors.white, 
+                    color: isUser ? AppTheme.textPrimary : Colors.white, 
                     fontSize: 16,
                   ),
                   // Bold text style (strong)
                   strong: TextStyle(
-                    color: isUser ? const Color(0xff040F31) : Colors.white, 
+                    color: isUser ? AppTheme.textPrimary : Colors.white, 
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                   // List item styles
                   listBullet: TextStyle(
-                    color: isUser ? const Color(0xff040F31) : Colors.white,
+                    color: isUser ? AppTheme.textPrimary : Colors.white,
                     fontSize: 16,
                   ),
                 ),
@@ -365,7 +366,7 @@ class _AssistantPageState extends State<AssistantPage> {
                     width: 80,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(15),
-                      border: Border.all(color: const Color(0xff00E5FF), width: 2),
+                      border: Border.all(color: AppTheme.primaryColor, width: 2),
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(13),
@@ -414,7 +415,7 @@ class _AssistantPageState extends State<AssistantPage> {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 4.0, left: 6.0),
                       child: IconButton(
-                        icon: const Icon(Icons.add_photo_alternate_outlined, color: Color(0xff00E5FF), size: 26),
+                        icon: const Icon(Icons.add_photo_alternate_outlined, color: AppTheme.primaryColor, size: 26),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(minWidth: 40, minHeight: 40), 
                         onPressed: () {
@@ -456,7 +457,7 @@ class _AssistantPageState extends State<AssistantPage> {
                           width: 40,
                           child: Icon(
                             Icons.send, 
-                            color: Color(0xff00E5FF), 
+                            color: AppTheme.primaryColor, 
                             size: 18
                           ),
                         ),

@@ -6,6 +6,7 @@ import 'package:temanu/api_service.dart';
 import 'package:temanu/button.dart';
 import 'package:temanu/logindetails.dart';
 import 'package:temanu/textbox.dart';
+import 'package:temanu/theme.dart';
 
 class RegisterDetails extends StatefulWidget {
   const RegisterDetails({super.key});
@@ -123,18 +124,18 @@ class _RegisterDetailsState extends State<RegisterDetails> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.mark_email_read_outlined, color: Color(0xff00E5FF), size: 50),
+                        const Icon(Icons.mark_email_read_outlined, color: AppTheme.primaryColor, size: 50),
                         const SizedBox(height: 15),
                         const Text(
                           "Verify Your Email",
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: AppTheme.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 10),
                         Text(
                           "We sent a 6-digit code to\n$email",
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white70, fontSize: 14),
+                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                         ),
                         const SizedBox(height: 25),
                         
@@ -142,16 +143,16 @@ class _RegisterDetailsState extends State<RegisterDetails> {
                           controller: otpController,
                           keyboardType: TextInputType.number,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white, fontSize: 24, letterSpacing: 8, fontWeight: FontWeight.bold),
+                          style: const TextStyle(color: AppTheme.textPrimary, fontSize: 24, letterSpacing: 8, fontWeight: FontWeight.bold),
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
                             LengthLimitingTextInputFormatter(6),
                           ],
                           decoration: InputDecoration(
                             hintText: "000000",
-                            hintStyle: const TextStyle(color: Colors.white24, letterSpacing: 8),
+                            hintStyle: TextStyle(color: AppTheme.textSecondary.withOpacity(0.3), letterSpacing: 8),
                             filled: true,
-                            fillColor: const Color(0xff040F31).withValues(alpha: 0.4),
+                            fillColor: AppTheme.background,
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
                             contentPadding: const EdgeInsets.symmetric(vertical: 15),
                           ),
@@ -168,14 +169,14 @@ class _RegisterDetailsState extends State<RegisterDetails> {
                                   padding: const EdgeInsets.symmetric(vertical: 16),
                                 ),
                                 onPressed: _isVerifying ? null : () => Navigator.pop(context),
-                                child: const Text("Cancel", style: TextStyle(color: Colors.white, fontSize: 16)),
+                                child: const Text("Cancel", style: TextStyle(color: AppTheme.textPrimary, fontSize: 16)),
                               ),
                             ),
                             const SizedBox(width: 15),
                             Expanded(
                               child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xff00E5FF), elevation: 0,
+                                  backgroundColor: AppTheme.primaryColor, elevation: 0,
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                                   padding: const EdgeInsets.symmetric(vertical: 16),
                                 ),
@@ -237,14 +238,14 @@ class _RegisterDetailsState extends State<RegisterDetails> {
         children: [
           Icon(
             isMet ? Icons.check_circle : Icons.circle_outlined,
-            color: isMet ? const Color(0xff00E676) : Colors.white38,
+            color: isMet ? AppTheme.success : AppTheme.textSecondary,
             size: 16,
           ),
           const SizedBox(width: 8),
           Text(
             text,
             style: TextStyle(
-              color: isMet ? Colors.white : Colors.white54,
+              color: isMet ? AppTheme.textPrimary : AppTheme.textSecondary,
               fontSize: 13,
             ),
           ),
@@ -256,61 +257,62 @@ class _RegisterDetailsState extends State<RegisterDetails> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/img/desktop-background.png'),
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 25.0),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 400),
-                child: Column(
-                  children: [
-                    const Text('Registration', style: TextStyle(fontSize: 25, color: Colors.white, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 30),
-                    MyTextField(controller: emailController, hintText: 'Email'),
-                    const SizedBox(height: 15),
-                    MyTextField(controller: fullNameController, hintText: 'Full Name'),
-                    const SizedBox(height: 15),
-                    MyTextField(controller: preferredNameController, hintText: 'Preferred Name'),
-                    const SizedBox(height: 15),
-                    MyTextField(controller: usernameController, hintText: 'Username'),
-                    const SizedBox(height: 15),
-                    MyTextField(
-                      controller: passwordController,
-                      hintText: 'Password',
-                      obscureText: !_isPasswordVisible,
-                      suffixIcon: IconButton(
-                        icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off, color: Colors.grey), 
-                        onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
-                      )
-                    ),
-                    const SizedBox(height: 10),
+      backgroundColor: AppTheme.background,
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 25.0, vertical: 40.0),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Center(child: Text('Registration', style: TextStyle(fontSize: 28, color: AppTheme.textPrimary, fontWeight: FontWeight.bold))),
+                const SizedBox(height: 40),
+                const Text('Email', style: TextStyle(color: AppTheme.textSecondary, fontSize: 14, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                MyTextField(controller: emailController, hintText: 'Enter your email'),
+                const SizedBox(height: 20),
+                const Text('Full Name', style: TextStyle(color: AppTheme.textSecondary, fontSize: 14, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                MyTextField(controller: fullNameController, hintText: 'Enter your full name'),
+                const SizedBox(height: 20),
+                const Text('Preferred Name', style: TextStyle(color: AppTheme.textSecondary, fontSize: 14, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                MyTextField(controller: preferredNameController, hintText: 'What should we call you?'),
+                const SizedBox(height: 20),
+                const Text('Username', style: TextStyle(color: AppTheme.textSecondary, fontSize: 14, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                MyTextField(controller: usernameController, hintText: 'Choose a username'),
+                const SizedBox(height: 20),
+                const Text('Password', style: TextStyle(color: AppTheme.textSecondary, fontSize: 14, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                MyTextField(
+                  controller: passwordController,
+                  hintText: 'Enter a strong password',
+                  obscureText: !_isPasswordVisible,
+                  suffixIcon: IconButton(
+                    icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off, color: AppTheme.textSecondary), 
+                    onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                  )
+                ),
+                const SizedBox(height: 16),
                     
                     // --- NEW: Dynamic Password Checklist ---
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(15),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: const Color(0xff040F31).withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(15),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                        color: AppTheme.cardBackground,
+                        borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
                             "Password Requirements:", 
-                            style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)
+                            style: TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.bold)
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 12),
                           _buildRequirementRow("At least 8 characters", _hasLength),
                           _buildRequirementRow("One uppercase letter (A-Z)", _hasUppercase),
                           _buildRequirementRow("One lowercase letter (a-z)", _hasLowercase),
@@ -319,33 +321,33 @@ class _RegisterDetailsState extends State<RegisterDetails> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 40),
                     
                     _isRequestingOtp 
-                      ? const CircularProgressIndicator(color: Colors.white)
+                      ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
                       : MyRoundedButton(
                           text: 'Register', 
-                          backgroundColor: const Color(0xff3183BE), 
-                          textColor: Colors.white, 
+                          backgroundColor: AppTheme.primaryColor, 
+                          textColor: AppTheme.textPrimary, 
                           onPressed: _handleRegister,
                         ),
 
-                    const SizedBox(height: 15),
-                    Row(
-                      children: const [
-                        Expanded(child: Divider(color: Colors.white, thickness: 1)),
+                    const SizedBox(height: 32),
+                    const Row(
+                      children: [
+                        Expanded(child: Divider(color: AppTheme.cardBackground, thickness: 1)),
                         Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 5),
-                          child: Text('Already have an account?', style: TextStyle(color: Colors.white, fontSize: 14))
+                          padding: EdgeInsets.symmetric(horizontal: 10),
+                          child: Text('Already have an account?', style: TextStyle(color: AppTheme.textSecondary, fontSize: 14))
                         ),
-                        Expanded(child: Divider(color: Colors.white, thickness: 1))
+                        Expanded(child: Divider(color: AppTheme.cardBackground, thickness: 1))
                       ],
                     ),
-                    const SizedBox(height: 15),
+                    const SizedBox(height: 32),
                     MyRoundedButton(
                       text: 'Login', 
-                      backgroundColor: Colors.white, 
-                      textColor: const Color(0xff3183BE), 
+                      backgroundColor: AppTheme.cardBackground, 
+                      textColor: AppTheme.textPrimary, 
                       onPressed: () {
                         Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginDetails()));
                       }
@@ -355,8 +357,6 @@ class _RegisterDetailsState extends State<RegisterDetails> {
               )
             ),
           ),
-        ],
-      ),
     );
   }
 }

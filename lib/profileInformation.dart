@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart'; // Image Picker
 import 'package:temanu/api_service.dart'; 
 import 'package:temanu/patientData.dart';
+import 'package:temanu/theme.dart';
 
 class ProfileInformationPage extends StatefulWidget {
   const ProfileInformationPage({super.key});
@@ -174,10 +175,10 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: Color(0xff00E5FF),
-              onPrimary: Color(0xff040F31),
-              surface: Color(0xff1A3F6B),
-              onSurface: Colors.white,
+              primary: AppTheme.primaryColor,
+              onPrimary: AppTheme.textPrimary,
+              surface: AppTheme.cardBackground,
+              onSurface: AppTheme.textPrimary,
             ),
           ),
           child: child!,
@@ -213,19 +214,19 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xff040F31),
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: AppTheme.primaryColor),
         title: const Text(
           'Profile Info',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: Colors.white),
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: AppTheme.primaryColor),
         ),
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(color: Colors.white.withValues(alpha: 0.1)),
+            child: Container(color: AppTheme.background.withOpacity(0.5)),
           ),
         ),
         actions: [
@@ -234,13 +235,13 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
               onPressed: _toggleEdit,
               child: Text(
                 _isEditing ? "Save" : "Edit",
-                style: const TextStyle(color: Color(0xff00E5FF), fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(color: AppTheme.primaryColor, fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
         ],
       ),
       body: _isLoading 
-        ? const Center(child: CircularProgressIndicator(color: Color(0xff00E5FF)))
+        ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
         : Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -262,23 +263,23 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
                           children: [
                             Container(
                               padding: const EdgeInsets.all(3),
-                              decoration: const BoxDecoration(color: Color(0xff00E5FF), shape: BoxShape.circle),
+                              decoration: const BoxDecoration(color: AppTheme.primaryColor, shape: BoxShape.circle),
                               child: CircleAvatar(
                                 radius: 50,
-                                backgroundColor: const Color(0xff1A3F6B),
+                                backgroundColor: AppTheme.cardBackground,
                                 backgroundImage: _profileImageBytes != null 
                                   ? MemoryImage(_profileImageBytes!) 
                                   : null,
                                 child: _profileImageBytes == null 
-                                  ? const Icon(Icons.person, size: 50, color: Colors.white) 
+                                  ? const Icon(Icons.person, size: 50, color: AppTheme.textPrimary) 
                                   : null,
                               ),
                             ),
                             if (_isEditing)
                               Container(
                                 padding: const EdgeInsets.all(8),
-                                decoration: const BoxDecoration(color: Color(0xff00E5FF), shape: BoxShape.circle),
-                                child: const Icon(Icons.camera_alt, color: Color(0xff040F31), size: 20),
+                                decoration: const BoxDecoration(color: AppTheme.primaryColor, shape: BoxShape.circle),
+                                child: const Icon(Icons.camera_alt, color: AppTheme.textPrimary, size: 20),
                               ),
                           ],
                         ),
@@ -299,8 +300,9 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
                             Container(
                               padding: const EdgeInsets.all(20),
                               decoration: BoxDecoration(
-                                color: const Color(0xff1A3F6B),
+                                color: AppTheme.cardBackground,
                                 borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -340,8 +342,9 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
                             Container(
                               padding: const EdgeInsets.all(20),
                               decoration: BoxDecoration(
-                                color: const Color(0xff1A3F6B),
+                                color: AppTheme.cardBackground,
                                 borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -377,9 +380,9 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
                                         decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.05),
+                                          color: AppTheme.textSecondary.withOpacity(0.05),
                                           borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(color: const Color(0xff00E5FF).withValues(alpha: 0.5)),
+                                          border: Border.all(color: AppTheme.primaryColor.withOpacity(0.5)),
                                         ),
                                         child: Row(
                                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -390,7 +393,7 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
                                                 : "${_selectedConditions.length} Selected",
                                               style: const TextStyle(color: Colors.white, fontSize: 16),
                                             ),
-                                            const Icon(Icons.arrow_drop_down, color: Color(0xff00E5FF)),
+                                            const Icon(Icons.arrow_drop_down, color: AppTheme.primaryColor),
                                           ],
                                         ),
                                       ),
@@ -403,8 +406,8 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
                                         ? [const Text("None reported", style: TextStyle(color: Colors.white, fontSize: 16))]
                                         : _selectedConditions.map((condition) => Chip(
                                             label: Text(condition, style: const TextStyle(color: Colors.white)),
-                                            backgroundColor: const Color(0xff040F31),
-                                            side: const BorderSide(color: Color(0xff00E5FF), width: 1),
+                                            backgroundColor: AppTheme.background,
+                                            side: const BorderSide(color: AppTheme.primaryColor, width: 1),
                                           )).toList(),
                                     ),
                                 ],
@@ -482,9 +485,9 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
             contentPadding: EdgeInsets.symmetric(vertical: 8),
             disabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.transparent)),
             enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xff00E5FF))),
-            errorStyle: TextStyle(color: Colors.redAccent),
-            errorBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.redAccent)),
+            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.primaryColor)),
+            errorStyle: const TextStyle(color: Colors.redAccent),
+            errorBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.redAccent)),
           ),
         ),
       ],
@@ -500,13 +503,13 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
         _isEditing
             ? DropdownButtonFormField<String>(
                 initialValue: value,
-                dropdownColor: const Color(0xff1A3F6B),
+                dropdownColor: AppTheme.cardBackground,
                 style: const TextStyle(color: Colors.white, fontSize: 16),
                 decoration: const InputDecoration(
                   isDense: true,
                   contentPadding: EdgeInsets.symmetric(vertical: 8),
                   enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xff00E5FF))),
+                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.primaryColor)),
                 ),
                 items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                 onChanged: onChanged,
@@ -537,7 +540,7 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(value, style: const TextStyle(color: Colors.white, fontSize: 16)),
-                if (_isEditing) const Icon(Icons.calendar_today, color: Color(0xff00E5FF), size: 18),
+                if (_isEditing) const Icon(Icons.calendar_today, color: AppTheme.primaryColor, size: 18),
               ],
             ),
           ),
@@ -557,7 +560,7 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
             return Container(
               height: MediaQuery.of(context).size.height * 0.6,
               decoration: const BoxDecoration(
-                color: Color(0xff1A3F6B),
+                color: AppTheme.cardBackground,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
               ),
               child: Column(
@@ -589,9 +592,9 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
                         return CheckboxListTile(
                           title: Text(condition, style: const TextStyle(color: Colors.white)),
                           value: isSelected,
-                          activeColor: const Color(0xff00E5FF),
-                          checkColor: const Color(0xff040F31),
-                          side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
+                          activeColor: AppTheme.primaryColor,
+                          checkColor: AppTheme.textPrimary,
+                          side: BorderSide(color: Colors.white.withOpacity(0.5)),
                           onChanged: (bool? checked) {
                             setModalState(() {
                               if (checked == true) {
@@ -612,12 +615,12 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xff00E5FF),
+                          backgroundColor: AppTheme.primaryColor,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                           padding: const EdgeInsets.symmetric(vertical: 15),
                         ),
                         onPressed: () => Navigator.pop(context),
-                        child: const Text("Done", style: TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold)),
+                        child: const Text("Done", style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   )

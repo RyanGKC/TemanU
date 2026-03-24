@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:temanu/theme.dart';
 
 class CustomBottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -29,9 +30,9 @@ class CustomBottomNavBar extends StatelessWidget {
                     width: double.infinity, 
                     height: 70,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1), 
+                      color: AppTheme.cardBackground.withValues(alpha: 0.9), 
                       borderRadius: BorderRadius.circular(30),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5), 
+                      border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5), 
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -60,13 +61,13 @@ class CustomBottomNavBar extends StatelessWidget {
         duration: const Duration(milliseconds: 250),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xff00E5FF).withValues(alpha: 0.2) : Colors.transparent,
+          color: isSelected ? AppTheme.primaryColor.withValues(alpha: 0.2) : Colors.transparent,
           shape: BoxShape.circle,
         ),
         child: Icon(
           icon,
           size: 28,
-          color: isSelected ? const Color(0xff00E5FF) : Colors.white70, 
+          color: isSelected ? AppTheme.primaryColor : AppTheme.textSecondary, 
         ),
       ),
     );

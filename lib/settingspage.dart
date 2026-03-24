@@ -8,6 +8,7 @@ import 'package:temanu/changePassword.dart';
 import 'package:temanu/profileInformation.dart';
 import 'package:temanu/fitbitService.dart';
 import 'package:temanu/logindetails.dart';
+import 'package:temanu/theme.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -45,7 +46,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xff040F31), 
+      backgroundColor: AppTheme.background, 
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -56,7 +57,7 @@ class _SettingsPageState extends State<SettingsPage> {
           style: TextStyle(
             fontSize: 25,
             fontWeight: FontWeight.w600,
-            color: Color(0xff00E5FF),
+            color: AppTheme.primaryColor,
           )
         ),
         flexibleSpace: ClipRect(
@@ -85,14 +86,14 @@ class _SettingsPageState extends State<SettingsPage> {
                         Container(
                           padding: const EdgeInsets.all(3),
                           decoration: const BoxDecoration(
-                            color: Color(0xff00E5FF), 
+                            color: AppTheme.primaryColor, 
                             shape: BoxShape.circle,
                           ),
                           child: CircleAvatar(
                             radius: 50,
-                            backgroundColor: const Color(0xff1A3F6B),
+                            backgroundColor: AppTheme.cardBackground,
                             backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
-                            child: _profileImageBytes == null ? const Icon(Icons.person, size: 50, color: Colors.white) : null,
+                            child: _profileImageBytes == null ? const Icon(Icons.person, size: 50, color: AppTheme.textPrimary) : null,
                           ),
                         ),
                         const SizedBox(height: 15),
@@ -125,8 +126,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           const SizedBox(height: 10),
                           Container(
                             decoration: BoxDecoration(
-                              color: const Color(0xff1A3F6B),
+                              color: AppTheme.cardBackground,
                               borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(20),
@@ -184,8 +186,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           const SizedBox(height: 10),
                           Container(
                             decoration: BoxDecoration(
-                              color: const Color(0xff1A3F6B),
+                              color: AppTheme.cardBackground,
                               borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
                             ),
                             child: Column(
                               children: [
@@ -311,7 +314,7 @@ class _SettingsPageState extends State<SettingsPage> {
     required String title, 
     required VoidCallback onTap,
     Color textColor = Colors.white,
-    Color iconColor = const Color(0xff00E5FF),
+    Color iconColor = AppTheme.primaryColor,
     bool hideArrow = false,
   }) {
     return GestureDetector(
@@ -371,7 +374,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 constraints: const BoxConstraints(maxWidth: 400),
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
-                  color: const Color(0xff1A3F6B).withValues(alpha: 0.8), 
+                  color: AppTheme.cardBackground.withValues(alpha: 0.8), 
                   borderRadius: BorderRadius.circular(25),
                   border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5), 
                 ),
@@ -381,10 +384,10 @@ class _SettingsPageState extends State<SettingsPage> {
                     Container(
                       padding: const EdgeInsets.all(15),
                       decoration: BoxDecoration(
-                        color: const Color(0xff00E5FF).withValues(alpha: 0.1),
+                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(isConnected ? Icons.sync : Icons.watch, color: const Color(0xff00E5FF), size: 40),
+                      child: Icon(isConnected ? Icons.sync : Icons.watch, color: AppTheme.primaryColor, size: 40),
                     ),
                     const SizedBox(height: 15),
                     Text(
@@ -439,13 +442,13 @@ class _SettingsPageState extends State<SettingsPage> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               decoration: BoxDecoration(
-                                color: const Color(0xff00E5FF),
+                                color: AppTheme.primaryColor,
                                 borderRadius: BorderRadius.circular(15),
                               ),
                               alignment: Alignment.center,
                               child: Text(
                                 isConnected ? "Sync Now" : "Connect",
-                                style: const TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold),
+                                style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
                               ),
                             ),
                           ),
@@ -486,7 +489,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 constraints: const BoxConstraints(maxWidth: 400),
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
-                  color: const Color(0xff1A3F6B).withValues(alpha: 0.8), 
+                  color: AppTheme.cardBackground.withValues(alpha: 0.8), 
                   borderRadius: BorderRadius.circular(25),
                   border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5), 
                 ),

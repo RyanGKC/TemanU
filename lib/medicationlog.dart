@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:temanu/api_service.dart';
+import 'package:temanu/theme.dart';
 
 class MedicationLog extends StatefulWidget {
   const MedicationLog({super.key});
@@ -70,7 +71,7 @@ class _MedicationLogState extends State<MedicationLog> {
               labelText: label,
               labelStyle: const TextStyle(color: Colors.white54, fontSize: 13),
               filled: true,
-              fillColor: const Color(0xff040F31).withValues(alpha: 0.4),
+              fillColor: AppTheme.textSecondary.withOpacity(0.1),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
               contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
             );
@@ -86,16 +87,16 @@ class _MedicationLogState extends State<MedicationLog> {
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: const Color(0xff040F31).withValues(alpha: 0.4), borderRadius: BorderRadius.circular(18)),
+                    decoration: BoxDecoration(color: AppTheme.textSecondary.withOpacity(0.1), borderRadius: BorderRadius.circular(18)),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         DropdownButton<String>(
                           value: selectedHour,
                           underline: const SizedBox(),
-                          dropdownColor: const Color(0xff1A3F6B),
+                          dropdownColor: AppTheme.cardBackground,
                           borderRadius: BorderRadius.circular(15), 
-                          style: const TextStyle(color: Color(0xff00E5FF), fontSize: 18, fontWeight: FontWeight.bold),
+                          style: const TextStyle(color: AppTheme.primaryColor, fontSize: 18, fontWeight: FontWeight.bold),
                           onChanged: (val) => setDialogState(() => selectedHour = val!),
                           items: hours.map((h) => DropdownMenuItem(value: h, child: Text(h))).toList(),
                         ),
@@ -103,18 +104,18 @@ class _MedicationLogState extends State<MedicationLog> {
                         DropdownButton<String>(
                           value: selectedMinute,
                           underline: const SizedBox(),
-                          dropdownColor: const Color(0xff1A3F6B),
+                          dropdownColor: AppTheme.cardBackground,
                           borderRadius: BorderRadius.circular(15), 
-                          style: const TextStyle(color: Color(0xff00E5FF), fontSize: 18, fontWeight: FontWeight.bold),
+                          style: const TextStyle(color: AppTheme.primaryColor, fontSize: 18, fontWeight: FontWeight.bold),
                           onChanged: (val) => setDialogState(() => selectedMinute = val!),
                           items: minutes.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
                         ),
                         DropdownButton<String>(
                           value: selectedPeriod,
                           underline: const SizedBox(),
-                          dropdownColor: const Color(0xff1A3F6B),
+                          dropdownColor: AppTheme.cardBackground,
                           borderRadius: BorderRadius.circular(15),
-                          style: const TextStyle(color: Color(0xff00E5FF), fontSize: 18, fontWeight: FontWeight.bold),
+                          style: const TextStyle(color: AppTheme.primaryColor, fontSize: 18, fontWeight: FontWeight.bold),
                           onChanged: (val) => setDialogState(() => selectedPeriod = val!),
                           items: ["AM", "PM"].map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
                         ),
@@ -129,8 +130,8 @@ class _MedicationLogState extends State<MedicationLog> {
                           },
                           child: Container(
                             padding: const EdgeInsets.all(10),
-                            decoration: const BoxDecoration(color: Color(0xff00E5FF), shape: BoxShape.circle),
-                            child: const Icon(Icons.check, color: Color(0xff040F31), size: 18),
+                            decoration: const BoxDecoration(color: AppTheme.primaryColor, shape: BoxShape.circle),
+                            child: const Icon(Icons.check, color: AppTheme.textPrimary, size: 18),
                           ),
                         ),
                       ],
@@ -142,10 +143,10 @@ class _MedicationLogState extends State<MedicationLog> {
                       spacing: 8, runSpacing: 8,
                       children: selectedTimes.map((time) {
                         return Chip(
-                          backgroundColor: const Color(0xff00E5FF).withValues(alpha: 0.15),
-                          side: const BorderSide(color: Color(0xff00E5FF)),
-                          label: Text(time, style: const TextStyle(color: Color(0xff00E5FF), fontWeight: FontWeight.w600)),
-                          deleteIcon: const Icon(Icons.close, color: Color(0xff00E5FF), size: 16),
+                          backgroundColor: AppTheme.primaryColor.withOpacity(0.15),
+                          side: const BorderSide(color: AppTheme.primaryColor),
+                          label: Text(time, style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w600)),
+                          deleteIcon: const Icon(Icons.close, color: AppTheme.primaryColor, size: 16),
                           onDeleted: () => setDialogState(() => selectedTimes.remove(time)),
                         );
                       }).toList(),
@@ -155,8 +156,8 @@ class _MedicationLogState extends State<MedicationLog> {
             }
 
             return Dialog(
-              backgroundColor: const Color(0xff1A3F6B),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25), side: const BorderSide(color: Colors.white12, width: 1.5)),
+              backgroundColor: AppTheme.cardBackground,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25), side: BorderSide(color: AppTheme.textSecondary.withOpacity(0.1), width: 1.5)),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(22, 25, 22, 30),
                 child: Column(
@@ -165,7 +166,7 @@ class _MedicationLogState extends State<MedicationLog> {
                   children: [
                     Row(
                       children: [
-                        Icon(isEditing ? Icons.edit : Icons.add_task, color: const Color(0xff00E5FF), size: 24),
+                        Icon(isEditing ? Icons.edit : Icons.add_task, color: AppTheme.primaryColor, size: 24),
                         const SizedBox(width: 12),
                         Text(isEditing ? "Edit Medication" : "Add Medication", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                       ],
@@ -215,7 +216,7 @@ class _MedicationLogState extends State<MedicationLog> {
                         Expanded(
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xff00E5FF), elevation: 0,
+                              backgroundColor: AppTheme.primaryColor, elevation: 0,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                               padding: const EdgeInsets.symmetric(vertical: 16),
                             ),
@@ -239,7 +240,7 @@ class _MedicationLogState extends State<MedicationLog> {
                                 if (success) _silentRefresh();
                               }
                             },
-                            child: Text(isEditing ? "Update" : "Save", style: const TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold)),
+                            child: Text(isEditing ? "Update" : "Save", style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ],
@@ -300,7 +301,7 @@ class _MedicationLogState extends State<MedicationLog> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: const Color(0xff1A3F6B), borderRadius: BorderRadius.circular(25)),
+      decoration: BoxDecoration(color: AppTheme.cardBackground, borderRadius: BorderRadius.circular(25), border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -314,7 +315,7 @@ class _MedicationLogState extends State<MedicationLog> {
               ),
               GestureDetector(
                 onTap: () => _showMedicationDialog(), 
-                child: const Icon(Icons.add_circle, color: Color(0xff00E5FF), size: 28),
+                child: const Icon(Icons.add_circle, color: AppTheme.primaryColor, size: 28),
               ),
             ],
           ),
@@ -324,7 +325,7 @@ class _MedicationLogState extends State<MedicationLog> {
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: const Color(0xff040F31).withValues(alpha: 0.4), 
+              color: AppTheme.background, 
               borderRadius: BorderRadius.circular(30)
             ),
             child: Row(
@@ -337,10 +338,10 @@ class _MedicationLogState extends State<MedicationLog> {
                       curve: Curves.easeInOut,
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: _activeTab == 0 ? const Color(0xff3183BE) : Colors.transparent,
+                        color: _activeTab == 0 ? AppTheme.primaryColor : Colors.transparent,
                         borderRadius: BorderRadius.circular(25),
                       ),
-                      child: const Center(child: Text("Today's Schedule", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13))),
+                      child: Center(child: Text("Today's Schedule", style: TextStyle(color: _activeTab == 0 ? AppTheme.textPrimary : Colors.white, fontWeight: FontWeight.bold, fontSize: 13))),
                     ),
                   ),
                 ),
@@ -352,10 +353,10 @@ class _MedicationLogState extends State<MedicationLog> {
                       curve: Curves.easeInOut,
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: _activeTab == 1 ? const Color(0xff3183BE) : Colors.transparent,
+                        color: _activeTab == 1 ? AppTheme.primaryColor : Colors.transparent,
                         borderRadius: BorderRadius.circular(25),
                       ),
-                      child: const Center(child: Text("Manage List", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13))),
+                      child: Center(child: Text("Manage List", style: TextStyle(color: _activeTab == 1 ? AppTheme.textPrimary : Colors.white, fontWeight: FontWeight.bold, fontSize: 13))),
                     ),
                   ),
                 ),
@@ -366,7 +367,7 @@ class _MedicationLogState extends State<MedicationLog> {
           
           // --- TAB CONTENT ---
           if (_isLoading)
-            const Center(child: Padding(padding: EdgeInsets.all(20.0), child: CircularProgressIndicator(color: Color(0xff00E5FF))))
+            const Center(child: Padding(padding: EdgeInsets.all(20.0), child: CircularProgressIndicator(color: AppTheme.primaryColor)))
           else if (_medications.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 20.0),
@@ -423,7 +424,7 @@ class _MedicationLogState extends State<MedicationLog> {
           width: itemWidth,
           child: Container(
             padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(15)),
+            decoration: BoxDecoration(color: AppTheme.textSecondary.withOpacity(0.05), borderRadius: BorderRadius.circular(15), border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1))),
             child: Row(
               children: [
                 GestureDetector(
@@ -451,7 +452,7 @@ class _MedicationLogState extends State<MedicationLog> {
                     children: [
                       Text(med['name'], style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 4),
-                      Text("Take ${med['dosage']} ${med['unit']} at ${event['time_str']}", style: const TextStyle(color: Color(0xff00E5FF), fontSize: 13, fontWeight: FontWeight.w600)),
+                      Text("Take ${med['dosage']} ${med['unit']} at ${event['time_str']}", style: const TextStyle(color: AppTheme.primaryColor, fontSize: 13, fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ),
@@ -479,7 +480,7 @@ class _MedicationLogState extends State<MedicationLog> {
           width: itemWidth,
           child: Container(
             padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(15)),
+            decoration: BoxDecoration(color: AppTheme.textSecondary.withOpacity(0.05), borderRadius: BorderRadius.circular(15), border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1))),
             child: Row(
               children: [
                 Expanded(
@@ -528,19 +529,19 @@ class _MedicationLogState extends State<MedicationLog> {
                       children: [
                         GestureDetector(
                           onTap: () => _showMedicationDialog(existingMed: med), 
-                          child: const Padding(padding: EdgeInsets.all(6.0), child: Icon(Icons.edit, color: Color(0xff00E5FF), size: 20)),
+                          child: const Padding(padding: EdgeInsets.all(6.0), child: Icon(Icons.edit, color: AppTheme.primaryColor, size: 20)),
                         ),
                         GestureDetector(
                           onTap: () {
                             showDialog(
                               context: context,
                               builder: (context) => AlertDialog(
-                                backgroundColor: const Color(0xff1A3F6B),
+                                backgroundColor: AppTheme.cardBackground,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                                 title: const Text("Delete Medication?", style: TextStyle(color: Colors.white)),
-                                content: Text("Are you sure you want to remove ${med['name']} from your schedule?", style: const TextStyle(color: Colors.white70)),
+                                content: Text("Are you sure you want to remove ${med['name']} from your schedule?", style: const TextStyle(color: AppTheme.textSecondary)),
                                 actions: [
-                                  TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel", style: TextStyle(color: Colors.white54))),
+                                  TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel", style: TextStyle(color: AppTheme.textSecondary))),
                                   TextButton(
                                     onPressed: () async {
                                       Navigator.pop(context);

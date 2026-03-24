@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temanu/api_service.dart'; 
 import 'package:temanu/button.dart';
 import 'package:temanu/mainscreen.dart';
+import 'package:temanu/theme.dart';
 
 class AboutYou extends StatefulWidget {
   final String email;
@@ -135,12 +136,7 @@ class AboutYouState extends State<AboutYou> {
       body: Stack(
         children: [
           Container(
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/img/desktop-background.png'),
-                fit: BoxFit.cover,
-              ),
-            ),
+            color: AppTheme.background,
           ),
           Center(
             child: SingleChildScrollView(
@@ -149,17 +145,18 @@ class AboutYouState extends State<AboutYou> {
                 constraints: const BoxConstraints(maxWidth: 400),
                 child: Column(
                   children: [
-                    const Text('About You', style: TextStyle(fontSize: 25, color: Colors.white, fontWeight: FontWeight.w600)),
+                    const Text('About You', style: TextStyle(fontSize: 25, color: AppTheme.textPrimary, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 30),
                     DropdownButtonFormField<String>(
                       initialValue: selectedGender,
-                      hint: const Text('Gender', style: TextStyle(color: Color(0xff3183BE), fontWeight: FontWeight.w500)),
-                      decoration: myInput('Gender'),
+                      dropdownColor: AppTheme.cardBackground,
+                      style: const TextStyle(color: AppTheme.textPrimary),
+                      decoration: const InputDecoration(labelText: 'Gender'),
                       onChanged: (String? newValue) => setState(() => selectedGender = newValue),
                       items: genderOptions.map<DropdownMenuItem<String>>((String value) {
                         return DropdownMenuItem<String>(
                           value: value,
-                          child: Text(value, style: const TextStyle(fontWeight: FontWeight.w200)),
+                          child: Text(value),
                         );
                       }).toList(),
                     ),
@@ -167,40 +164,44 @@ class AboutYouState extends State<AboutYou> {
                     TextFormField(
                       controller: dateOfBirthcontroller,
                       readOnly: true,
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       onTap: () => _selectDate(context),
-                      decoration: myInput('Date Of Birth'),
+                      decoration: const InputDecoration(labelText: 'Date Of Birth'),
                     ),
                     const SizedBox(height: 15),
                     TextFormField(
                       controller: heightController,
                       keyboardType: TextInputType.number,
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: myInput('Height (cm)'),
+                      decoration: const InputDecoration(labelText: 'Height (cm)'),
                     ),
                     const SizedBox(height: 15),
                     TextFormField(
                       controller: weightController,
                       keyboardType: TextInputType.number,
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,1}'))],
-                      decoration: myInput('Weight (kg)'),
+                      decoration: const InputDecoration(labelText: 'Weight (kg)'),
                     ),
                     const SizedBox(height: 15),
                     DropdownButtonFormField<String>(
-                      hint: const Text('Blood Type (Optional)', style: TextStyle(color: Color(0xff3183BE), fontWeight: FontWeight.w500)),
-                      decoration: myInput('Blood Type (Optional)'),
+                      dropdownColor: AppTheme.cardBackground,
+                      style: const TextStyle(color: AppTheme.textPrimary),
+                      decoration: const InputDecoration(labelText: 'Blood Type (Optional)'),
                       items: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
-                          .map((label) => DropdownMenuItem(value: label, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w200))))
+                          .map((label) => DropdownMenuItem(value: label, child: Text(label)))
                           .toList(),
                       onChanged: (value) => setState(() => bloodTypeController.text = value!),
                     ),
                     const SizedBox(height: 25),
                     
                     _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
+                      ? const CircularProgressIndicator(color: AppTheme.primaryColor)
                       : MyRoundedButton(
                           text: 'Complete Registration', 
-                          backgroundColor: const Color(0xff3183BE), 
-                          textColor: Colors.white, 
+                          backgroundColor: AppTheme.primaryColor, 
+                          textColor: AppTheme.textPrimary, 
                           onPressed: _submitData, 
                         ),
                   ],
@@ -222,16 +223,4 @@ class AboutYouState extends State<AboutYou> {
       )
     );
   }
-}
-
-InputDecoration myInput (String hint) {
-  return InputDecoration(
-    hintText: hint,
-    hintStyle: const TextStyle(color: Color(0xff3183BE), fontWeight: FontWeight.w500),
-    filled: true,
-    fillColor: Colors.white,
-    contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
-    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: const BorderSide(color: Color(0xff3183BE), width: 2)),
-  );
 }

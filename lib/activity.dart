@@ -7,7 +7,8 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temanu/api_service.dart';
 import 'package:temanu/fitbitService.dart'; 
-import 'assistantpage.dart';
+import 'package:temanu/assistantpage.dart';
+import 'package:temanu/theme.dart';
 
 class Activity extends StatefulWidget {
   final Map<String, dynamic> baseUserData;
@@ -90,9 +91,9 @@ class _ActivityState extends State<Activity> {
               child: Container(
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
-                  color: const Color(0xff1A3F6B).withValues(alpha: 0.8),
+                  color: AppTheme.cardBackground.withOpacity(0.95),
                   borderRadius: BorderRadius.circular(25),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
+                  border: Border.all(color: AppTheme.textSecondary.withOpacity(0.2), width: 1.5),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -100,10 +101,10 @@ class _ActivityState extends State<Activity> {
                     Container(
                       padding: const EdgeInsets.all(15),
                       decoration: BoxDecoration(
-                        color: const Color(0xff00E5FF).withValues(alpha: 0.1),
+                        color: AppTheme.primaryColor.withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.watch, color: Color(0xff00E5FF), size: 40),
+                      child: const Icon(Icons.watch, color: AppTheme.primaryColor, size: 40),
                     ),
                     const SizedBox(height: 15),
                     const Text(
@@ -127,7 +128,7 @@ class _ActivityState extends State<Activity> {
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(15),
-                                border: Border.all(color: Colors.white38, width: 1.5),
+                                border: Border.all(color: AppTheme.textSecondary.withOpacity(0.5), width: 1.5),
                               ),
                               alignment: Alignment.center,
                               child: const Text("Not Now", style: TextStyle(color: Colors.white, fontSize: 16)),
@@ -148,11 +149,11 @@ class _ActivityState extends State<Activity> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               decoration: BoxDecoration(
-                                color: const Color(0xff00E5FF),
+                                color: AppTheme.primaryColor,
                                 borderRadius: BorderRadius.circular(15),
                               ),
                               alignment: Alignment.center,
-                              child: const Text("Connect", style: TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold)),
+                              child: const Text("Connect", style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
                             ),
                           ),
                         ),
@@ -184,7 +185,7 @@ class _ActivityState extends State<Activity> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xff1A3F6B),
+        backgroundColor: AppTheme.cardBackground,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text("Set Daily Step Goal", style: TextStyle(color: Colors.white)),
         content: TextField(
@@ -195,16 +196,16 @@ class _ActivityState extends State<Activity> {
             labelText: "Steps (e.g., 10000)",
             labelStyle: TextStyle(color: Colors.white54),
             enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white38)),
-            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xff00E5FF))),
+            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.primaryColor)),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context), 
-            child: const Text("Cancel", style: TextStyle(color: Colors.white54))
+            child: const Text("Cancel", style: TextStyle(color: AppTheme.textSecondary))
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xff00E5FF)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryColor),
             onPressed: () async {
               final newGoal = int.tryParse(controller.text);
               if (newGoal != null && newGoal > 0) {
@@ -215,7 +216,7 @@ class _ActivityState extends State<Activity> {
               }
               Navigator.pop(context);
             },
-            child: const Text("Save", style: TextStyle(color: Color(0xff040F31), fontWeight: FontWeight.bold)),
+            child: const Text("Save", style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -712,17 +713,17 @@ class _ActivityState extends State<Activity> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xff031447),
+      backgroundColor: AppTheme.background,
       extendBody: true,
 
       appBar: AppBar(
-        backgroundColor: const Color(0xff55607D),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
         title: const Text(
           "Activity",
           style: TextStyle(
-            color: Color(0xff35E0FF),
+            color: AppTheme.primaryColor,
             fontSize: 25,
             fontWeight: FontWeight.w600,
           ),
@@ -731,12 +732,12 @@ class _ActivityState extends State<Activity> {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
             child: Container(
-              color: Colors.white.withValues(alpha: 0.25)
+              color: AppTheme.background.withOpacity(0.5)
             )
           )
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xff35E0FF)),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.primaryColor),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
@@ -761,7 +762,7 @@ class _ActivityState extends State<Activity> {
                     _isLoading 
                       ? const Padding(
                           padding: EdgeInsets.symmetric(vertical: 4.0),
-                          child: SizedBox(height: 25, width: 25, child: CircularProgressIndicator(color: Color(0xff00E5FF), strokeWidth: 3)),
+                          child: SizedBox(height: 25, width: 25, child: CircularProgressIndicator(color: AppTheme.primaryColor, strokeWidth: 3)),
                         )
                       : Text(
                           "$currentSteps",
@@ -830,8 +831,9 @@ class _ActivityState extends State<Activity> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xff59A2DD),
+                color: AppTheme.cardBackground,
                 borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
               ),
               child: _isLoading 
                 ? const Center(child: CircularProgressIndicator(color: Colors.white))
@@ -851,7 +853,7 @@ class _ActivityState extends State<Activity> {
             Container(
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
               decoration: BoxDecoration(
-                color: Colors.grey.shade600,
+                color: AppTheme.textSecondary.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(30),
               ),
               child: Row(
@@ -881,8 +883,9 @@ class _ActivityState extends State<Activity> {
                     child: Container(
                       height: 95,
                       decoration: BoxDecoration(
-                        color: const Color(0xff4DA5E0),
+                        color: AppTheme.cardBackground,
                         borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
                       ),
                       child: Stack(
                         children: [
@@ -946,8 +949,9 @@ class _ActivityState extends State<Activity> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xff375B86),
+                  color: AppTheme.cardBackground,
                   borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -997,8 +1001,9 @@ class _ActivityState extends State<Activity> {
                     padding: const EdgeInsets.all(16),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: const Color(0xff59A2DD),
+                      color: AppTheme.cardBackground,
                       borderRadius: BorderRadius.circular(30),
+                      border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
                     ),
                     child: Column(
                       children: [
@@ -1025,8 +1030,9 @@ class _ActivityState extends State<Activity> {
                     padding: const EdgeInsets.all(16),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: const Color(0xff59A2DD),
+                      color: AppTheme.cardBackground,
                       borderRadius: BorderRadius.circular(30),
+                      border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
                     ),
                     child: Column(
                       children: [
@@ -1059,7 +1065,7 @@ class _ActivityState extends State<Activity> {
   Widget infoCard(String title, String value) {
     return Container(
       height: 95,
-      decoration: BoxDecoration(color: const Color(0xff4DA5E0), borderRadius: BorderRadius.circular(24)),
+      decoration: BoxDecoration(color: AppTheme.cardBackground, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1))),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -1084,12 +1090,12 @@ class _ActivityState extends State<Activity> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xff6CE5FF) : Colors.transparent,
+          color: selected ? AppTheme.primaryColor : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
           label,
-          style: TextStyle(color: selected ? Colors.white : Colors.white70, fontSize: 15, fontWeight: selected ? FontWeight.bold : FontWeight.normal),
+          style: TextStyle(color: selected ? AppTheme.textPrimary : AppTheme.textSecondary, fontSize: 15, fontWeight: selected ? FontWeight.bold : FontWeight.normal),
         ),
       ),
     );
@@ -1131,7 +1137,7 @@ class MyBarChart extends StatelessWidget {
         barTouchData: BarTouchData(
           enabled: true,
           touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (group) => const Color(0xff1A3F6B), 
+            getTooltipColor: (group) => AppTheme.background.withOpacity(0.95), 
             tooltipBorderRadius: BorderRadius.circular(8),
             tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             tooltipMargin: 8,
@@ -1165,7 +1171,7 @@ class MyBarChart extends StatelessWidget {
                 children: <TextSpan>[
                   TextSpan(
                     text: '${rod.toY.toInt()} $stepLabel',
-                    style: const TextStyle(color: Color(0xff00E5FF), fontSize: 14, fontWeight: FontWeight.bold),
+                    style: const TextStyle(color: AppTheme.primaryColor, fontSize: 14, fontWeight: FontWeight.bold),
                   ),
                 ],
               );
@@ -1254,8 +1260,8 @@ class MyBarChart extends StatelessWidget {
                   bottomRight: Radius.circular(0),
                 ),
                 color: (index % 2 == 1
-                    ? const Color.fromARGB(255, 91, 199, 255)
-                    : const Color.fromARGB(255, 215, 241, 255)),
+                    ? AppTheme.primaryColor
+                    : AppTheme.primaryColor.withOpacity(0.6)),
               ),
             ],
           );

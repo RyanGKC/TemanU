@@ -9,6 +9,7 @@ import 'package:temanu/assistantpage.dart';
 import 'package:temanu/api_service.dart';
 import 'package:temanu/button.dart';
 import 'package:temanu/textbox.dart';
+import 'package:temanu/theme.dart';
 
 class HrReading {
   final DateTime time;
@@ -371,9 +372,9 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
         child: Container(
           padding: const EdgeInsets.all(25),
           decoration: BoxDecoration(
-            color: const Color(0xff1A3F6B).withValues(alpha: 0.95),
+            color: AppTheme.cardBackground.withOpacity(0.95),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
+            border: Border.all(color: AppTheme.textSecondary.withOpacity(0.2), width: 1.5),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -397,8 +398,8 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
               const SizedBox(height: 25),
               MyRoundedButton(
                 text: 'Save Reading',
-                backgroundColor: const Color(0xff00E5FF),
-                textColor: const Color(0xff040F31),
+                backgroundColor: AppTheme.primaryColor,
+                textColor: AppTheme.textPrimary,
                 onPressed: () {
                   final bpm = int.tryParse(controller.text);
                   if (bpm != null) _addHrReading(bpm);
@@ -417,24 +418,24 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xff031447),
+      backgroundColor: AppTheme.background,
       extendBody: true,
       appBar: AppBar(
-        backgroundColor: const Color(0xff55607D),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
         title: const Text(
           "Heart Rate",
-          style: TextStyle(color: Color(0xff35E0FF), fontSize: 25, fontWeight: FontWeight.w600),
+          style: TextStyle(color: AppTheme.primaryColor, fontSize: 25, fontWeight: FontWeight.w600),
         ),
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(color: Colors.white.withValues(alpha: 0.25)),
+            child: Container(color: AppTheme.background.withOpacity(0.5)),
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xff35E0FF)),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.primaryColor),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -518,14 +519,15 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
 
             const SizedBox(height: 10),
 
-            // ── UPDATED: Chart uses MouseRegion + GestureDetector like body weight ──
+            // ── Chart ──
             Container(
               height: 300,
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xff59A2DD),
+                color: AppTheme.cardBackground,
                 borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
               ),
               child: _isLoadingChart 
                 ? const Center(child: CircularProgressIndicator(color: Colors.white))
@@ -571,7 +573,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
             Container(
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
               decoration: BoxDecoration(
-                color: Colors.grey.shade600,
+                color: AppTheme.textSecondary.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(30),
               ),
               child: Row(
@@ -613,8 +615,9 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xff375B86),
+                  color: AppTheme.cardBackground,
                   borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -663,7 +666,11 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
   Widget _infoCard(String title, String value) {
     return Container(
       height: 95,
-      decoration: BoxDecoration(color: const Color(0xff4DA5E0), borderRadius: BorderRadius.circular(24)),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBackground, 
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+      ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -703,11 +710,11 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xff6CE5FF) : Colors.transparent,
+          color: selected ? AppTheme.primaryColor : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(label,
-          style: TextStyle(color: selected ? Colors.white : Colors.white70, fontSize: 15)),
+          style: TextStyle(color: selected ? AppTheme.textPrimary : AppTheme.textSecondary, fontSize: 15, fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
       ),
     );
   }

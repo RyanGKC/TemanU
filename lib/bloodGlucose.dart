@@ -8,6 +8,7 @@ import 'package:temanu/api_service.dart';
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/button.dart'; 
 import 'package:temanu/textbox.dart';
+import 'package:temanu/theme.dart';
 
 // ─── Data model ──────────────────────────────────────────────────────────────
 
@@ -131,9 +132,9 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
   // ─────────────────────────────────────────────────────────────────────────
 
   Color getBGLColor(double value) {
-    if (value > low && value < high)         return Colors.green;
-    if (value > veryHigh || value < veryLow) return Colors.red;
-    return const Color.fromARGB(255, 200, 200, 0);
+    if (value > low && value < high)         return AppTheme.success;
+    if (value > veryHigh || value < veryLow) return AppTheme.primaryColor;
+    return AppTheme.warning;
   }
 
   String get zoneText {
@@ -294,9 +295,9 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
         child: Container(
           padding: const EdgeInsets.all(25),
           decoration: BoxDecoration(
-            color: const Color(0xff1A3F6B).withValues(alpha: 0.95),
+            color: AppTheme.cardBackground.withOpacity(0.95),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
+            border: Border.all(color: AppTheme.textSecondary.withOpacity(0.2), width: 1.5),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -320,8 +321,8 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
               const SizedBox(height: 25),
               MyRoundedButton(
                 text: 'Save Reading',
-                backgroundColor: const Color(0xff00E5FF),
-                textColor: const Color(0xff040F31),
+                backgroundColor: AppTheme.primaryColor,
+                textColor: AppTheme.textPrimary,
                 onPressed: () {
                   final val = double.tryParse(controller.text);
                   if (val != null && val > 0) _addBgData(val);
@@ -436,17 +437,17 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xff031447),
+      backgroundColor: AppTheme.background,
       extendBody: true,
 
       appBar: AppBar(
-        backgroundColor: const Color(0xff55607D),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
         title: const Text(
           "Blood Glucose",
           style: TextStyle(
-            color: Color(0xff35E0FF),
+            color: AppTheme.primaryColor,
             fontSize: 25,
             fontWeight: FontWeight.w600,
           ),
@@ -454,11 +455,11 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(color: Colors.white.withValues(alpha: 0.25)),
+            child: Container(color: AppTheme.background.withOpacity(0.5)),
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xff35E0FF)),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.primaryColor),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
@@ -567,8 +568,9 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xff59A2DD),
+                color: AppTheme.cardBackground,
                 borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
               ),
               child: _isLoadingChart 
                 ? const Center(child: CircularProgressIndicator(color: Colors.white))
@@ -614,7 +616,7 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
             Container(
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
               decoration: BoxDecoration(
-                color: Colors.grey.shade600,
+                color: AppTheme.textSecondary.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(30),
               ),
               child: Row(
@@ -630,9 +632,9 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
             // ── Info cards ───────────────────────────────────────────────────
             Row(
               children: [
-                Expanded(child: _infoCard("Daily Avg", "${averageBGlevel.toInt()}\nmg/dL", getBGLColor(averageBGlevel))),
+                Expanded(child: _infoCard("Daily Avg", "${averageBGlevel.toInt()}\nmg/dL", AppTheme.cardBackground)),
                 const SizedBox(width: 8),
-                Expanded(child: _infoCard("Fluctuation", "${fluctuation.toInt()}\nmg/dL", const Color(0xff4DA5E0))),
+                Expanded(child: _infoCard("Fluctuation", "${fluctuation.toInt()}\nmg/dL", AppTheme.cardBackground)),
                 const SizedBox(width: 8),
                 Expanded(child: _infoCard("Status", zoneText, zoneColor)),
               ],
@@ -655,8 +657,9 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xff375B86),
+                  color: AppTheme.cardBackground,
                   borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -719,7 +722,9 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
       height: 95,
       decoration: BoxDecoration(
           color: bgColor,
-          borderRadius: BorderRadius.circular(24)),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+      ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -754,13 +759,13 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xff6CE5FF) : Colors.transparent,
+          color: selected ? AppTheme.primaryColor : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
           label,
           style: TextStyle(
-              color: selected ? Colors.white : Colors.white70,
+              color: selected ? AppTheme.textPrimary : AppTheme.textSecondary,
               fontSize: 15,
               fontWeight: selected ? FontWeight.bold : FontWeight.normal),
         ),
@@ -794,10 +799,10 @@ class BloodGlucoseChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final bgPaint       = Paint()..color = const Color(0xff00E5FF)..style = PaintingStyle.fill;
-    final bgColumnPaint = Paint()..color = const Color(0xff00E5FF).withValues(alpha: 0.3)..strokeWidth = 5..strokeCap = StrokeCap.round;
-    final gridPaint     = Paint()..color = Colors.white54..strokeWidth = 1;
-    const textStyle     = TextStyle(color: Colors.white, fontSize: 11);
+    final bgPaint       = Paint()..color = AppTheme.primaryColor..style = PaintingStyle.fill;
+    final bgColumnPaint = Paint()..color = AppTheme.primaryColor.withOpacity(0.4)..strokeWidth = 5..strokeCap = StrokeCap.round;
+    final gridPaint     = Paint()..color = AppTheme.textSecondary.withOpacity(0.5)..strokeWidth = 1;
+    const textStyle     = TextStyle(color: AppTheme.textPrimary, fontSize: 11);
 
     // --- Y-AXIS ---
     final allValues = [...minBgData, ...maxBgData];
@@ -895,11 +900,11 @@ class BloodGlucoseChartPainter extends CustomPainter {
 
       // Highlight rings drawn on top of the dot(s) for the touched point
       if (touchedIndex == i) {
-        canvas.drawCircle(Offset(x, maxY), 8, Paint()..color = Colors.white);
-        canvas.drawCircle(Offset(x, maxY), 5, Paint()..color = const Color(0xff031447));
+        canvas.drawCircle(Offset(x, maxY), 8, Paint()..color = AppTheme.textPrimary);
+        canvas.drawCircle(Offset(x, maxY), 5, Paint()..color = AppTheme.background);
         if (minBgData[i] != maxBgData[i]) {
-          canvas.drawCircle(Offset(x, minY), 8, Paint()..color = Colors.white);
-          canvas.drawCircle(Offset(x, minY), 5, Paint()..color = const Color(0xff031447));
+          canvas.drawCircle(Offset(x, minY), 8, Paint()..color = AppTheme.textPrimary);
+          canvas.drawCircle(Offset(x, minY), 5, Paint()..color = AppTheme.background);
         }
       }
     }
@@ -948,11 +953,11 @@ class BloodGlucoseChartPainter extends CustomPainter {
       children: [
         TextSpan(
           text: "$dateStr\n",
-          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
         ),
         TextSpan(
           text: valueStr,
-          style: const TextStyle(color: Color(0xff00E5FF), fontSize: 14, fontWeight: FontWeight.bold),
+          style: const TextStyle(color: AppTheme.primaryColor, fontSize: 14, fontWeight: FontWeight.bold),
         ),
       ],
     );
@@ -978,7 +983,7 @@ class BloodGlucoseChartPainter extends CustomPainter {
     // Shadow
     canvas.drawRRect(rrect.shift(const Offset(0, 3)), Paint()..color = Colors.black26);
     // Dark box
-    canvas.drawRRect(rrect, Paint()..color = const Color(0xff1A3F6B));
+    canvas.drawRRect(rrect, Paint()..color = AppTheme.background);
     // Text
     textPainter.paint(canvas, Offset(rectLeft + 12, rectTop + 8));
   }

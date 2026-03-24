@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:temanu/theme.dart';
 
 class HeartRateChartPainter extends CustomPainter {
   final List<DateTime> timeData;
@@ -22,10 +23,10 @@ class HeartRateChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final hrPaint = Paint()..color = const Color(0xffFF4B4B)..style = PaintingStyle.fill;
-    final hrColumnPaint = Paint()..color = const Color(0xffFF4B4B).withValues(alpha: 0.3)..strokeWidth = 5..strokeCap = StrokeCap.round;
-    final gridPaint = Paint()..color = Colors.white54..strokeWidth = 1;
-    const textStyle = TextStyle(color: Colors.white, fontSize: 11);
+    final hrPaint = Paint()..color = AppTheme.primaryColor..style = PaintingStyle.fill;
+    final hrColumnPaint = Paint()..color = AppTheme.primaryColor.withOpacity(0.3)..strokeWidth = 5..strokeCap = StrokeCap.round;
+    final gridPaint = Paint()..color = AppTheme.textSecondary.withOpacity(0.5)..strokeWidth = 1;
+    const textStyle = TextStyle(color: AppTheme.textPrimary, fontSize: 11);
 
     // --- Y-AXIS CALCULATION ---
     final allValues = [...minBpmData, ...maxBpmData];
@@ -124,11 +125,11 @@ class HeartRateChartPainter extends CustomPainter {
 
       // Highlight rings for touched point — drawn on top of dots
       if (touchedIndex == i) {
-        canvas.drawCircle(Offset(x, maxY), 8, Paint()..color = Colors.white);
-        canvas.drawCircle(Offset(x, maxY), 5, Paint()..color = const Color(0xff031447));
+        canvas.drawCircle(Offset(x, maxY), 8, Paint()..color = AppTheme.textPrimary);
+        canvas.drawCircle(Offset(x, maxY), 5, Paint()..color = AppTheme.background);
         if (minBpmData[i] != maxBpmData[i]) {
-          canvas.drawCircle(Offset(x, minY), 8, Paint()..color = Colors.white);
-          canvas.drawCircle(Offset(x, minY), 5, Paint()..color = const Color(0xff031447));
+          canvas.drawCircle(Offset(x, minY), 8, Paint()..color = AppTheme.textPrimary);
+          canvas.drawCircle(Offset(x, minY), 5, Paint()..color = AppTheme.background);
         }
       }
     }
@@ -175,11 +176,11 @@ class HeartRateChartPainter extends CustomPainter {
       children: [
         TextSpan(
           text: "$dateStr\n",
-          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
         ),
         TextSpan(
           text: valueStr,
-          style: const TextStyle(color: Color(0xff00E5FF), fontSize: 14, fontWeight: FontWeight.bold),
+          style: const TextStyle(color: AppTheme.primaryColor, fontSize: 14, fontWeight: FontWeight.bold),
         ),
       ],
     );
@@ -205,7 +206,7 @@ class HeartRateChartPainter extends CustomPainter {
     // Shadow
     canvas.drawRRect(rrect.shift(const Offset(0, 3)), Paint()..color = Colors.black26);
     // Dark box
-    canvas.drawRRect(rrect, Paint()..color = const Color(0xff1A3F6B));
+    canvas.drawRRect(rrect, Paint()..color = AppTheme.background);
     // Text
     textPainter.paint(canvas, Offset(rectLeft + 12, rectTop + 8));
   }
