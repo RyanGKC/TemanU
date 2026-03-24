@@ -64,11 +64,12 @@ class _ActivityState extends State<Activity> {
   void initState() {
     super.initState();
     _loadGoal(); 
-    _fetchLiveFitbitData().then((_) {
+    // --- THE FIX: Pass forceRefresh: true on initial load! ---
+    _fetchLiveFitbitData(forceRefresh: true).then((_) {
       _generateAITip();
     });
     
-    _fetchComparisonData();
+    _fetchComparisonData(forceRefresh: true);
   }
 
   // ==========================================
@@ -89,6 +90,7 @@ class _ActivityState extends State<Activity> {
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
               child: Container(
+                constraints: const BoxConstraints(maxWidth: 400),
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
                   color: AppTheme.cardBackground.withOpacity(0.95),
@@ -142,8 +144,9 @@ class _ActivityState extends State<Activity> {
                               Navigator.pop(context); 
                               String? newToken = await FitbitService.getValidToken();
                               if (newToken != null) {
-                                _fetchLiveFitbitData();
-                                _fetchComparisonData();
+                                // --- Force refresh when they successfully link! ---
+                                _fetchLiveFitbitData(forceRefresh: true);
+                                _fetchComparisonData(forceRefresh: true);
                               }
                             },
                             child: Container(
@@ -387,12 +390,13 @@ class _ActivityState extends State<Activity> {
   // LIVE DATA FETCHING
   // ==========================================
 
-  Future<void> _fetchLiveFitbitData() async {
+  // --- THE FIX: Pass the optional forceRefresh flag ---
+  Future<void> _fetchLiveFitbitData({bool forceRefresh = false}) async {
     setState(() => _isLoading = true);
     final dateStr = targetDateString;
     
     if (selectedRange == "D") {
-      final data = await ApiService.getFitbitIntradaySteps(dateStr);
+      final data = await ApiService.getFitbitIntradaySteps(dateStr, forceRefresh: forceRefresh);
       if (data != null && data['activities-steps-intraday'] != null) {
         final totalSteps = int.tryParse(data['activities-steps'][0]['value'].toString()) ?? 0;
         final dataset = data['activities-steps-intraday']['dataset'] as List<dynamic>;
@@ -426,7 +430,7 @@ class _ActivityState extends State<Activity> {
       if (selectedRange == "6M") fbPeriod = "6m";
       if (selectedRange == "Y") fbPeriod = "1y";
       
-      final data = await ApiService.getFitbitTimeSeriesSteps(fbPeriod, dateStr);
+      final data = await ApiService.getFitbitTimeSeriesSteps(fbPeriod, dateStr, forceRefresh: forceRefresh);
       if (data != null && data['activities-steps'] != null) {
         final dataset = data['activities-steps'] as List<dynamic>;
         List<String> newLabels = [];
@@ -485,8 +489,6 @@ class _ActivityState extends State<Activity> {
               DateTime monday = dt.subtract(Duration(days: dt.weekday - 1));
               DateTime sunday = monday.add(const Duration(days: 6));
               
-              // --- THE FIX: Label the week based on the FIRST valid data point! ---
-              // This guarantees it never spills out of bounds into April or December.
               weekMonthAssignment[weekKey] = dt.month; 
               
               weekMonday[weekKey] = monday;
@@ -562,7 +564,8 @@ class _ActivityState extends State<Activity> {
   // COMPARISON FETCHING
   // ==========================================
   
-  Future<void> _fetchComparisonData() async {
+  // --- THE FIX: Pass the optional forceRefresh flag ---
+  Future<void> _fetchComparisonData({bool forceRefresh = false}) async {
     setState(() => _isLoadingComparisons = true);
     
     final currentNow = DateTime.now();
@@ -571,9 +574,9 @@ class _ActivityState extends State<Activity> {
 
     try {
       final results = await Future.wait([
-        ApiService.getFitbitTimeSeriesSteps("3m", todayStr), 
-        ApiService.getFitbitTimeSeriesSteps("1y", todayStr), 
-        ApiService.getFitbitTimeSeriesSteps("1y", lastYearEndStr) 
+        ApiService.getFitbitTimeSeriesSteps("3m", todayStr, forceRefresh: forceRefresh), 
+        ApiService.getFitbitTimeSeriesSteps("1y", todayStr, forceRefresh: forceRefresh), 
+        ApiService.getFitbitTimeSeriesSteps("1y", lastYearEndStr, forceRefresh: forceRefresh) 
       ]);
 
       final data3m = results[0];
@@ -748,315 +751,331 @@ class _ActivityState extends State<Activity> {
         ],
       ),
 
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      // --- THE FIX: Wrap the body in a RefreshIndicator ---
+      body: RefreshIndicator(
+        color: AppTheme.primaryColor,
+        backgroundColor: AppTheme.cardBackground,
+        onRefresh: () async {
+          // When the user pulls down, we force the backend to hit Fitbit!
+          await Future.wait([
+            _fetchLiveFitbitData(forceRefresh: true),
+            _fetchComparisonData(forceRefresh: true),
+            _generateAITip(forceRefresh: true),
+          ]);
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh always works
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(totalStepsLabel, style: const TextStyle(color: Colors.white, fontSize: 16)),
+                      _isLoading 
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 4.0),
+                            child: SizedBox(height: 25, width: 25, child: CircularProgressIndicator(color: AppTheme.primaryColor, strokeWidth: 3)),
+                          )
+                        : Text(
+                            "$currentSteps",
+                            style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
+                          ),
+                      const Text("steps", style: TextStyle(color: Colors.white70, fontSize: 16)),
+                    ],
+                  ),
+                  InkWell(
+                    onTap: _showFitbitConnectDialog,
+                    child: Row(
+                      children: const [
+                        Icon(Icons.watch, color: Colors.white),
+                        SizedBox(width: 6),
+                        Text("Connect Fitbit", style: TextStyle(color: Colors.white, fontSize: 18)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 18),
+
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "$fullRangeName Overview",
+                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+              
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
+                    onPressed: () {
+                      setState(() => dateOffset--); 
+                      // Arrow clicks DO NOT force refresh. They load instantly from DB cache!
+                      _fetchLiveFitbitData();       
+                    },
+                  ),
+                  Text(
+                    dateLabel, 
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.chevron_right, 
+                      color: dateOffset < 0 ? Colors.white : Colors.white38, 
+                      size: 30
+                    ),
+                    onPressed: dateOffset < 0 ? () {
+                      setState(() => dateOffset++); 
+                      // Arrow clicks DO NOT force refresh. They load instantly from DB cache!
+                      _fetchLiveFitbitData();       
+                    } : null, 
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 10),
+
+              Container(
+                height: 300,
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.cardBackground,
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                ),
+                child: _isLoading 
+                  ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                  : MyBarChart(
+                      labels: getLabelsList(),
+                      values: getValuesList(),
+                      showSideLabels: true,
+                      selectedRange: selectedRange,
+                      tooltipLabels: (selectedRange == "3M" || selectedRange == "6M") 
+                          ? (selectedRange == "3M" ? threeMonthTooltipLabels : sixMonthTooltipLabels) 
+                          : null,
+                    ),
+              ),
+
+              const SizedBox(height: 14),
+
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: AppTheme.textSecondary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    Text(totalStepsLabel, style: const TextStyle(color: Colors.white, fontSize: 16)),
-                    _isLoading 
-                      ? const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 4.0),
-                          child: SizedBox(height: 25, width: 25, child: CircularProgressIndicator(color: AppTheme.primaryColor, strokeWidth: 3)),
-                        )
-                      : Text(
-                          "$currentSteps",
-                          style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
-                        ),
-                    const Text("steps", style: TextStyle(color: Colors.white70, fontSize: 16)),
+                    filterButton("D"),
+                    filterButton("W"),
+                    filterButton("M"),
+                    filterButton("3M"), 
+                    filterButton("6M"),
+                    filterButton("Y"),
                   ],
                 ),
-                InkWell(
-                  onTap: _showFitbitConnectDialog,
-                  child: Row(
-                    children: const [
-                      Icon(Icons.watch, color: Colors.white),
-                      SizedBox(width: 6),
-                      Text("Connect Fitbit", style: TextStyle(color: Colors.white, fontSize: 18)),
+              ),
+              
+              const SizedBox(height: 16),
+
+              Row(
+                children: [
+                  Expanded(child: infoCard(selectedRange == "D" ? "Avg. Steps" : "Daily Avg.", "$averageSteps")), 
+                  const SizedBox(width: 8),
+   
+                  Expanded(
+                    child: InkWell(
+                      onTap: _showEditGoalDialog,
+                      borderRadius: BorderRadius.circular(24),
+                      child: Container(
+                        height: 95,
+                        decoration: BoxDecoration(
+                          color: AppTheme.cardBackground,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                        ),
+                        child: Stack(
+                          children: [
+                            Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Text(
+                                    "Goal",
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: Colors.white, fontSize: 16),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _formatNumber(stepGoal),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Positioned(
+                              top: 15,
+                              right: 15,
+                              child: Icon(
+                                Icons.edit,
+                                size: 15,
+                                color: Colors.white.withValues(alpha: 0.6),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // ==========================================
+              // AI TIPS SECTION
+              // ==========================================
+              InkWell(
+                onTap: () {
+                  final updatedData = Map<String, dynamic>.from(widget.baseUserData);
+                  updatedData['activity'] = "$currentSteps steps";
+                  updatedData['stepGoal'] = "$stepGoal steps"; 
+                  
+                  Navigator.push(
+                    context, 
+                    MaterialPageRoute(builder: (_) => AssistantPage(userData: updatedData))
+                  );
+                },
+                borderRadius: BorderRadius.circular(22), 
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.cardBackground,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: const [
+                          Text("💡 AI Tips", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                          Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18), 
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      
+                      _isLoadingTip 
+                        ? Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.only(top: 2.0),
+                                child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2)),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  "Analyzing your activity data...", 
+                                  style: const TextStyle(color: Colors.white70, fontSize: 14)
+                                ),
+                              ),
+                            ],
+                          )
+                        : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
                     ],
                   ),
                 ),
-              ],
-            ),
-
-            const SizedBox(height: 18),
-
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                "$fullRangeName Overview",
-                style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
               ),
-            ),
 
-            const SizedBox(height: 10),
-            
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
-                  onPressed: () {
-                    setState(() => dateOffset--); 
-                    _fetchLiveFitbitData();       
-                  },
-                ),
-                Text(
-                  dateLabel, 
-                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                IconButton(
-                  icon: Icon(
-                    Icons.chevron_right, 
-                    color: dateOffset < 0 ? Colors.white : Colors.white38, 
-                    size: 30
-                  ),
-                  onPressed: dateOffset < 0 ? () {
-                    setState(() => dateOffset++); 
-                    _fetchLiveFitbitData();       
-                  } : null, 
-                ),
-              ],
-            ),
+              const SizedBox(height: 16),
 
-            const SizedBox(height: 10),
-
-            Container(
-              height: 300,
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.cardBackground,
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
-              ),
-              child: _isLoading 
-                ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                : MyBarChart(
-                    labels: getLabelsList(),
-                    values: getValuesList(),
-                    showSideLabels: true,
-                    selectedRange: selectedRange,
-                    tooltipLabels: (selectedRange == "3M" || selectedRange == "6M") 
-                        ? (selectedRange == "3M" ? threeMonthTooltipLabels : sixMonthTooltipLabels) 
-                        : null,
-                  ),
-            ),
-
-            const SizedBox(height: 14),
-
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-              decoration: BoxDecoration(
-                color: AppTheme.textSecondary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+              // ==========================================
+              // COMPARISON WIDGETS
+              // ==========================================
+              Row(
                 children: [
-                  filterButton("D"),
-                  filterButton("W"),
-                  filterButton("M"),
-                  filterButton("3M"), 
-                  filterButton("6M"),
-                  filterButton("Y"),
-                ],
-              ),
-            ),
-            
-            const SizedBox(height: 16),
-
-            Row(
-              children: [
-                Expanded(child: infoCard(selectedRange == "D" ? "Avg. Steps" : "Daily Avg.", "$averageSteps")), 
-                const SizedBox(width: 8),
- 
-                Expanded(
-                  child: InkWell(
-                    onTap: _showEditGoalDialog,
-                    borderRadius: BorderRadius.circular(24),
+                  Expanded(
                     child: Container(
-                      height: 95,
+                      height: 200,
+                      padding: const EdgeInsets.all(16),
+                      alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: AppTheme.cardBackground,
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(30),
                         border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
                       ),
-                      child: Stack(
+                      child: Column(
                         children: [
-                          Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Text(
-                                  "Goal",
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(color: Colors.white, fontSize: 16),
+                          const Text("Monthly Avg", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          Expanded(
+                            child: _isLoadingComparisons 
+                              ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                              : MyBarChart(
+                                  values: monthlyAverageValues,
+                                  labels: monthlyAverageLabels,
+                                  showSideLabels: false,
+                                  selectedRange: "COMPARE", 
                                 ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _formatNumber(stepGoal),
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Positioned(
-                            top: 15,
-                            right: 15,
-                            child: Icon(
-                              Icons.edit,
-                              size: 15,
-                              color: Colors.white.withValues(alpha: 0.6),
-                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // ==========================================
-            // AI TIPS SECTION
-            // ==========================================
-            InkWell(
-              onTap: () {
-                final updatedData = Map<String, dynamic>.from(widget.baseUserData);
-                updatedData['activity'] = "$currentSteps steps";
-                updatedData['stepGoal'] = "$stepGoal steps"; 
-                
-                Navigator.push(
-                  context, 
-                  MaterialPageRoute(builder: (_) => AssistantPage(userData: updatedData))
-                );
-              },
-              borderRadius: BorderRadius.circular(22), 
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.cardBackground,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
-                        Text("💡 AI Tips", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                        Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18), 
-                      ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Container(
+                      height: 200,
+                      padding: const EdgeInsets.all(16),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppTheme.cardBackground,
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                      ),
+                      child: Column(
+                        children: [
+                          const Text("Yearly Avg", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          Expanded(
+                            child: _isLoadingComparisons 
+                              ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                              : MyBarChart(
+                                  values: yearlyAverageValues,
+                                  labels: yearlyAverageLabels,
+                                  showSideLabels: false,
+                                  selectedRange: "COMPARE", 
+                                ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    
-                    _isLoadingTip 
-                      ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Padding(
-                              padding: EdgeInsets.only(top: 2.0),
-                              child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2)),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                "Analyzing your activity data...", 
-                                style: const TextStyle(color: Colors.white70, fontSize: 14)
-                              ),
-                            ),
-                          ],
-                        )
-                      : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ==========================================
-            // COMPARISON WIDGETS
-            // ==========================================
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 200,
-                    padding: const EdgeInsets.all(16),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: AppTheme.cardBackground,
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
-                    ),
-                    child: Column(
-                      children: [
-                        const Text("Monthly Avg", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: _isLoadingComparisons 
-                            ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                            : MyBarChart(
-                                values: monthlyAverageValues,
-                                labels: monthlyAverageLabels,
-                                showSideLabels: false,
-                                selectedRange: "COMPARE", 
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Container(
-                    height: 200,
-                    padding: const EdgeInsets.all(16),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: AppTheme.cardBackground,
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
-                    ),
-                    child: Column(
-                      children: [
-                        const Text("Yearly Avg", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: _isLoadingComparisons 
-                            ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                            : MyBarChart(
-                                values: yearlyAverageValues,
-                                labels: yearlyAverageLabels,
-                                showSideLabels: false,
-                                selectedRange: "COMPARE", 
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 40),
-          ],
+              
+              const SizedBox(height: 40),
+            ],
+          ),
         ),
       ),
     );
@@ -1085,6 +1104,7 @@ class _ActivityState extends State<Activity> {
           selectedRange = label;
           dateOffset = 0;
         });
+        // Tabs DO NOT force refresh. They load instantly from DB cache!
         _fetchLiveFitbitData();
       },
       child: Container(
@@ -1261,7 +1281,7 @@ class MyBarChart extends StatelessWidget {
                 ),
                 color: (index % 2 == 1
                     ? AppTheme.primaryColor
-                    : AppTheme.primaryColor.withOpacity(0.6)),
+                    : AppTheme.primaryColor.withValues(alpha: 0.6)),
               ),
             ],
           );

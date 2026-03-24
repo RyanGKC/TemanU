@@ -150,28 +150,98 @@ class ApiService {
     }
   }
   
-  static Future<Map<String, dynamic>?> fetchFitbitData(String date, String fitbitAccessToken) async {
+  /// Fitbit activity data
+  static Future<Map<String, dynamic>?> getFitbitActivity(String date, {bool forceRefresh = false}) async {
     try {
-      // Notice we are calling YOUR backend, not api.fitbit.com!
+      final token = await _getToken();
+      if (token == null) return null;
+
       final response = await http.get(
-        Uri.parse('$_baseUrl/fitbit/activity/$date'), 
+        Uri.parse('$_baseUrl/fitbit/activity/$date?force_refresh=$forceRefresh'),
         headers: {
           'Content-Type': 'application/json',
-          // We pass the Fitbit token in a custom header so Python can use it
-          'fitbit-token': fitbitAccessToken, 
+          'Authorization': 'Bearer $token',
         },
       );
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        print('Backend proxy failed with status: ${response.statusCode}');
+        print('Fitbit API Failed: ${response.statusCode}');
         return null;
       }
     } catch (e) {
-      print('Proxy connection error: $e');
+      print('Connection error: $e');
       return null;
     }
+  }
+
+  /// Fetch the 7-day aggregated insights from Python
+  static Future<List<dynamic>> getWeeklyInsights({bool forceRefresh = false}) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return [];
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/insights/weekly?force_refresh=$forceRefresh'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        print("Failed to fetch insights. Status: ${response.statusCode}");
+        return [];
+      }
+    } catch (e) {
+      print("Error fetching insights: $e");
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>?> getFitbitIntradaySteps(String date, {bool forceRefresh = false}) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return null;
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/fitbit/steps/intraday/$date?force_refresh=$forceRefresh'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        print("Fitbit API Failed: ${response.statusCode} - ${response.body}");
+      }
+    } catch (e) {
+      print("Error fetching intraday steps: $e");
+    }
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> getFitbitTimeSeriesSteps(String period, String date, {bool forceRefresh = false}) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return null;
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/fitbit/steps/timeseries/$period/$date?force_refresh=$forceRefresh'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        print("Fitbit TimeSeries API Failed: ${response.statusCode} - ${response.body}");
+      }
+    } catch (e) {
+      print("Error fetching timeseries steps: $e");
+    }
+    return null;
   }
 
   /// Step 1: Request the OTP to be sent to the user's email
@@ -467,7 +537,6 @@ class ApiService {
   }
 
   // ─── ACTIVITY METRICS ───
-
   static Future<bool> saveActivity(int steps) async {
     try {
       final token = await _getToken();
@@ -493,31 +562,6 @@ class ApiService {
     }
   }
 
-  /// Fetch the 7-day aggregated insights from Python
-  static Future<List<dynamic>> getWeeklyInsights() async {
-    try {
-      final token = await _getToken();
-      if (token == null) return [];
-
-      final response = await http.get(
-        Uri.parse('$_baseUrl/insights/weekly'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        print("Failed to fetch insights. Status: ${response.statusCode}");
-        return [];
-      }
-    } catch (e) {
-      print("Error fetching insights: $e");
-      return [];
-    }
-  }
 
   /// 1. Save a new meal to the database
   static Future<bool> saveMeal({
@@ -702,48 +746,5 @@ class ApiService {
       print("Error editing medication: $e");
       return false;
     }
-  }
-
-  static Future<Map<String, dynamic>?> getFitbitIntradaySteps(String date) async {
-    try {
-      final token = await _getToken();
-      if (token == null) return null;
-
-      final response = await http.get(
-        Uri.parse('$_baseUrl/fitbit/steps/intraday/$date'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        // --- NEW: Print the exact error from the backend! ---
-        print("Fitbit API Failed: ${response.statusCode} - ${response.body}");
-      }
-    } catch (e) {
-      print("Error fetching intraday steps: $e");
-    }
-    return null;
-  }
-
-  static Future<Map<String, dynamic>?> getFitbitTimeSeriesSteps(String period, String date) async {
-    try {
-      final token = await _getToken();
-      if (token == null) return null;
-
-      final response = await http.get(
-        Uri.parse('$_baseUrl/fitbit/steps/timeseries/$period/$date'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        print("Fitbit TimeSeries API Failed: ${response.statusCode} - ${response.body}");
-      }
-    } catch (e) {
-      print("Error fetching timeseries steps: $e");
-    }
-    return null;
   }
 }
