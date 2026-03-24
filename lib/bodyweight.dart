@@ -343,6 +343,7 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
           padding: const EdgeInsets.all(25),
           decoration: BoxDecoration(
             color: AppTheme.cardBackground.withOpacity(0.95),
@@ -390,9 +391,15 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ShareWeightHighlightPage(
+        builder: (context) => ShareWeightHighlightPage( // Updated to pass more data
+          currentWeight: currentWeight,
           changeValue: changeWeight,
-        ),
+          bmi: bmi,
+          goalWeight: goalWeight,
+          rangeName: fullRangeName,
+          dateRangeLabel: dateRangeLabel,
+          userName: widget.baseUserData['preferred_name'] ?? widget.baseUserData['name'] ?? 'User',
+        ), 
       ),
     );
   }

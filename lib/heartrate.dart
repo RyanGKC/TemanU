@@ -370,6 +370,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
           padding: const EdgeInsets.all(25),
           decoration: BoxDecoration(
             color: AppTheme.cardBackground.withOpacity(0.95),

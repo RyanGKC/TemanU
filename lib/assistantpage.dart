@@ -242,7 +242,7 @@ class _AssistantPageState extends State<AssistantPage> {
           flexibleSpace: ClipRect(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-              child: Container(color: Colors.white.withValues(alpha: 0.25)),
+              child: Container(color: AppTheme.background.withValues(alpha: 0.5)),
             ),
           ),
         ),
@@ -401,10 +401,10 @@ class _AssistantPageState extends State<AssistantPage> {
               filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20), 
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1), 
+                  color: Colors.white.withOpacity(0.1), 
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2), 
+                    color: Colors.white.withOpacity(0.2), 
                     width: 1.5
                   ), 
                 ),
