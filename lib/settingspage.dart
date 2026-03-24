@@ -57,7 +57,7 @@ class _SettingsPageState extends State<SettingsPage> {
           style: TextStyle(
             fontSize: 25,
             fontWeight: FontWeight.w600,
-            color: AppTheme.primaryColor,
+            color: AppTheme.secondaryColor,
           )
         ),
         flexibleSpace: ClipRect(
@@ -188,7 +188,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             decoration: BoxDecoration(
                               color: AppTheme.cardBackground,
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                              border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)),
                             ),
                             child: Column(
                               children: [
@@ -204,7 +204,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                       title: "Log Out",
                                       content: "Are you sure you want to log out of your account? You will need to sign back in to view your health data.",
                                       actionText: "Log Out",
-                                      actionColor: const Color.fromARGB(168, 0, 229, 255),
+                                      actionColor: Colors.redAccent,
                                       onConfirm: () async {
                                         await FitbitService.logout();
                                         

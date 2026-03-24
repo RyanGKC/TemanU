@@ -225,7 +225,7 @@ class _AssistantPageState extends State<AssistantPage> {
           elevation: 0,
           centerTitle: false,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: AppTheme.primaryColor),
+            icon: const Icon(Icons.arrow_back_ios_new, color: AppTheme.secondaryColor),
             onPressed: () {
               FocusScope.of(context).unfocus();
               if (widget.onBackTabPressed != null) {
@@ -237,7 +237,7 @@ class _AssistantPageState extends State<AssistantPage> {
           ),
           title: const Text(
             'AI Assistant',
-            style: TextStyle(fontSize: 25, fontWeight: FontWeight.w600, color: AppTheme.primaryColor)
+            style: TextStyle(fontSize: 25, fontWeight: FontWeight.w600, color: AppTheme.secondaryColor)
           ),
           flexibleSpace: ClipRect(
             child: BackdropFilter(

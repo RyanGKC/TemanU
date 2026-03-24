@@ -21,9 +21,9 @@ class LoginPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const CircleAvatar(
-                  radius: 50,
+                  radius: 60,
                   backgroundColor: AppTheme.cardBackground,
-                  backgroundImage: AssetImage('assets/img/TemanU-logo.png'),
+                  backgroundImage: AssetImage('assets/img/TemanU.png'),
                 ),
                 const SizedBox(height: 10),
                 const Text(

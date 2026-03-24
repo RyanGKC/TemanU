@@ -356,9 +356,9 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                 constraints: const BoxConstraints(maxWidth: 400),
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
-                  color: AppTheme.cardBackground.withOpacity(0.8),
+                  color: AppTheme.cardBackground.withValues(alpha:0.8),
                   borderRadius: BorderRadius.circular(25),
-                  border: Border.all(color: AppTheme.textSecondary.withOpacity(0.2), width: 1.5),
+                  border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -366,7 +366,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                     Container(
                       padding: const EdgeInsets.all(15),
                       decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withOpacity(0.1),
+                        color: AppTheme.primaryColor.withValues(alpha: .1),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(Icons.watch, color: AppTheme.primaryColor, size: 40),
