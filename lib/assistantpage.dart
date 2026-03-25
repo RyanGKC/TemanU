@@ -2,11 +2,10 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:temanu/theme.dart';
+import 'package:temanu/api_service.dart';
 
 class ChatMessage {
   final String text;
@@ -45,80 +44,11 @@ class _AssistantPageState extends State<AssistantPage> {
   ];
   
   bool _isTyping = false;
-
-  static String get _geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
-
-  late final GenerativeModel _model;
-  late final ChatSession _chatSession;
+  List<Map<String, String>> _chatHistory = [];
 
   @override
   void initState() {
     super.initState();
-    _initializeChat();
-  }
-
-  void _initializeChat() {
-    // 1. Extract the passed data safely
-    final name = widget.userData['name'] ?? 'the user';
-    final age = widget.userData['age'] ?? 'unknown';
-    final gender = widget.userData['gender'] ?? 'unknown';
-    final height = widget.userData['height'] ?? 'unknown';
-    final weight = widget.userData['weight'] ?? 'unknown';
-    final bloodType = widget.userData['bloodType'] ?? 'unknown';
-    final conditions = widget.userData['healthConditions'] ?? 'None reported';
-    
-    final steps = widget.userData['steps'] ?? 'unknown';
-    final stepGoal = widget.userData['stepGoal'] ?? 10000;
-    final heartRate = widget.userData['heartRate'] ?? 'unknown';
-    final oxygen = widget.userData['oxygenSaturation'] ?? 'unknown';
-    final calories = widget.userData['calories'] ?? 'unknown';
-    final bloodPressure = widget.userData['bloodPressure'] ?? 'unknown';
-    final bloodGlucose = widget.userData['bloodGlucose'] ?? 'unknown';
-    final bodyGoal = widget.userData['bodyGoal'] ?? 'maintain';
-    final targetIntake = widget.userData['caloriesIntakeTarget'] ?? 'unknown';
-    final targetBurn = widget.userData['caloriesBurnTarget'] ?? 'unknown';
-    final pConsumed = widget.userData['proteinConsumed']?.toInt() ?? 0;
-    final cConsumed = widget.userData['carbsConsumed']?.toInt() ?? 0;
-    final fConsumed = widget.userData['fatsConsumed']?.toInt() ?? 0;
-    final pTarget   = widget.userData['proteinTarget']?.toInt() ?? 'unknown';
-    final cTarget   = widget.userData['carbsTarget']?.toInt() ?? 'unknown';
-    final fTarget   = widget.userData['fatsTarget']?.toInt() ?? 'unknown';
-
-    final systemPrompt = '''
-      You are a helpful, concise health and fitness AI assistant. You do not have a personal name. 
-      You are speaking directly to $name. Keep your answers relatively short and suitable for a mobile chat interface.
-      
-      Here is the current health and biometric profile for $name:
-      - Age: $age
-      - Gender: $gender
-      - Height: $height cm
-      - Weight: $weight kg
-      - Blood type: $bloodType
-      - Health Conditions: $conditions
-      
-      CURRENT CALORIC GOAL: $bodyGoal
-      - Daily Intake Target: $targetIntake kcal
-      - Daily Burn Target: $targetBurn kcal
-      
-      Today's Live Metrics:
-      - Calories Eaten: $calories kcal (Target: $targetIntake kcal)
-      - Macros Eaten: Protein: ${pConsumed}g (Target: ${pTarget}g), Carbs: ${cConsumed}g (Target: ${cTarget}g), Fats: ${fConsumed}g (Target: ${fTarget}g)
-      - Steps Taken: $steps steps (Target: $stepGoal steps)
-      - Heart Rate: $heartRate bpm
-      - Oxygen Saturation (SpO2): $oxygen%
-      - Blood Pressure: $bloodPressure mmHg
-      - Blood Glucose: $bloodGlucose mg/dl
-      
-      Use this data to provide highly personalized advice. If the user asks about their diet, compare their eaten macros and calories against their targets, taking into account their goal to $bodyGoal. If the user asks about their steps, compare their steps taken against their step goal.
-    ''';
-
-    _model = GenerativeModel(
-      model: 'gemini-2.5-flash',
-      apiKey: _geminiApiKey,
-      systemInstruction: Content.system(systemPrompt),
-    );
-    
-    _chatSession = _model.startChat();
   }
 
   @override
@@ -144,55 +74,40 @@ class _AssistantPageState extends State<AssistantPage> {
   void _handleSubmitted() async {
     final text = _textController.text.trim();
     
-    // Don't send if both text and image are empty
-    if (text.isEmpty && _selectedImage == null) return;
-
-    final currentText = text;
-    final currentImage = _selectedImage;
+    // Don't send if text is empty
+    if (text.isEmpty) return;
 
     _textController.clear();
     
     setState(() {
       _selectedImage = null; // Clear preview
-      _messages.add(ChatMessage(text: currentText, isUser: true, image: currentImage));
+      _messages.add(ChatMessage(text: text, isUser: true));
       _isTyping = true;
     });
     
     _scrollToBottom();
 
+    // Add to history before sending
+    _chatHistory.add({"role": "user", "content": text});
+
     try {
-      late final GenerateContentResponse response;
-      
-      if (currentImage != null) {
-        // Send Multimodal Message
-        final imageBytes = await currentImage.readAsBytes();
-        
-        response = await _chatSession.sendMessage(
-          Content.multi([
-            TextPart(currentText.isNotEmpty ? currentText : "Please analyze this image."),
-            DataPart('image/jpeg', imageBytes),
-          ])
-        );
-      } else {
-        // Send Text-Only Message
-        response = await _chatSession.sendMessage(Content.text(currentText));
-      }
+      final reply = await ApiService.sendChatMessage(text, _chatHistory);
 
-      final responseText = response.text;
-
-      if (responseText != null) {
+      if (reply != null) {
+        // Add AI reply to history
+        _chatHistory.add({"role": "assistant", "content": reply});
         setState(() {
           _isTyping = false;
-          _messages.add(ChatMessage(text: responseText, isUser: false));
+          _messages.add(ChatMessage(text: reply, isUser: false));
         });
       } else {
-        throw Exception("Gemini returned an empty response.");
+        throw Exception("No reply from server");
       }
     } catch (e) {
       setState(() {
         _isTyping = false;
         _messages.add(ChatMessage(
-          text: "Sorry, I had trouble processing that. Please try again.", 
+          text: "Sorry, I had trouble connecting. Please try again.", 
           isUser: false
         ));
       });
@@ -266,7 +181,7 @@ class _AssistantPageState extends State<AssistantPage> {
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      "Assistant is typing...", // <-- Changed here
+                      "Assistant is typing...",
                       style: TextStyle(
                         color: Colors.white54, 
                         fontStyle: FontStyle.italic

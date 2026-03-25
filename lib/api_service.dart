@@ -966,4 +966,36 @@ class ApiService {
       return false;
     }
   }
+
+  // 8. Chatbot
+
+  static Future<String?> sendChatMessage(String message, List<Map<String, String>> history) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return null;
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/chat'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'message': message,
+          'history': history,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['reply'];
+      } else {
+        print("Chat failed: ${response.body}");
+        return null;
+      }
+    } catch (e) {
+      print("Chat error: $e");
+      return null;
+    }
+  }
 }
