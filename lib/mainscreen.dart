@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:temanu/bottomNavBar.dart';
 import 'package:temanu/homepage.dart'; 
+import 'package:temanu/myDoctors.dart';
 import 'package:temanu/settingspage.dart'; 
 import 'package:temanu/assistantpage.dart'; 
 import 'package:temanu/theme.dart';
@@ -23,11 +24,15 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // --- THE FIX: Added MyDoctorsPage to the list of screens ---
     final List<Widget> pages = [
-      // 3. Pass the key to HomePage
+      // Index 0
       HomePage(dashboardKey: _dashboardKey),
-      const SettingsPage(), 
-      // 4. Pass the data to AssistantPage
+      
+      // Index 1
+      const MyDoctorsPage(), 
+      
+      // Index 2
       AssistantPage(
         userData: _latestHealthData,
         onBackTabPressed: () {
@@ -36,6 +41,9 @@ class _MainScreenState extends State<MainScreen> {
           });
         },
       ),
+
+      // Index 3
+      const SettingsPage(), 
     ];
 
     return Scaffold(
@@ -44,13 +52,12 @@ class _MainScreenState extends State<MainScreen> {
       extendBody: true, 
       body: pages[_currentIndex], 
       
-      // Look how clean this is now!
-      bottomNavigationBar: _currentIndex == 2 
+      bottomNavigationBar: _currentIndex == 2 // Hides the nav bar when the Assistant (Index 2) is open
           ? const SizedBox.shrink() 
           : CustomBottomNavBar(
               currentIndex: _currentIndex,
               onTap: (index) {
-                // 5. Intercept the tap to grab data before switching to the Assistant (Index 2)
+                // Intercept the tap to grab data before switching to the Assistant (Index 2)
                 if (index == 2) {
                   if (_dashboardKey.currentState != null) {
                     _latestHealthData = _dashboardKey.currentState!.gatherDataForAI();
