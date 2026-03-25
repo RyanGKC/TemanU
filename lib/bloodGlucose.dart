@@ -6,6 +6,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temanu/api_service.dart';
 import 'package:temanu/assistantpage.dart';
+import 'package:temanu/bloodGlucoseSharePage.dart'; // <-- NEW IMPORT
 import 'package:temanu/button.dart'; 
 import 'package:temanu/textbox.dart';
 import 'package:temanu/theme.dart';
@@ -296,9 +297,9 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
           constraints: const BoxConstraints(maxWidth: 400),
           padding: const EdgeInsets.all(25),
           decoration: BoxDecoration(
-            color: AppTheme.cardBackground.withOpacity(0.95),
+            color: AppTheme.cardBackground.withValues(alpha: 0.95), // <-- Updated
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.textSecondary.withOpacity(0.2), width: 1.5),
+            border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5), // <-- Updated
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -332,6 +333,23 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // --- NEW: Routing to Share Page ---
+  void openSharePage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BloodGlucoseSharePage(
+          currentBg: currentBGlevel,
+          averageBg: averageBGlevel,
+          zone: zoneText,
+          rangeName: fullRangeName,
+          dateRangeLabel: dateRangeLabel,
+          userName: widget.baseUserData['preferred_name'] ?? widget.baseUserData['name'] ?? 'User',
         ),
       ),
     );
@@ -456,16 +474,17 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(color: AppTheme.background.withOpacity(0.5)),
+            child: Container(color: AppTheme.background.withValues(alpha: 0.5)), // <-- Updated
           ),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppTheme.primaryColor),
           onPressed: () => Navigator.pop(context),
         ),
+        // --- NEW: Share Icon Connected ---
         actions: [
           IconButton(
-            onPressed: () {}, 
+            onPressed: openSharePage, 
             icon: const Icon(Icons.ios_share, color: Colors.white),
           ),
         ],
@@ -571,7 +590,7 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
               decoration: BoxDecoration(
                 color: AppTheme.cardBackground,
                 borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
               ),
               child: _isLoadingChart 
                 ? const Center(child: CircularProgressIndicator(color: Colors.white))
@@ -617,7 +636,7 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
             Container(
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
               decoration: BoxDecoration(
-                color: AppTheme.textSecondary.withOpacity(0.1),
+                color: AppTheme.textSecondary.withValues(alpha: 0.1), // <-- Updated
                 borderRadius: BorderRadius.circular(30),
               ),
               child: Row(
@@ -660,7 +679,7 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
                 decoration: BoxDecoration(
                   color: AppTheme.cardBackground,
                   borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                  border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -724,7 +743,7 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
       decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+          border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -801,8 +820,8 @@ class BloodGlucoseChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final bgPaint       = Paint()..color = AppTheme.primaryColor..style = PaintingStyle.fill;
-    final bgColumnPaint = Paint()..color = AppTheme.primaryColor.withOpacity(0.4)..strokeWidth = 5..strokeCap = StrokeCap.round;
-    final gridPaint     = Paint()..color = AppTheme.textSecondary.withOpacity(0.5)..strokeWidth = 1;
+    final bgColumnPaint = Paint()..color = AppTheme.primaryColor.withValues(alpha: 0.4)..strokeWidth = 5..strokeCap = StrokeCap.round; // <-- Updated
+    final gridPaint     = Paint()..color = AppTheme.textSecondary.withValues(alpha: 0.5)..strokeWidth = 1; // <-- Updated
     const textStyle     = TextStyle(color: AppTheme.textPrimary, fontSize: 11);
 
     // --- Y-AXIS ---
@@ -923,9 +942,6 @@ class BloodGlucoseChartPainter extends CustomPainter {
     }
   }
 
-  // --- UPDATED: Dark box tooltip matching body weight style ---
-  // Row 1: date/timeframe in white70
-  // Row 2: value in cyan (0xff00E5FF)
   void _drawTooltip(Canvas canvas, Size size, double x, double highestY, double bMin, double bMax, DateTime date) {
     const List<String> months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 

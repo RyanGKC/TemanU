@@ -63,7 +63,7 @@ class _HomePageState extends State<HomePage> {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
             child: Container(
-              color: AppTheme.background.withOpacity(0.5),
+              color: AppTheme.background.withValues(alpha: 0.5), // <-- Updated
             ),
           ),
         ),
@@ -119,8 +119,6 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   void initState() {
     super.initState();
     _metricsData = [
-      // FIX: BloodGlucose now requires baseUserData, so use SizedBox() as
-      // placeholder and intercept navigation in healthCard's onTap below.
       { "icon": Icons.water_drop,            "title": "Blood Glucose Level", "value": "--",  "unit": "mg/dl", "destination": const SizedBox(), "isVisible": true, "isShareSelected": true },
       { "icon": Icons.directions_run,        "title": "Activity",            "value": "--",  "unit": "steps", "destination": const SizedBox(), "isVisible": true, "isShareSelected": true },
       { "icon": Icons.favorite,              "title": "Heart Rate",          "value": "--",  "unit": "bpm",   "destination": const SizedBox(), "isVisible": true, "isShareSelected": true },
@@ -156,11 +154,8 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
     final allMetrics = await ApiService.getHealthMetrics(); 
     Map<String, String> newestValues = {};
 
-    // --- THE ROBUST FIX: Sort chronologically to guarantee the newest is last ---
     allMetrics.sort((a, b) => DateTime.parse(a['timestamp']).compareTo(DateTime.parse(b['timestamp'])));
 
-    // As it loops, it continuously overwrites the map. 
-    // The very last item written will be the absolute newest!
     for (var metric in allMetrics) {
       newestValues[metric['metric_type']] = metric['value'].toString();
     }
@@ -175,21 +170,18 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
 
     if (mounted) {
       setState(() {
-        // --- THE SINGLE SOURCE OF TRUTH FIX ---
         if (newestValues.containsKey('Body Weight')) {
           String latestWeightFromDB = newestValues['Body Weight']!;
           
-          // 1. Update the Dashboard Card
           _metricsData.firstWhere((m) => m['title'] == 'Body Weight')['value'] = latestWeightFromDB;
           
-          // 2. Update the Profile Object directly from the Database!
           _patientData = PatientData(
             name: _patientData.name,
             dob: _patientData.dob,
             age: _patientData.age,
             gender: _patientData.gender,
             height: _patientData.height,
-            weight: latestWeightFromDB, // The DB is now the master controller
+            weight: latestWeightFromDB, 
             bloodType: _patientData.bloodType,
             conditions: _patientData.conditions,
           );
@@ -249,8 +241,9 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   }
 
   Future<void> _autoSyncFitbit(String token) async {
-    String? realSteps = await FitbitService.getTodaysSteps(token);
-    String? realHeartRate = await FitbitService.getHeartRate(token);
+    // --- THE FIX: Passed forceRefresh: true so it syncs perfectly on launch! ---
+    String? realSteps = await FitbitService.getTodaysSteps(token, forceRefresh: true);
+    String? realHeartRate = await FitbitService.getHeartRate(token, forceRefresh: true);
     
     if (mounted) {
       setState(() {
@@ -286,9 +279,9 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
               decoration: BoxDecoration(
                 color: isSuccess ? AppTheme.primaryColor : AppTheme.cardBackground,
                 borderRadius: BorderRadius.circular(20),
-                border: isSuccess ? null : Border.all(color: AppTheme.textSecondary.withOpacity(0.2), width: 1.5),
+                border: isSuccess ? null : Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5), // <-- Updated
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 5))
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 5)) // <-- Updated
                 ],
               ),
               child: Row(
@@ -358,7 +351,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                 decoration: BoxDecoration(
                   color: AppTheme.cardBackground.withValues(alpha:0.8),
                   borderRadius: BorderRadius.circular(25),
-                  border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5),
+                  border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5), // <-- Updated
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -434,11 +427,10 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      // --- THE FIX: Grab the real name and update the Profile object ---
       String savedName = prefs.getString('user_name') ?? 'User';
       
       _patientData = PatientData(
-        name: savedName, // Overwrites 'James' with the real name!
+        name: savedName, 
         dob: _patientData.dob,
         age: _patientData.age,
         gender: _patientData.gender,
@@ -448,7 +440,6 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
         conditions: _patientData.conditions,
       );
 
-      // --- Keep your existing code below this ---
       for (var metric in _metricsData) {
         metric['isVisible'] = prefs.getBool(metric['title']) ?? true;
       }
@@ -526,14 +517,14 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                   Container(
                     margin: const EdgeInsets.only(top: 15, bottom: 10),
                     height: 5, width: 50,
-                    decoration: BoxDecoration(color: AppTheme.textSecondary.withOpacity(0.5), borderRadius: BorderRadius.circular(10)),
+                    decoration: BoxDecoration(color: AppTheme.textSecondary.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(10)), // <-- Updated
                   ),
                   const Padding(
                     padding: EdgeInsets.all(15.0),
                     child: Text("Customize Dashboard",
                         style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
-                  Divider(color: AppTheme.textSecondary.withOpacity(0.1), height: 1),
+                  Divider(color: AppTheme.textSecondary.withValues(alpha: 0.1), height: 1), // <-- Updated
                   Expanded(
                     child: ListView.builder(
                       itemCount: _metricsData.length,
@@ -541,9 +532,9 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                         final metric = _metricsData[index];
                         return SwitchListTile(
                           activeThumbColor: AppTheme.primaryColor,
-                          activeTrackColor: AppTheme.primaryColor.withOpacity(0.3),
+                          activeTrackColor: AppTheme.primaryColor.withValues(alpha: 0.3), // <-- Updated
                           inactiveThumbColor: AppTheme.textSecondary,
-                          inactiveTrackColor: AppTheme.textSecondary.withOpacity(0.1),
+                          inactiveTrackColor: AppTheme.textSecondary.withValues(alpha: 0.1), // <-- Updated
                           secondary: Icon(metric['icon'], color: AppTheme.textSecondary),
                           title: Text(metric['title'], style: const TextStyle(color: AppTheme.textPrimary)),
                           value: metric['isVisible'],
@@ -600,14 +591,14 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                   Container(
                     margin: const EdgeInsets.only(top: 15, bottom: 10),
                     height: 5, width: 50,
-                    decoration: BoxDecoration(color: AppTheme.textSecondary.withOpacity(0.5), borderRadius: BorderRadius.circular(10)),
+                    decoration: BoxDecoration(color: AppTheme.textSecondary.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(10)), // <-- Updated
                   ),
                   const Padding(
                     padding: EdgeInsets.all(15.0),
                     child: Text("Select Data to Export",
                         style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
-                  Divider(color: AppTheme.textSecondary.withOpacity(0.1), height: 1),
+                  Divider(color: AppTheme.textSecondary.withValues(alpha: 0.1), height: 1), // <-- Updated
                   Expanded(
                     child: ListView.builder(
                       itemCount: _metricsData.length,
@@ -746,7 +737,6 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
     return GestureDetector(
       onTap: () async {
         if (title == 'Blood Glucose Level') {
-          // FIX: Pass baseUserData just like every other page that requires it
           await Navigator.push(context, MaterialPageRoute(
             builder: (context) => BloodGlucose(baseUserData: gatherDataForAI()),
           ));

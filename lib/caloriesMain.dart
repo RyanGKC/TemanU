@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/cameraCapture.dart';
+import 'package:temanu/caloriesSharePage.dart'; // <-- NEW IMPORT
 import 'package:temanu/fitbitService.dart';
 import 'package:temanu/patientData.dart';
 import 'package:temanu/theme.dart';
@@ -73,7 +74,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     _controller.forward();
     _loadGoalSettings();
     _loadFitbitCalories();
-    _loadWeeklyInsights(); // Trigger the mock insights generator
+    _loadWeeklyInsights(); 
   }
 
   @override
@@ -174,18 +175,15 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     if (mounted) setState(() => _isFitbitLoading = false);
   }
 
-  // --- MOCK WEEKLY INSIGHTS GENERATOR (Replace with API later) ---
   Future<void> _loadWeeklyInsights() async {
     setState(() => _isLoadingInsights = true);
 
-    // 1. Fetch the real aggregated 7-day data from Python
     final weeklyData = await ApiService.getWeeklyInsights();
     
     double totalDeficit = 0;
     int pHits = 0, cHits = 0, fHits = 0;
     List<Map<String, dynamic>> bars = [];
 
-    // 2. Loop through the week and compare it to their personal goals
     for (var day in weeklyData) {
       double consumed = (day['consumed'] as num).toDouble();
       double burned = (day['burned'] as num).toDouble();
@@ -193,13 +191,10 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
       double c = (day['carbs'] as num).toDouble();
       double f = (day['fats'] as num).toDouble();
 
-      // Smart Fallback: If Fitbit returned 0 (didn't wear watch), assume standard TDEE burn
       double actualBurned = burned > 0 ? burned : caloriesBurnedTarget;
 
-      // Add to weekly net deficit (Burned - Consumed)
       totalDeficit += (actualBurned - consumed);
 
-      // Macro Consistency: Did they hit at least 90% of their target that day?
       if (p >= (proteinTarget * 0.9)) pHits++;
       if (c >= (carbsTarget * 0.9)) cHits++;
       if (f >= (fatsTarget * 0.9)) fHits++;
@@ -223,7 +218,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     }
   }
 
-  // ... [Keep your existing _showGoalSettingsSheet() exactly as it is] ...
   void _showGoalSettingsSheet() {
     String tempGoal          = _bodyGoal;
     int    tempOffset        = _goalOffset;
@@ -266,7 +260,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
             InputDecoration fieldDecoration() => InputDecoration(
               filled: true,
-              fillColor: Colors.white.withValues(alpha: 0.07),
+              fillColor: Colors.white.withValues(alpha: 0.07), // <-- Updated
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(15),
@@ -289,7 +283,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                     mainAxisSize: MainAxisSize.min,
                     children: [
 
-                      // Handle bar
                       Center(
                         child: Container(
                           height: 5, width: 50,
@@ -306,12 +299,11 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
                       const SizedBox(height: 28),
 
-                      // ── BMR Info Card ──────────────────────────────────────
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05),
+                          color: Colors.white.withValues(alpha: 0.05), // <-- Updated
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: Colors.white12),
                         ),
@@ -344,7 +336,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
                       const SizedBox(height: 28),
 
-                      // ── Activity Level ────────────────────────────────────
                       const Text("Activity Level",
                         style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 4),
@@ -364,7 +355,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? AppTheme.primaryColor.withOpacity(0.12)
+                                  ? AppTheme.primaryColor.withValues(alpha: 0.12) // <-- Updated
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
@@ -400,7 +391,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
                       const SizedBox(height: 28),
 
-                      // ── Body Goal Chips ───────────────────────────────────
                       const Text("Body Goal",
                         style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 12),
@@ -414,7 +404,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                         ],
                       ),
 
-                      // ── Offset adjuster (hidden for Maintain) ─────────────
                       if (tempGoal != 'maintain') ...[
                         const SizedBox(height: 24),
                         Row(
@@ -437,7 +426,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                                     margin: const EdgeInsets.only(left: 8),
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                                     decoration: BoxDecoration(
-                                      color: isActive ? goalColor().withValues(alpha: 0.15) : Colors.transparent,
+                                      color: isActive ? goalColor().withValues(alpha: 0.15) : Colors.transparent, // <-- Updated
                                       borderRadius: BorderRadius.circular(10),
                                       border: Border.all(
                                         color: isActive ? goalColor() : Colors.white24,
@@ -465,7 +454,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                                   activeTrackColor: goalColor(),
                                   inactiveTrackColor: Colors.white12,
                                   thumbColor: goalColor(),
-                                  overlayColor: goalColor().withValues(alpha: 0.15),
+                                  overlayColor: goalColor().withValues(alpha: 0.15), // <-- Updated
                                   trackHeight: 5,
                                 ),
                                 child: Slider(
@@ -516,14 +505,13 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
                       const SizedBox(height: 24),
 
-                      // ── Live Preview ──────────────────────────────────────
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          color: goalColor().withValues(alpha: 0.07),
+                          color: goalColor().withValues(alpha: 0.07), // <-- Updated
                           borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: goalColor().withValues(alpha: 0.4)),
+                          border: Border.all(color: goalColor().withValues(alpha: 0.4)), // <-- Updated
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -551,7 +539,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
                       const SizedBox(height: 30),
 
-                      // ── Save Button ───────────────────────────────────────
                       GestureDetector(
                         onTap: patientDataMissing ? null : () {
                           setState(() {
@@ -562,7 +549,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                           });
                           _saveGoalSettings();
                           _generateAITip(forceRefresh: true);
-                          _loadWeeklyInsights(); // Refresh insights on goal change
+                          _loadWeeklyInsights(); 
 
                           Navigator.pop(context);
                           _controller.forward(from: 0.0);
@@ -573,8 +560,8 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                           padding: const EdgeInsets.symmetric(vertical: 18),
                           decoration: BoxDecoration(
                             color: patientDataMissing
-                                ? Colors.white.withOpacity(0.05)
-                                : AppTheme.primaryColor.withOpacity(0.1),
+                                ? Colors.white.withValues(alpha: 0.05) // <-- Updated
+                                : AppTheme.primaryColor.withValues(alpha: 0.1), // <-- Updated
                             border: Border.all(
                               color: patientDataMissing ? Colors.white12 : AppTheme.primaryColor,
                               width: 2,
@@ -628,7 +615,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: isSelected ? activeColor.withValues(alpha: 0.15) : Colors.transparent,
+            color: isSelected ? activeColor.withValues(alpha: 0.15) : Colors.transparent, // <-- Updated
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: isSelected ? activeColor : Colors.white24,
@@ -707,6 +694,28 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     }
   }
 
+  // --- NEW: Routing to Share Page ---
+  void openSharePage() {
+    final now = DateTime.now();
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    final dateStr = "${now.day} ${months[now.month - 1]} ${now.year}";
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CaloriesSharePage(
+          caloriesConsumed: caloriesConsumed,
+          caloriesIntakeTarget: caloriesIntakeTarget,
+          caloriesBurned: caloriesBurned,
+          caloriesBurnedTarget: caloriesBurnedTarget,
+          bodyGoal: _bodyGoal,
+          dateRangeLabel: dateStr,
+          userName: widget.patientData.name.isNotEmpty ? widget.patientData.name : 'User',
+        ),
+      ),
+    );
+  }
+
   // ─── MAIN BUILD (NOW WITH TAB CONTROLLER) ─────────────────────────────────
 
   @override
@@ -724,7 +733,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
           flexibleSpace: ClipRect(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-              child: Container(color: AppTheme.background.withOpacity(0.5)),
+              child: Container(color: AppTheme.background.withValues(alpha: 0.5)), // <-- Updated
             ),
           ),
           leading: IconButton(
@@ -742,12 +751,12 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                 _loadWeeklyInsights();
               },
             ),
+            // --- NEW: Connected Share Button ---
             IconButton(
-              onPressed: () {},
+              onPressed: openSharePage,
               icon: const Icon(Icons.ios_share, color: Colors.white),
             ),
           ],
-          // --- THE NEW TABS ---
           bottom: const TabBar(
             indicatorColor: AppTheme.primaryColor,
             labelColor: AppTheme.primaryColor,
@@ -835,7 +844,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
     final double bottomSafeArea = MediaQuery.paddingOf(context).bottom;
     
-    // Calculate projected weight impact
     double projectedKg = (_weeklyNetDeficit / 7700).abs();
     String projectionTitle = "Maintaining Weight";
     String projectionText = "Your energy balance is perfectly level. You are projected to maintain your current weight.";
@@ -860,20 +868,18 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Insight 1: Projected Weight Impact
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
                 color: AppTheme.cardBackground,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: projectionColor.withOpacity(0.5), width: 1.5),
+                border: Border.all(color: projectionColor.withValues(alpha: 0.5), width: 1.5), // <-- Updated
               ),
               child: Column(
                 children: [
                   Icon(projectionIcon, color: projectionColor, size: 40),
                   const SizedBox(height: 15),
-                  // --- THE FIX: ADDED INFO ICON FOR PROJECTION ---
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -888,7 +894,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                       ),
                     ],
                   ),
-                  // ----------------------------------------------
                   const SizedBox(height: 8),
                   Text(projectionText, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.4)),
                 ],
@@ -896,8 +901,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
             ),
             const SizedBox(height: 25),
 
-            // Insight 2: Weekly Energy Balance Bar Chart
-            // --- THE FIX: ADDED INFO ICON FOR ENERGY BALANCE ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -913,14 +916,13 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                 ),
               ],
             ),
-            // ---------------------------------------------------
             const SizedBox(height: 15),
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: AppTheme.cardBackground, 
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
               ),
               child: Column(
                 children: [
@@ -950,23 +952,23 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                         double burnedHeight = (dayData['burned'] / maxVal) * 120;
 
                         return Tooltip(
-                          triggerMode: TooltipTriggerMode.tap, // Shows when the user taps
-                          showDuration: const Duration(seconds: 3), // Disappears after 3 seconds
-                          preferBelow: false, // Pops up above the user's finger
-                          verticalOffset: 20, // Gives it some breathing room from the bars
+                          triggerMode: TooltipTriggerMode.tap, 
+                          showDuration: const Duration(seconds: 3), 
+                          preferBelow: false, 
+                          verticalOffset: 20, 
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                           decoration: BoxDecoration(
-                            color: AppTheme.background.withOpacity(0.95), // Deep dark blue
+                            color: AppTheme.background.withValues(alpha: 0.95), // <-- Updated
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppTheme.primaryColor.withOpacity(0.5)), // Cyan border
+                            border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.5)), // <-- Updated
                           ),
                           textStyle: const TextStyle(color: Colors.white, fontSize: 13, height: 1.5),
                           richMessage: TextSpan(
                             children: [
                               TextSpan(text: "${dayData['day']}\n", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                              TextSpan(text: "Consumed: ", style: TextStyle(color: Colors.white.withOpacity(0.7))),
+                              TextSpan(text: "Consumed: ", style: TextStyle(color: Colors.white.withValues(alpha: 0.7))), // <-- Updated
                               TextSpan(text: "${dayData['consumed'].toInt()} kcal\n", style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold)),
-                              TextSpan(text: "Burned: ", style: TextStyle(color: Colors.white.withOpacity(0.7))),
+                              TextSpan(text: "Burned: ", style: TextStyle(color: Colors.white.withValues(alpha: 0.7))), // <-- Updated
                               TextSpan(text: "${dayData['burned'].toInt()} kcal", style: const TextStyle(color: Color(0xff00E676), fontWeight: FontWeight.bold)),
                             ]
                           ),
@@ -994,8 +996,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
             ),
             const SizedBox(height: 25),
 
-            // Insight 3: Macro Consistency Score
-            // --- THE FIX: ADDED INFO ICON FOR MACROS ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -1011,14 +1011,13 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                 ),
               ],
             ),
-            // -------------------------------------------
             const SizedBox(height: 15),
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: AppTheme.cardBackground, 
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -1042,7 +1041,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
         Stack(
           alignment: Alignment.center,
           children: [
-            SizedBox(height: 60, width: 60, child: CircularProgressIndicator(value: 1.0, strokeWidth: 6, color: Colors.white.withValues(alpha: 0.1))),
+            SizedBox(height: 60, width: 60, child: CircularProgressIndicator(value: 1.0, strokeWidth: 6, color: Colors.white.withValues(alpha: 0.1))), // <-- Updated
             SizedBox(height: 60, width: 60, child: CircularProgressIndicator(value: hits / 7, strokeWidth: 6, color: color, strokeCap: StrokeCap.round, backgroundColor: Colors.transparent)),
             Text("$hits/7", style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
           ],
@@ -1053,7 +1052,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     );
   }
 
-  // ... [Keep your existing UI building blocks exact as they were below this point] ...
   Widget _buildAiTipCard() {
     return InkWell(
       onTap: () {
@@ -1076,7 +1074,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
         decoration: BoxDecoration(
           color: AppTheme.cardBackground, 
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+          border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1129,7 +1127,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
           decoration: BoxDecoration(
             color: AppTheme.cardBackground, 
             borderRadius: BorderRadius.circular(25),
-            border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+            border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
           ),
           child: Column(
             children: [
@@ -1138,7 +1136,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text("Goal: ", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14)),
+                    Text("Goal: ", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14)), // <-- Updated
                     Text(goalTypeLabel(), style: TextStyle(color: goalColor(), fontSize: 14, fontWeight: FontWeight.bold)),
                     const SizedBox(width: 5),
                     Icon(Icons.edit, color: goalColor(), size: 14),
@@ -1167,7 +1165,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
         Stack(
           alignment: Alignment.center,
           children: [
-            SizedBox(height: 120, width: 120, child: CircularProgressIndicator(value: 1.0, strokeWidth: 10, color: Colors.white.withValues(alpha: 0.08))),
+            SizedBox(height: 120, width: 120, child: CircularProgressIndicator(value: 1.0, strokeWidth: 10, color: Colors.white.withValues(alpha: 0.08))), // <-- Updated
             SizedBox(height: 120, width: 120, child: CircularProgressIndicator(value: progress, strokeWidth: 10, color: ringColor, backgroundColor: Colors.transparent, strokeCap: StrokeCap.round)),
             isLoading
               ? SizedBox(height: 28, width: 28, child: CircularProgressIndicator(color: ringColor, strokeWidth: 2.5))
@@ -1192,7 +1190,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
       decoration: BoxDecoration(
         color: AppTheme.cardBackground, 
         borderRadius: BorderRadius.circular(25),
-        border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -1216,7 +1214,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
             Stack(
               alignment: Alignment.center,
               children: [
-                SizedBox(height: 75, width: 75, child: CircularProgressIndicator(value: 1.0, strokeWidth: 8, color: Colors.white.withValues(alpha: 0.1))),
+                SizedBox(height: 75, width: 75, child: CircularProgressIndicator(value: 1.0, strokeWidth: 8, color: Colors.white.withValues(alpha: 0.1))), // <-- Updated
                 SizedBox(height: 75, width: 75, child: CircularProgressIndicator(value: progress, strokeWidth: 8, color: progressColor, backgroundColor: Colors.transparent, strokeCap: StrokeCap.round)),
                 Column(mainAxisSize: MainAxisSize.min, children: [
                   Text("${(consumed * _animation.value).toInt()}", style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
@@ -1241,7 +1239,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
       decoration: BoxDecoration(
         color: AppTheme.cardBackground, 
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
