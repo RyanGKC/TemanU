@@ -107,19 +107,20 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
+        automaticallyImplyLeading: false,
         title: const Text(
-          "My Care Team",
-          style: TextStyle(color: AppTheme.primaryColor, fontSize: 25, fontWeight: FontWeight.w600),
+          'My Care Team',
+          style: TextStyle(
+            fontSize: 25,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.secondaryColor,
+          )
         ),
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
             child: Container(color: AppTheme.background.withValues(alpha: 0.5)),
           ),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.primaryColor),
-          onPressed: () => Navigator.pop(context),
         ),
         // --- NEW: Add Doctor Button ---
         actions: [
