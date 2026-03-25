@@ -1,10 +1,11 @@
 import 'dart:ui';
+import 'dart:async'; // <-- NEW: for debounce timer
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:temanu/theme.dart';
 import 'package:temanu/button.dart';
-import 'package:temanu/api_service.dart'; // <-- NEW: Added API Service
+import 'package:temanu/api_service.dart'; 
 
 // ==========================================
 // DATA MODELS 
@@ -76,7 +77,6 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
     _fetchLinkedDoctors();
   }
 
-  // --- CONNECTED: Fetch Linked Doctors from Backend ---
   Future<void> _fetchLinkedDoctors() async {
     setState(() => _isLoading = true);
     
@@ -121,6 +121,20 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
           icon: const Icon(Icons.arrow_back, color: AppTheme.primaryColor),
           onPressed: () => Navigator.pop(context),
         ),
+        // --- NEW: Add Doctor Button ---
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add, color: AppTheme.primaryColor),
+            onPressed: () async {
+              // Navigate to search page. When it pops back, refresh the list!
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SearchDoctorPage()),
+              );
+              _fetchLinkedDoctors();
+            },
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
@@ -151,7 +165,7 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
           const SizedBox(height: 20),
           const Text("No Doctors Linked", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
-          const Text("You haven't linked any doctors to your profile yet.", style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
+          const Text("Tap the + icon to find your doctor.", style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
         ],
       ),
     );
@@ -180,7 +194,7 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
               backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.2),
               backgroundImage: doctor.imageUrl.isNotEmpty ? NetworkImage(doctor.imageUrl) : null,
               child: doctor.imageUrl.isEmpty 
-                  ? Text(doctor.name[4], style: const TextStyle(color: AppTheme.primaryColor, fontSize: 24, fontWeight: FontWeight.bold))
+                  ? Text(doctor.name.isNotEmpty ? doctor.name[0] : 'D', style: const TextStyle(color: AppTheme.primaryColor, fontSize: 24, fontWeight: FontWeight.bold))
                   : null,
             ),
             const SizedBox(width: 15),
@@ -211,7 +225,177 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
 }
 
 // ==========================================
-// PAGE 2: DOCTOR PROFILE & RECORDS
+// NEW PAGE: SEARCH DOCTORS DIRECTORY
+// ==========================================
+class SearchDoctorPage extends StatefulWidget {
+  const SearchDoctorPage({super.key});
+
+  @override
+  State<SearchDoctorPage> createState() => _SearchDoctorPageState();
+}
+
+class _SearchDoctorPageState extends State<SearchDoctorPage> {
+  final TextEditingController _searchController = TextEditingController();
+  List<Doctor> _searchResults = [];
+  bool _isSearching = false;
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    // Fetch all doctors on initial load
+    _performSearch("");
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    // Wait 500ms after user stops typing to avoid spamming the API
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      _performSearch(query);
+    });
+  }
+
+  Future<void> _performSearch(String query) async {
+    setState(() => _isSearching = true);
+    
+    final results = await ApiService.searchDoctors(query);
+    
+    if (mounted) {
+      setState(() {
+        _searchResults = results.map((docData) => Doctor(
+          id: docData['id'].toString(),
+          name: docData['name'] ?? 'Unknown Doctor',
+          specialty: docData['specialisation'] ?? 'General Practitioner',
+          qualifications: docData['qualifications'] ?? '',
+          clinicName: docData['clinic_name'] ?? 'Clinic',
+          communicationType: docData['messaging_platform'] ?? 'WhatsApp',
+          communicationUrl: docData['platform_link'] ?? '',
+          imageUrl: docData['profile_image_url'] ?? '',
+        )).toList();
+        _isSearching = false;
+      });
+    }
+  }
+
+  Future<void> _addDoctor(String doctorId) async {
+    showDialog(context: context, barrierDismissible: false, builder: (context) => const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)));
+    
+    final success = await ApiService.linkDoctor(doctorId);
+    
+    if (mounted) {
+      Navigator.pop(context); // Dismiss loading dialog
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Doctor added to Care Team!"), backgroundColor: Color(0xff00E676)));
+        Navigator.pop(context); // Go back to MyDoctorsPage
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Could not add doctor. They may already be linked."), backgroundColor: Colors.redAccent));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        backgroundColor: AppTheme.background,
+        elevation: 0,
+        title: const Text("Directory", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppTheme.primaryColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Column(
+        children: [
+          // Search Bar
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: "Search by name, specialty, or clinic...",
+                hintStyle: const TextStyle(color: Colors.white54),
+                prefixIcon: const Icon(Icons.search, color: Colors.white54),
+                filled: true,
+                fillColor: AppTheme.cardBackground,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          
+          // Results
+          Expanded(
+            child: _isSearching
+              ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
+              : _searchResults.isEmpty
+                ? const Center(child: Text("No doctors found.", style: TextStyle(color: Colors.white54, fontSize: 16)))
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: _searchResults.length,
+                    itemBuilder: (context, index) {
+                      final doc = _searchResults[index];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 15),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.cardBackground,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)),
+                        ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 25,
+                              backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                              backgroundImage: doc.imageUrl.isNotEmpty ? NetworkImage(doc.imageUrl) : null,
+                              child: doc.imageUrl.isEmpty 
+                                  ? Text(doc.name.isNotEmpty ? doc.name[0] : 'D', style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold))
+                                  : null,
+                            ),
+                            const SizedBox(width: 15),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(doc.name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 2),
+                                  Text(doc.specialty, style: const TextStyle(color: AppTheme.primaryColor, fontSize: 13)),
+                                  const SizedBox(height: 4),
+                                  Text(doc.clinicName, style: const TextStyle(color: Colors.white54, fontSize: 12), overflow: TextOverflow.ellipsis),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.add_circle, color: Color(0xff00E676), size: 30),
+                              onPressed: () => _addDoctor(doc.id),
+                            )
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// PAGE 3: DOCTOR PROFILE & RECORDS (Same as before)
 // ==========================================
 class DoctorProfilePage extends StatefulWidget {
   final Doctor doctor;
@@ -238,7 +422,6 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
     _fetchRecords();
   }
 
-  // --- CONNECTED: Fetch Appointments from Backend ---
   Future<void> _fetchAppointments() async {
     setState(() => _isLoadingAppts = true);
     
@@ -246,7 +429,6 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
     
     if (mounted) {
       setState(() {
-        // Filter the backend list to only show appointments for THIS specific doctor
         _appointments = apptsData
             .where((a) => a['doctor_id'].toString() == widget.doctor.id)
             .map((a) => Appointment(
@@ -254,7 +436,7 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
                   dateTime: DateTime.parse(a['appointment_time']).toLocal(),
                   status: a['status'] ?? 'Upcoming',
                   purpose: a['purpose'] ?? 'Consultation',
-                  hasReminder: false, // Default to false locally
+                  hasReminder: false, 
                 ))
             .toList();
             
@@ -263,7 +445,6 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
     }
   }
 
-  // --- CONNECTED: Book Appointment via Backend ---
   Future<void> _bookAppointment(DateTime date, String purpose) async {
     showDialog(context: context, barrierDismissible: false, builder: (context) => const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)));
     
@@ -274,11 +455,11 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
     );
     
     if (mounted) {
-      Navigator.pop(context); // Clear loading dialog
+      Navigator.pop(context); 
       if (success) {
-        await _fetchAppointments(); // Refresh the list from the database
+        await _fetchAppointments(); 
         setState(() {
-          _appointmentFilter = 'Upcoming'; // Auto-switch to upcoming to see the new booking
+          _appointmentFilter = 'Upcoming'; 
         });
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Appointment Requested Successfully!"), backgroundColor: Color(0xff00E676)));
       } else {
@@ -311,7 +492,6 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
     }
   }
 
-  // --- CONNECTED: Fetch Medical Records from Backend ---
   Future<void> _fetchRecords() async {
     setState(() => _isLoadingRecords = true);
     
@@ -319,7 +499,6 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
     
     if (mounted) {
       setState(() {
-        // Filter the backend list to only show records for THIS specific doctor
         _records = recordsData
             .where((r) => r['doctor_id'].toString() == widget.doctor.id)
             .map((r) => MedicalRecord(
@@ -335,7 +514,6 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
     }
   }
 
-  // --- CONNECTED: Save Medical Record to Backend ---
   Future<void> _uploadRecord() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -345,8 +523,6 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
     if (result != null) {
       showDialog(context: context, barrierDismissible: false, builder: (context) => const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)));
       
-      // In a production app, you would upload the file to S3/Cloud Storage here and get a real URL back.
-      // For now, we simulate the URL to save the metadata in the database.
       String mockFileUrl = "https://example.com/mock_storage/${result.files.single.name}";
       
       final success = await ApiService.saveMedicalRecord(
@@ -357,9 +533,9 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
       );
       
       if (mounted) {
-        Navigator.pop(context); // Clear loading dialog
+        Navigator.pop(context); 
         if (success) {
-          await _fetchRecords(); // Refresh the list from the database
+          await _fetchRecords(); 
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Document Uploaded Securely"), backgroundColor: Color(0xff00E676)));
         } else {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to upload document. Please try again."), backgroundColor: Colors.redAccent));
@@ -516,7 +692,7 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
                     backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.2),
                     backgroundImage: widget.doctor.imageUrl.isNotEmpty ? NetworkImage(widget.doctor.imageUrl) : null,
                     child: widget.doctor.imageUrl.isEmpty 
-                        ? Text(widget.doctor.name[4], style: const TextStyle(color: AppTheme.primaryColor, fontSize: 36, fontWeight: FontWeight.bold))
+                        ? Text(widget.doctor.name.isNotEmpty ? widget.doctor.name[0] : 'D', style: const TextStyle(color: AppTheme.primaryColor, fontSize: 36, fontWeight: FontWeight.bold))
                         : null,
                   ),
                   const SizedBox(height: 15),

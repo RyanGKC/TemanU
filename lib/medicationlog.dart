@@ -429,16 +429,36 @@ class _MedicationLogState extends State<MedicationLog> {
               children: [
                 GestureDetector(
                   onTap: () async {
+                    final medId = med['id'];
+                    final medIndex = _medications.indexWhere((m) => m['id'] == medId);
+                    if (medIndex == -1) return;
+
+                    final originalDoses = _medications[medIndex]['doses_taken_today'] as int? ?? 0;
+                    final originalInventory = _medications[medIndex]['inventory'] as num? ?? 0.0;
+                    final dosageAmount = double.tryParse(_medications[medIndex]['dosage'].toString()) ?? 1.0;
+
+                    // Optimistic UI update for BOTH doses and inventory
                     setState(() {
-                      final idx = _medications.indexWhere((m) => m['id'] == med['id']);
-                      if (idx != -1) {
-                        final current = _medications[idx]['doses_taken_today'] as int? ?? 0;
-                        _medications[idx] = Map<String, dynamic>.from(_medications[idx])
-                          ..['doses_taken_today'] = current + 1;
-                      }
+                      final updatedMed = Map<String, dynamic>.from(_medications[medIndex]);
+                      updatedMed['doses_taken_today'] = originalDoses + 1;
+                      updatedMed['inventory'] = (originalInventory - dosageAmount).clamp(0.0, double.infinity);
+                      _medications[medIndex] = updatedMed;
                     });
-                    final success = await ApiService.takeMedication(med['id']);
-                    if (success) _silentRefresh();
+
+                    final success = await ApiService.takeMedication(medId);
+
+                    // If the API call fails, revert BOTH changes and show an error.
+                    if (!success && mounted) {
+                      setState(() {
+                        final revertedMed = Map<String, dynamic>.from(_medications[medIndex]);
+                        revertedMed['doses_taken_today'] = originalDoses;
+                        revertedMed['inventory'] = originalInventory;
+                        _medications[medIndex] = revertedMed;
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Failed to update. Please check connection."), backgroundColor: Colors.redAccent)
+                      );
+                    }
                   },
                   child: Container(
                     height: 28, width: 28,

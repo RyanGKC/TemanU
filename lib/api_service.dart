@@ -914,4 +914,56 @@ class ApiService {
       return false;
     }
   }
+
+  /// 6. Search Global Doctors
+  static Future<List<Map<String, dynamic>>> searchDoctors(String query) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('jwt_token');
+      if (token == null) return [];
+
+      final url = Uri.parse('$_baseUrl/care-team/search?q=$query');
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      } else {
+        print("Failed to search doctors: ${response.body}");
+        return [];
+      }
+    } catch (e) {
+      print("Error searching doctors: $e");
+      return [];
+    }
+  }
+
+  /// 7. Add Doctor to Care Team
+  static Future<bool> linkDoctor(String doctorId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('jwt_token');
+      if (token == null) return false;
+
+      final url = Uri.parse('$_baseUrl/care-team/link');
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'doctor_id': doctorId}),
+      );
+
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      print("Error linking doctor: $e");
+      return false;
+    }
+  }
 }
