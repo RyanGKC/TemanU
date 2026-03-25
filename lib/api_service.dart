@@ -747,4 +747,171 @@ class ApiService {
       return false;
     }
   }
+
+  // ==========================================
+  // DOCTORS & CARE TEAM API CALLS
+  // ==========================================
+
+  /// 1. Fetch Linked Doctors
+  static Future<List<Map<String, dynamic>>> getLinkedDoctors() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('jwt_token');
+      if (token == null) return [];
+
+      final url = Uri.parse('$_baseUrl/care-team/doctors');
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      } else {
+        print("Failed to load doctors: ${response.body}");
+        return [];
+      }
+    } catch (e) {
+      print("Error fetching doctors: $e");
+      return [];
+    }
+  }
+
+  /// 2. Fetch Appointments
+  static Future<List<Map<String, dynamic>>> getAppointments() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('jwt_token');
+      if (token == null) return [];
+
+      final url = Uri.parse('$_baseUrl/care-team/appointments');
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      } else {
+        print("Failed to load appointments: ${response.body}");
+        return [];
+      }
+    } catch (e) {
+      print("Error fetching appointments: $e");
+      return [];
+    }
+  }
+
+  /// 3. Book a New Appointment
+  static Future<bool> bookAppointment({
+    required String doctorId,
+    required DateTime appointmentTime,
+    required String purpose,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('jwt_token');
+      if (token == null) return false;
+
+      final url = Uri.parse('$_baseUrl/care-team/appointments');
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'doctor_id': doctorId,
+          // FastAPI expects ISO 8601 string format for datetimes
+          'appointment_time': appointmentTime.toIso8601String(), 
+          'purpose': purpose,
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return true;
+      } else {
+        print("Failed to book appointment: ${response.body}");
+        return false;
+      }
+    } catch (e) {
+      print("Error booking appointment: $e");
+      return false;
+    }
+  }
+
+  /// 4. Fetch Medical Records
+  static Future<List<Map<String, dynamic>>> getMedicalRecords() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('jwt_token');
+      if (token == null) return [];
+
+      final url = Uri.parse('$_baseUrl/care-team/records');
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      } else {
+        print("Failed to load records: ${response.body}");
+        return [];
+      }
+    } catch (e) {
+      print("Error fetching records: $e");
+      return [];
+    }
+  }
+
+  /// 5. Save Medical Record Metadata
+  static Future<bool> saveMedicalRecord({
+    required String doctorId,
+    required String fileName,
+    required String recordType,
+    required String fileUrl,
+    String? description,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('jwt_token');
+      if (token == null) return false;
+
+      final url = Uri.parse('$_baseUrl/care-team/records');
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'doctor_id': doctorId,
+          'file_name': fileName,
+          'record_type': recordType,
+          'file_url': fileUrl,
+          if (description != null) 'description': description,
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return true;
+      } else {
+        print("Failed to save record metadata: ${response.body}");
+        return false;
+      }
+    } catch (e) {
+      print("Error saving record metadata: $e");
+      return false;
+    }
+  }
 }

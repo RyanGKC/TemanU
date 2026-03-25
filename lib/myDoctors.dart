@@ -4,9 +4,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:temanu/theme.dart';
 import 'package:temanu/button.dart';
+import 'package:temanu/api_service.dart'; // <-- NEW: Added API Service
 
 // ==========================================
-// MOCK DATA MODELS 
+// DATA MODELS 
 // ==========================================
 class Doctor {
   final String id;
@@ -33,16 +34,16 @@ class Doctor {
 class Appointment {
   final String id;
   final DateTime dateTime;
-  final String status; // 'Upcoming', 'Completed', 'Cancelled'
+  final String status; 
   final String purpose;
-  bool hasReminder; // <-- NEW: Reminder flag
+  bool hasReminder; 
 
   Appointment({
     required this.id, 
     required this.dateTime, 
     required this.status, 
     required this.purpose,
-    this.hasReminder = false, // Defaults to false
+    this.hasReminder = false, 
   });
 }
 
@@ -75,37 +76,24 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
     _fetchLinkedDoctors();
   }
 
+  // --- CONNECTED: Fetch Linked Doctors from Backend ---
   Future<void> _fetchLinkedDoctors() async {
     setState(() => _isLoading = true);
     
-    await Future.delayed(const Duration(seconds: 1));
-
-    final mockData = [
-      Doctor(
-        id: 'doc_123',
-        name: 'Dr. Sarah Jenkins',
-        specialty: 'Cardiologist',
-        qualifications: 'MD (Harvard), FACC, Board Certified in Cardiovascular Disease',
-        clinicName: 'HeartCare Specialists Cyberjaya',
-        communicationType: 'WhatsApp',
-        communicationUrl: 'https://wa.me/1234567890', 
-        imageUrl: '', 
-      ),
-      Doctor(
-        id: 'doc_456',
-        name: 'Dr. Ahmad bin Tariq',
-        specialty: 'General Practitioner',
-        qualifications: 'MBBS (UM), Family Medicine',
-        clinicName: 'Klinik Temanu',
-        communicationType: 'Telegram',
-        communicationUrl: 'https://t.me/drahmad',
-        imageUrl: '',
-      ),
-    ];
-
+    final dbDoctors = await ApiService.getLinkedDoctors();
+    
     if (mounted) {
       setState(() {
-        _myDoctors = mockData;
+        _myDoctors = dbDoctors.map((docData) => Doctor(
+          id: docData['id'].toString(),
+          name: docData['name'] ?? 'Unknown Doctor',
+          specialty: docData['specialisation'] ?? 'General Practitioner',
+          qualifications: docData['qualifications'] ?? '',
+          clinicName: docData['clinic_name'] ?? 'Clinic',
+          communicationType: docData['messaging_platform'] ?? 'WhatsApp',
+          communicationUrl: docData['platform_link'] ?? '',
+          imageUrl: docData['profile_image_url'] ?? '',
+        )).toList();
         _isLoading = false;
       });
     }
@@ -143,6 +131,7 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
               child: _myDoctors.isEmpty
                   ? _buildEmptyState()
                   : ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.all(20),
                       itemCount: _myDoctors.length,
                       itemBuilder: (context, index) {
@@ -240,7 +229,6 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
   List<Appointment> _appointments = [];
   List<MedicalRecord> _records = [];
   
-  // --- NEW: Filter State ---
   String _appointmentFilter = 'Upcoming'; 
 
   @override
@@ -250,39 +238,55 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
     _fetchRecords();
   }
 
+  // --- CONNECTED: Fetch Appointments from Backend ---
   Future<void> _fetchAppointments() async {
     setState(() => _isLoadingAppts = true);
-    await Future.delayed(const Duration(seconds: 1)); 
+    
+    final apptsData = await ApiService.getAppointments();
     
     if (mounted) {
       setState(() {
-        _appointments = [
-          Appointment(id: 'a1', dateTime: DateTime.now().add(const Duration(days: 3, hours: 2)), status: 'Upcoming', purpose: 'Follow-up Consultation', hasReminder: true),
-          // --- NEW: A mock past appointment to test the filter ---
-          Appointment(id: 'a2', dateTime: DateTime.now().subtract(const Duration(days: 45, hours: 5)), status: 'Completed', purpose: 'Annual Checkup'),
-        ];
+        // Filter the backend list to only show appointments for THIS specific doctor
+        _appointments = apptsData
+            .where((a) => a['doctor_id'].toString() == widget.doctor.id)
+            .map((a) => Appointment(
+                  id: a['id'].toString(),
+                  dateTime: DateTime.parse(a['appointment_time']).toLocal(),
+                  status: a['status'] ?? 'Upcoming',
+                  purpose: a['purpose'] ?? 'Consultation',
+                  hasReminder: false, // Default to false locally
+                ))
+            .toList();
+            
         _isLoadingAppts = false;
       });
     }
   }
 
+  // --- CONNECTED: Book Appointment via Backend ---
   Future<void> _bookAppointment(DateTime date, String purpose) async {
     showDialog(context: context, barrierDismissible: false, builder: (context) => const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)));
     
-    await Future.delayed(const Duration(seconds: 2)); 
+    final success = await ApiService.bookAppointment(
+      doctorId: widget.doctor.id,
+      appointmentTime: date,
+      purpose: purpose,
+    );
     
     if (mounted) {
-      Navigator.pop(context); 
-      setState(() {
-        _appointments.add(Appointment(id: 'a_new', dateTime: date, status: 'Upcoming', purpose: purpose));
-        _appointments.sort((a, b) => a.dateTime.compareTo(b.dateTime));
-        _appointmentFilter = 'Upcoming'; // Auto-switch to upcoming to see the new booking
-      });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Appointment Requested Successfully!"), backgroundColor: Color(0xff00E676)));
+      Navigator.pop(context); // Clear loading dialog
+      if (success) {
+        await _fetchAppointments(); // Refresh the list from the database
+        setState(() {
+          _appointmentFilter = 'Upcoming'; // Auto-switch to upcoming to see the new booking
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Appointment Requested Successfully!"), backgroundColor: Color(0xff00E676)));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to book appointment. Please try again."), backgroundColor: Colors.redAccent));
+      }
     }
   }
 
-  // --- NEW: Toggle Reminder Logic ---
   void _toggleReminder(Appointment appt) {
     setState(() {
       appt.hasReminder = !appt.hasReminder;
@@ -296,7 +300,6 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
           duration: const Duration(seconds: 2),
         )
       );
-      // NOTE: Hook up flutter_local_notifications here in the future!
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -308,21 +311,31 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
     }
   }
 
+  // --- CONNECTED: Fetch Medical Records from Backend ---
   Future<void> _fetchRecords() async {
     setState(() => _isLoadingRecords = true);
-    await Future.delayed(const Duration(seconds: 1)); 
+    
+    final recordsData = await ApiService.getMedicalRecords();
     
     if (mounted) {
       setState(() {
-        _records = [
-          MedicalRecord(id: 'r1', fileName: 'Blood_Test_Results_Mar2026.pdf', uploadDate: DateTime.now().subtract(const Duration(days: 10)), type: 'Lab Result'),
-          MedicalRecord(id: 'r2', fileName: 'ECG_Scan_Report.png', uploadDate: DateTime.now().subtract(const Duration(days: 45)), type: 'Diagnosis'),
-        ];
+        // Filter the backend list to only show records for THIS specific doctor
+        _records = recordsData
+            .where((r) => r['doctor_id'].toString() == widget.doctor.id)
+            .map((r) => MedicalRecord(
+                  id: r['id'].toString(),
+                  fileName: r['file_name'] ?? 'Document',
+                  uploadDate: DateTime.parse(r['created_at']).toLocal(),
+                  type: r['record_type'] ?? 'Uploaded Document',
+                ))
+            .toList();
+            
         _isLoadingRecords = false;
       });
     }
   }
 
+  // --- CONNECTED: Save Medical Record to Backend ---
   Future<void> _uploadRecord() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -332,19 +345,25 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
     if (result != null) {
       showDialog(context: context, barrierDismissible: false, builder: (context) => const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)));
       
-      await Future.delayed(const Duration(seconds: 2));
+      // In a production app, you would upload the file to S3/Cloud Storage here and get a real URL back.
+      // For now, we simulate the URL to save the metadata in the database.
+      String mockFileUrl = "https://example.com/mock_storage/${result.files.single.name}";
+      
+      final success = await ApiService.saveMedicalRecord(
+        doctorId: widget.doctor.id,
+        fileName: result.files.single.name,
+        recordType: 'Uploaded Document',
+        fileUrl: mockFileUrl,
+      );
       
       if (mounted) {
-        Navigator.pop(context); 
-        setState(() {
-          _records.insert(0, MedicalRecord(
-            id: 'r_new', 
-            fileName: result.files.single.name, 
-            uploadDate: DateTime.now(), 
-            type: 'Uploaded Document'
-          ));
-        });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Document Uploaded Securely"), backgroundColor: Color(0xff00E676)));
+        Navigator.pop(context); // Clear loading dialog
+        if (success) {
+          await _fetchRecords(); // Refresh the list from the database
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Document Uploaded Securely"), backgroundColor: Color(0xff00E676)));
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to upload document. Please try again."), backgroundColor: Colors.redAccent));
+        }
       }
     }
   }
@@ -564,7 +583,6 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
   Widget _buildAppointmentsTab() {
     if (_isLoadingAppts) return const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor));
 
-    // --- NEW: Apply the filter logic ---
     final filteredAppts = _appointments.where((appt) {
       if (_appointmentFilter == 'Upcoming') {
         return appt.status == 'Upcoming';
@@ -577,7 +595,6 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
       children: [
         Column(
           children: [
-            // --- NEW: Filter Chips Row ---
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
               child: Row(
@@ -589,7 +606,6 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
               ),
             ),
             
-            // --- Appointment List ---
             Expanded(
               child: filteredAppts.isEmpty
                 ? Center(
@@ -646,7 +662,6 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
                                 ],
                               ),
                             ),
-                            // --- NEW: Status or Reminder Bell ---
                             if (isUpcoming) 
                               IconButton(
                                 icon: Icon(
@@ -688,7 +703,6 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> with SingleTicker
     );
   }
 
-  // --- NEW: Helper for the Filter Chips ---
   Widget _buildFilterChip(String label) {
     final isSelected = _appointmentFilter == label;
     return ChoiceChip(
