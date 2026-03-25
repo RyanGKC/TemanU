@@ -12,7 +12,7 @@ import 'package:temanu/button.dart';
 import 'package:temanu/textbox.dart';
 import 'package:temanu/theme.dart';
 
-class BpReading {
+class BpReading { 
   final DateTime time;
   final int sys;
   final int dia;
@@ -425,6 +425,9 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
           sys: systolic,
           dia: diastolic,
           zone: zoneText,
+          rangeName: fullRangeName,
+          dateRangeLabel: dateRangeLabel,
+          userName: widget.baseUserData['preferred_name'] ?? widget.baseUserData['name'] ?? 'User',
         ),
       ),
     );

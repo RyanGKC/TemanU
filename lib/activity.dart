@@ -7,6 +7,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temanu/api_service.dart';
 import 'package:temanu/fitbitService.dart'; 
+import 'package:temanu/activitySharePage.dart';
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/theme.dart';
 
@@ -23,16 +24,17 @@ class _ActivityState extends State<Activity> {
   bool _isLoading = true;
   bool _isLoadingComparisons = true; 
 
-  int currentSteps = 8240;
-  int averageSteps = 10140;
+  int currentSteps = 0;
+  int averageSteps = 0;
+  int _latestIntradaySteps = 0; 
   
   int stepGoal = 10000;
 
   List<String> dailyLabels = ['12AM', '4AM', '8AM', '12PM', '4PM', '8PM', '12AM'];
-  List<double> dailyValues = [612, 839, 619, 619, 852, 970, 789];
+  List<double> dailyValues = [0, 0, 0, 0, 0, 0, 0];
 
   List<String> weeklyLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  List<double> weeklyValues = [6837, 1242, 3337, 6569, 10200, 123, 8890];
+  List<double> weeklyValues = [0, 0, 0, 0, 0, 0, 0];
 
   List<String> monthlyLabels = [];
   List<double> monthlyValues = [];
@@ -42,11 +44,11 @@ class _ActivityState extends State<Activity> {
   List<String> threeMonthTooltipLabels = [];
 
   List<String> sixMonthLabels = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
-  List<double> sixMonthValues = [9540, 3950, 2300, 5496, 3289, 3894];
+  List<double> sixMonthValues = [0, 0, 0, 0, 0, 0];
   List<String> sixMonthTooltipLabels = [];
 
   List<String> yearlyLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  List<double> yearlyValues = [6938, 1893, 3009, 6593, 6859, 2858, 9540, 3950, 2300, 5496, 3289, 4493];
+  List<double> yearlyValues = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
   List<String> monthlyAverageLabels = ['Last', 'This'];
   List<double> monthlyAverageValues = [0, 0];
@@ -64,7 +66,6 @@ class _ActivityState extends State<Activity> {
   void initState() {
     super.initState();
     _loadGoal(); 
-    // --- THE FIX: Pass forceRefresh: true on initial load! ---
     _fetchLiveFitbitData(forceRefresh: true).then((_) {
       _generateAITip();
     });
@@ -93,9 +94,9 @@ class _ActivityState extends State<Activity> {
                 constraints: const BoxConstraints(maxWidth: 400),
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
-                  color: AppTheme.cardBackground.withOpacity(0.95),
+                  color: AppTheme.cardBackground.withValues(alpha: 0.95),
                   borderRadius: BorderRadius.circular(25),
-                  border: Border.all(color: AppTheme.textSecondary.withOpacity(0.2), width: 1.5),
+                  border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -103,7 +104,7 @@ class _ActivityState extends State<Activity> {
                     Container(
                       padding: const EdgeInsets.all(15),
                       decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withOpacity(0.1),
+                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(Icons.watch, color: AppTheme.primaryColor, size: 40),
@@ -130,7 +131,7 @@ class _ActivityState extends State<Activity> {
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(15),
-                                border: Border.all(color: AppTheme.textSecondary.withOpacity(0.5), width: 1.5),
+                                border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.5), width: 1.5), 
                               ),
                               alignment: Alignment.center,
                               child: const Text("Not Now", style: TextStyle(color: Colors.white, fontSize: 16)),
@@ -144,7 +145,6 @@ class _ActivityState extends State<Activity> {
                               Navigator.pop(context); 
                               String? newToken = await FitbitService.getValidToken();
                               if (newToken != null) {
-                                // --- Force refresh when they successfully link! ---
                                 _fetchLiveFitbitData(forceRefresh: true);
                                 _fetchComparisonData(forceRefresh: true);
                               }
@@ -359,7 +359,7 @@ class _ActivityState extends State<Activity> {
       final userName = widget.baseUserData['name'] ?? 'the user';
 
       final prompt = '''
-        You are a concise health AI assistant. The user, $userName, has taken $currentSteps steps so far today against a daily goal of $stepGoal steps.
+        You are a concise health AI assistant. The user, $userName, has taken $_latestIntradaySteps steps so far today against a daily goal of $stepGoal steps.
         
         Write a SHORT, 2-sentence encouraging insight or tip based exactly on this progress toward their goal. 
         Keep it under 120 characters. Do not use asterisks or markdown formatting.
@@ -387,176 +387,236 @@ class _ActivityState extends State<Activity> {
   }
 
   // ==========================================
-  // LIVE DATA FETCHING
+  // THE NEW MASTER FETCH FUNCTION
   // ==========================================
 
-  // --- THE FIX: Pass the optional forceRefresh flag ---
   Future<void> _fetchLiveFitbitData({bool forceRefresh = false}) async {
     setState(() => _isLoading = true);
+    
+    final currentNow = DateTime.now();
+    final todayStr = "${currentNow.year}-${currentNow.month.toString().padLeft(2, '0')}-${currentNow.day.toString().padLeft(2, '0')}";
     final dateStr = targetDateString;
     
-    if (selectedRange == "D") {
-      final data = await ApiService.getFitbitIntradaySteps(dateStr, forceRefresh: forceRefresh);
-      if (data != null && data['activities-steps-intraday'] != null) {
-        final totalSteps = int.tryParse(data['activities-steps'][0]['value'].toString()) ?? 0;
-        final dataset = data['activities-steps-intraday']['dataset'] as List<dynamic>;
-        
-        List<String> newLabels = [];
-        List<double> newValues = [];
-        for (var item in dataset) {
-          String timeStr = item['time'].toString().substring(0, 5);
-          int hour = int.parse(timeStr.substring(0, 2));
-          String ampm = hour >= 12 ? 'PM' : 'AM';
-          int displayHour = hour % 12 == 0 ? 12 : hour % 12;
-          newLabels.add("$displayHour$ampm");
-          newValues.add(double.tryParse(item['value'].toString()) ?? 0.0);
-        }
-        
-        if (mounted) {
-          setState(() {
-            currentSteps = totalSteps;
-            if (newLabels.isNotEmpty) dailyLabels = newLabels;
-            if (newValues.isNotEmpty) dailyValues = newValues;
-            _isLoading = false;
-          });
-        }
-      } else {
-        if (mounted) setState(() => _isLoading = false);
-      }
-    } else {
-      String fbPeriod = "1w";
-      if (selectedRange == "M") fbPeriod = "1m";
-      if (selectedRange == "3M") fbPeriod = "3m"; 
-      if (selectedRange == "6M") fbPeriod = "6m";
-      if (selectedRange == "Y") fbPeriod = "1y";
+    // We ALWAYS fetch Intraday (for the top number) & Weekly (for the Daily Average card)
+    DateTime viewedDay = rangeStart; 
+    DateTime mondayOfWeek = viewedDay.subtract(Duration(days: viewedDay.weekday - 1));
+    DateTime sundayOfWeek = mondayOfWeek.add(const Duration(days: 6));
+    String weekEndStr = "${sundayOfWeek.year}-${sundayOfWeek.month.toString().padLeft(2, '0')}-${sundayOfWeek.day.toString().padLeft(2, '0')}";
+
+    List<Future<dynamic>> apiCalls = [
+      ApiService.getFitbitIntradaySteps(todayStr, forceRefresh: forceRefresh),
+      ApiService.getFitbitTimeSeriesSteps("1w", weekEndStr, forceRefresh: forceRefresh),
+    ];
+
+    String? chartPeriod;
+    if (selectedRange == "M") chartPeriod = "1m";
+    if (selectedRange == "3M") chartPeriod = "3m"; 
+    if (selectedRange == "6M") chartPeriod = "6m";
+    if (selectedRange == "Y") chartPeriod = "1y";
+
+    if (chartPeriod != null) {
+      apiCalls.add(ApiService.getFitbitTimeSeriesSteps(chartPeriod, dateStr, forceRefresh: forceRefresh));
+    }
+
+    try {
+      final results = await Future.wait(apiCalls);
       
-      final data = await ApiService.getFitbitTimeSeriesSteps(fbPeriod, dateStr, forceRefresh: forceRefresh);
-      if (data != null && data['activities-steps'] != null) {
-        final dataset = data['activities-steps'] as List<dynamic>;
-        List<String> newLabels = [];
-        List<double> newValues = [];
-        List<String> newTooltipLabels = []; 
-        int totalSteps = 0;
-        int activeDays = 0; 
-        
-        if (selectedRange == "W") {
-          for (var item in dataset) {
-            DateTime dt = DateTime.parse(item['dateTime']);
-            if (dt.isBefore(rangeStart) || dt.isAfter(rangeEnd)) continue;
-            
-            newLabels.add(_getWeekday(dt.weekday));
-            double val = double.tryParse(item['value'].toString()) ?? 0;
-            newValues.add(val);
-            totalSteps += val.toInt();
-            if (val > 0) activeDays++; 
-          }
-        } else if (selectedRange == "M") {
-          for (var item in dataset) {
-            DateTime dt = DateTime.parse(item['dateTime']);
-            if (dt.month != rangeStart.month || dt.year != rangeStart.year) continue;
-            
-            newLabels.add("${dt.day}/${dt.month}");
-            double val = double.tryParse(item['value'].toString()) ?? 0;
-            newValues.add(val);
-            totalSteps += val.toInt();
-            if (val > 0) activeDays++; 
-          }
-        } else if (selectedRange == "3M" || selectedRange == "6M") { 
-          Map<String, double> weekSums = {};
-          Map<String, int> weekActiveDayCounts = {};
-          Map<String, int> weekMonthAssignment = {}; 
-          Map<String, DateTime> weekMonday = {};     
-          Map<String, DateTime> weekSunday = {};     
+      final intradayData = results[0];
+      final weeklyData = results[1];
+      final chartData = chartPeriod != null ? results[2] : null;
 
-          for (var item in dataset) {
-            DateTime dt = DateTime.parse(item['dateTime']);
-            if (dt.isBefore(rangeStart) || dt.isAfter(rangeEnd)) continue;
+      // 1. Get Absolute Live Steps
+      int liveCurrentSteps = 0;
+      if (intradayData != null && intradayData['activities-steps-intraday'] != null) {
+        liveCurrentSteps = int.tryParse(intradayData['activities-steps'][0]['value'].toString()) ?? 0;
+      }
+      _latestIntradaySteps = liveCurrentSteps;
 
-            double val = double.tryParse(item['value'].toString()) ?? 0;
-            totalSteps += val.toInt();
-            if (val > 0) activeDays++;
+      // 2. Calculate Daily Average (locked to Mon-Sun)
+      int weekTotal = 0;
+      int activeDays = 0;
+      if (weeklyData != null && weeklyData['activities-steps'] != null) {
+        for (var item in weeklyData['activities-steps']) {
+          DateTime dt = DateTime.parse(item['dateTime']);
+          if (dt.isBefore(mondayOfWeek) || dt.isAfter(sundayOfWeek)) continue;
 
-            int weekNum = _isoWeekNumber(dt);
-            int weekYear = _isoWeekYear(dt);
-            String weekKey = "$weekYear-W${weekNum.toString().padLeft(2, '0')}";
-
-            weekSums[weekKey] = (weekSums[weekKey] ?? 0) + val;
-            if (val > 0) {
-              weekActiveDayCounts[weekKey] = (weekActiveDayCounts[weekKey] ?? 0) + 1;
-            }
-
-            if (!weekMonthAssignment.containsKey(weekKey)) {
-              DateTime monday = dt.subtract(Duration(days: dt.weekday - 1));
-              DateTime sunday = monday.add(const Duration(days: 6));
-              
-              weekMonthAssignment[weekKey] = dt.month; 
-              
-              weekMonday[weekKey] = monday;
-              weekSunday[weekKey] = sunday;
-            }
-          }
-
-          var sortedWeekKeys = weekSums.keys.toList()..sort();
-          for (var key in sortedWeekKeys) {
-            int month = weekMonthAssignment[key] ?? 1;
-            newLabels.add(_getMonth(month));
-            int activeCount = weekActiveDayCounts[key] ?? 0;
-            double weekAvg = activeCount > 0 ? weekSums[key]! / activeCount : 0;
-            newValues.add(weekAvg);
-
-            final mon = weekMonday[key];
-            final sun = weekSunday[key];
-            if (mon != null && sun != null) {
-              newTooltipLabels.add("${mon.day}/${mon.month} - ${sun.day}/${sun.month}");
-            } else {
-              newTooltipLabels.add("");
-            }
-          }
-        } else if (selectedRange == "Y") {
-          Map<String, double> monthlySums = {};
-          Map<String, int> monthlyActiveCounts = {};
+          double val = double.tryParse(item['value'].toString()) ?? 0;
           
-          for (var item in dataset) {
-            DateTime dt = DateTime.parse(item['dateTime']);
-            if (dt.isBefore(rangeStart) || dt.isAfter(rangeEnd)) continue;
-            
-            String monthKey = "${dt.year}-${dt.month.toString().padLeft(2, '0')}";
-            double val = double.tryParse(item['value'].toString()) ?? 0;
-            monthlySums[monthKey] = (monthlySums[monthKey] ?? 0) + val;
-            if (val > 0) {
-              monthlyActiveCounts[monthKey] = (monthlyActiveCounts[monthKey] ?? 0) + 1;
-            }
-            totalSteps += val.toInt();
-            if (val > 0) activeDays++;
+          // OVERWRITE the lagging Fitbit Timeseries with live data for today
+          if (dt.year == currentNow.year && dt.month == currentNow.month && dt.day == currentNow.day) {
+            val = liveCurrentSteps.toDouble();
           }
-          
-          var sortedKeys = monthlySums.keys.toList()..sort();
-          for (var key in sortedKeys) {
-            int month = int.parse(key.split("-")[1]);
-            newLabels.add(_getMonth(month));
-            int activeCount = monthlyActiveCounts[key] ?? 0;
-            double monthAvg = activeCount > 0 ? monthlySums[key]! / activeCount : 0;
-            newValues.add(monthAvg);
-          }
+
+          weekTotal += val.toInt();
+          if (val > 0) activeDays++;
         }
-        
-        if (mounted) {
-          setState(() {
-            currentSteps = totalSteps; 
-            averageSteps = activeDays > 0 ? (totalSteps ~/ activeDays) : 0;
-            
-            if (selectedRange == "W" && newLabels.isNotEmpty) { weeklyLabels = newLabels; weeklyValues = newValues; }
-            if (selectedRange == "M" && newLabels.isNotEmpty) { monthlyLabels = newLabels; monthlyValues = newValues; }
-            if (selectedRange == "3M" && newLabels.isNotEmpty) { threeMonthLabels = newLabels; threeMonthValues = newValues; threeMonthTooltipLabels = newTooltipLabels; } 
-            if (selectedRange == "6M" && newLabels.isNotEmpty) { sixMonthLabels = newLabels; sixMonthValues = newValues; sixMonthTooltipLabels = newTooltipLabels; }
-            if (selectedRange == "Y" && newLabels.isNotEmpty) { yearlyLabels = newLabels; yearlyValues = newValues; }
-            
-            _isLoading = false;
-          });
+      }
+      int calcAverage = activeDays > 0 ? (weekTotal ~/ activeDays) : 0;
+
+      // 3. Process Chart Data
+      List<String> newLabels = [];
+      List<double> newValues = [];
+      List<String> newTooltipLabels = []; 
+      
+      int totalStepsForPeriod = 0; 
+      int periodActiveDays = 0; // --- THE FIX: Active days counter for extended periods
+
+      if (selectedRange == "D") {
+        totalStepsForPeriod = liveCurrentSteps;
+        if (intradayData != null && intradayData['activities-steps-intraday'] != null) {
+          final dataset = intradayData['activities-steps-intraday']['dataset'] as List<dynamic>;
+          for (var item in dataset) {
+            String timeStr = item['time'].toString().substring(0, 5);
+            int hour = int.parse(timeStr.substring(0, 2));
+            String ampm = hour >= 12 ? 'PM' : 'AM';
+            int displayHour = hour % 12 == 0 ? 12 : hour % 12;
+            newLabels.add("$displayHour$ampm");
+            newValues.add(double.tryParse(item['value'].toString()) ?? 0.0);
+          }
         }
       } else {
-        if (mounted) setState(() => _isLoading = false);
+        final datasetToUse = selectedRange == "W" ? weeklyData : chartData;
+
+        if (datasetToUse != null && datasetToUse['activities-steps'] != null) {
+          final dataset = datasetToUse['activities-steps'] as List<dynamic>;
+          
+          if (selectedRange == "W") {
+            for (var item in dataset) {
+              DateTime dt = DateTime.parse(item['dateTime']);
+              if (dt.isBefore(rangeStart) || dt.isAfter(rangeEnd)) continue;
+              
+              newLabels.add(_getWeekday(dt.weekday));
+              double val = double.tryParse(item['value'].toString()) ?? 0;
+              if (dt.year == currentNow.year && dt.month == currentNow.month && dt.day == currentNow.day) {
+                val = liveCurrentSteps.toDouble(); // OVERWRITE
+              }
+              
+              newValues.add(val);
+              totalStepsForPeriod += val.toInt();
+              if (val > 0) periodActiveDays++; // --- THE FIX: Count active days
+            }
+          } else if (selectedRange == "M") {
+            for (var item in dataset) {
+              DateTime dt = DateTime.parse(item['dateTime']);
+              if (dt.month != rangeStart.month || dt.year != rangeStart.year) continue;
+              
+              newLabels.add("${dt.day}/${dt.month}");
+              double val = double.tryParse(item['value'].toString()) ?? 0;
+              if (dt.year == currentNow.year && dt.month == currentNow.month && dt.day == currentNow.day) {
+                val = liveCurrentSteps.toDouble(); // OVERWRITE
+              }
+
+              newValues.add(val);
+              totalStepsForPeriod += val.toInt();
+              if (val > 0) periodActiveDays++; // --- THE FIX: Count active days
+            }
+          } else if (selectedRange == "3M" || selectedRange == "6M") { 
+            Map<String, double> weekSums = {};
+            Map<String, int> weekActiveDayCounts = {};
+            Map<String, int> weekMonthAssignment = {}; 
+            Map<String, DateTime> weekMonday = {};     
+            Map<String, DateTime> weekSunday = {};     
+
+            for (var item in dataset) {
+              DateTime dt = DateTime.parse(item['dateTime']);
+              if (dt.isBefore(rangeStart) || dt.isAfter(rangeEnd)) continue;
+
+              double val = double.tryParse(item['value'].toString()) ?? 0;
+              if (dt.year == currentNow.year && dt.month == currentNow.month && dt.day == currentNow.day) {
+                val = liveCurrentSteps.toDouble(); // OVERWRITE
+              }
+
+              totalStepsForPeriod += val.toInt();
+              if (val > 0) periodActiveDays++; // --- THE FIX: Count active days
+
+              int weekNum = _isoWeekNumber(dt);
+              int weekYear = _isoWeekYear(dt);
+              String weekKey = "$weekYear-W${weekNum.toString().padLeft(2, '0')}";
+
+              weekSums[weekKey] = (weekSums[weekKey] ?? 0) + val;
+              if (val > 0) weekActiveDayCounts[weekKey] = (weekActiveDayCounts[weekKey] ?? 0) + 1;
+
+              if (!weekMonthAssignment.containsKey(weekKey)) {
+                DateTime monday = dt.subtract(Duration(days: dt.weekday - 1));
+                DateTime sunday = monday.add(const Duration(days: 6));
+                weekMonthAssignment[weekKey] = dt.month; 
+                weekMonday[weekKey] = monday;
+                weekSunday[weekKey] = sunday;
+              }
+            }
+
+            var sortedWeekKeys = weekSums.keys.toList()..sort();
+            for (var key in sortedWeekKeys) {
+              int month = weekMonthAssignment[key] ?? 1;
+              newLabels.add(_getMonth(month));
+              int activeCount = weekActiveDayCounts[key] ?? 0;
+              double weekAvg = activeCount > 0 ? weekSums[key]! / activeCount : 0;
+              newValues.add(weekAvg);
+
+              final mon = weekMonday[key];
+              final sun = weekSunday[key];
+              if (mon != null && sun != null) {
+                newTooltipLabels.add("${mon.day}/${mon.month} - ${sun.day}/${sun.month}");
+              } else {
+                newTooltipLabels.add("");
+              }
+            }
+          } else if (selectedRange == "Y") {
+            Map<String, double> monthlySums = {};
+            Map<String, int> monthlyActiveCounts = {};
+            
+            for (var item in dataset) {
+              DateTime dt = DateTime.parse(item['dateTime']);
+              if (dt.isBefore(rangeStart) || dt.isAfter(rangeEnd)) continue;
+              
+              double val = double.tryParse(item['value'].toString()) ?? 0;
+              if (dt.year == currentNow.year && dt.month == currentNow.month && dt.day == currentNow.day) {
+                val = liveCurrentSteps.toDouble(); // OVERWRITE
+              }
+
+              totalStepsForPeriod += val.toInt();
+              if (val > 0) periodActiveDays++; // --- THE FIX: Count active days
+
+              String monthKey = "${dt.year}-${dt.month.toString().padLeft(2, '0')}";
+              monthlySums[monthKey] = (monthlySums[monthKey] ?? 0) + val;
+              if (val > 0) monthlyActiveCounts[monthKey] = (monthlyActiveCounts[monthKey] ?? 0) + 1;
+            }
+            
+            var sortedKeys = monthlySums.keys.toList()..sort();
+            for (var key in sortedKeys) {
+              int month = int.parse(key.split("-")[1]);
+              newLabels.add(_getMonth(month));
+              int activeCount = monthlyActiveCounts[key] ?? 0;
+              double monthAvg = activeCount > 0 ? monthlySums[key]! / activeCount : 0;
+              newValues.add(monthAvg);
+            }
+          }
+        }
       }
+
+      if (mounted) {
+        setState(() {
+          currentSteps = totalStepsForPeriod; 
+          
+          // --- THE FIX: Perfectly calculates Daily Average depending on the selected tab ---
+          if (selectedRange == "D") {
+            averageSteps = calcAverage; // Uses the locked Mon-Sun weekly average
+          } else {
+            averageSteps = periodActiveDays > 0 ? (totalStepsForPeriod ~/ periodActiveDays) : 0;
+          }
+          
+          if (selectedRange == "D" && newLabels.isNotEmpty) { dailyLabels = newLabels; dailyValues = newValues; }
+          if (selectedRange == "W" && newLabels.isNotEmpty) { weeklyLabels = newLabels; weeklyValues = newValues; }
+          if (selectedRange == "M" && newLabels.isNotEmpty) { monthlyLabels = newLabels; monthlyValues = newValues; }
+          if (selectedRange == "3M" && newLabels.isNotEmpty) { threeMonthLabels = newLabels; threeMonthValues = newValues; threeMonthTooltipLabels = newTooltipLabels; } 
+          if (selectedRange == "6M" && newLabels.isNotEmpty) { sixMonthLabels = newLabels; sixMonthValues = newValues; sixMonthTooltipLabels = newTooltipLabels; }
+          if (selectedRange == "Y" && newLabels.isNotEmpty) { yearlyLabels = newLabels; yearlyValues = newValues; }
+          
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -564,7 +624,6 @@ class _ActivityState extends State<Activity> {
   // COMPARISON FETCHING
   // ==========================================
   
-  // --- THE FIX: Pass the optional forceRefresh flag ---
   Future<void> _fetchComparisonData({bool forceRefresh = false}) async {
     setState(() => _isLoadingComparisons = true);
     
@@ -713,6 +772,22 @@ class _ActivityState extends State<Activity> {
     }
   }
 
+  void openSharePage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ActivitySharePage(
+          currentSteps: currentSteps,
+          averageSteps: averageSteps,
+          stepGoal: stepGoal,
+          rangeName: fullRangeName,
+          dateRangeLabel: dateLabel,
+          userName: widget.baseUserData['preferred_name'] ?? widget.baseUserData['name'] ?? 'User',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -735,7 +810,7 @@ class _ActivityState extends State<Activity> {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
             child: Container(
-              color: AppTheme.background.withOpacity(0.5)
+              color: AppTheme.background.withValues(alpha: 0.5) 
             )
           )
         ),
@@ -745,18 +820,16 @@ class _ActivityState extends State<Activity> {
         ),
         actions: [
           IconButton(
-            onPressed: () {},
+            onPressed: openSharePage,
             icon: const Icon(Icons.ios_share, color: Colors.white),
           ),
         ],
       ),
 
-      // --- THE FIX: Wrap the body in a RefreshIndicator ---
       body: RefreshIndicator(
         color: AppTheme.primaryColor,
         backgroundColor: AppTheme.cardBackground,
         onRefresh: () async {
-          // When the user pulls down, we force the backend to hit Fitbit!
           await Future.wait([
             _fetchLiveFitbitData(forceRefresh: true),
             _fetchComparisonData(forceRefresh: true),
@@ -764,7 +837,7 @@ class _ActivityState extends State<Activity> {
           ]);
         },
         child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh always works
+          physics: const AlwaysScrollableScrollPhysics(), 
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
@@ -819,7 +892,6 @@ class _ActivityState extends State<Activity> {
                     icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
                     onPressed: () {
                       setState(() => dateOffset--); 
-                      // Arrow clicks DO NOT force refresh. They load instantly from DB cache!
                       _fetchLiveFitbitData();       
                     },
                   ),
@@ -835,7 +907,6 @@ class _ActivityState extends State<Activity> {
                     ),
                     onPressed: dateOffset < 0 ? () {
                       setState(() => dateOffset++); 
-                      // Arrow clicks DO NOT force refresh. They load instantly from DB cache!
                       _fetchLiveFitbitData();       
                     } : null, 
                   ),
@@ -851,7 +922,7 @@ class _ActivityState extends State<Activity> {
                 decoration: BoxDecoration(
                   color: AppTheme.cardBackground,
                   borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                  border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
                 ),
                 child: _isLoading 
                   ? const Center(child: CircularProgressIndicator(color: Colors.white))
@@ -871,7 +942,7 @@ class _ActivityState extends State<Activity> {
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
                 decoration: BoxDecoration(
-                  color: AppTheme.textSecondary.withOpacity(0.1),
+                  color: AppTheme.textSecondary.withValues(alpha: 0.1), 
                   borderRadius: BorderRadius.circular(30),
                 ),
                 child: Row(
@@ -891,7 +962,8 @@ class _ActivityState extends State<Activity> {
 
               Row(
                 children: [
-                  Expanded(child: infoCard(selectedRange == "D" ? "Avg. Steps" : "Daily Avg.", "$averageSteps")), 
+                  // --- THE FIX: Updated label for the Day tab ---
+                  Expanded(child: infoCard(selectedRange == "D" ? "Avg (Mon-Sun)" : "Daily Avg", "$averageSteps")), 
                   const SizedBox(width: 8),
    
                   Expanded(
@@ -903,7 +975,7 @@ class _ActivityState extends State<Activity> {
                         decoration: BoxDecoration(
                           color: AppTheme.cardBackground,
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                          border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
                         ),
                         child: Stack(
                           children: [
@@ -935,7 +1007,7 @@ class _ActivityState extends State<Activity> {
                               child: Icon(
                                 Icons.edit,
                                 size: 15,
-                                color: Colors.white.withValues(alpha: 0.6),
+                                color: Colors.white.withValues(alpha: 0.6), 
                               ),
                             ),
                           ],
@@ -954,7 +1026,7 @@ class _ActivityState extends State<Activity> {
               InkWell(
                 onTap: () {
                   final updatedData = Map<String, dynamic>.from(widget.baseUserData);
-                  updatedData['activity'] = "$currentSteps steps";
+                  updatedData['activity'] = "$_latestIntradaySteps steps";
                   updatedData['stepGoal'] = "$stepGoal steps"; 
                   
                   Navigator.push(
@@ -969,7 +1041,7 @@ class _ActivityState extends State<Activity> {
                   decoration: BoxDecoration(
                     color: AppTheme.cardBackground,
                     borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                    border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1021,7 +1093,7 @@ class _ActivityState extends State<Activity> {
                       decoration: BoxDecoration(
                         color: AppTheme.cardBackground,
                         borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
                       ),
                       child: Column(
                         children: [
@@ -1050,7 +1122,7 @@ class _ActivityState extends State<Activity> {
                       decoration: BoxDecoration(
                         color: AppTheme.cardBackground,
                         borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
                       ),
                       child: Column(
                         children: [
@@ -1084,7 +1156,7 @@ class _ActivityState extends State<Activity> {
   Widget infoCard(String title, String value) {
     return Container(
       height: 95,
-      decoration: BoxDecoration(color: AppTheme.cardBackground, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1))),
+      decoration: BoxDecoration(color: AppTheme.cardBackground, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1))), 
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -1104,7 +1176,6 @@ class _ActivityState extends State<Activity> {
           selectedRange = label;
           dateOffset = 0;
         });
-        // Tabs DO NOT force refresh. They load instantly from DB cache!
         _fetchLiveFitbitData();
       },
       child: Container(
@@ -1281,12 +1352,12 @@ class MyBarChart extends StatelessWidget {
                 ),
                 color: (index % 2 == 1
                     ? AppTheme.primaryColor
-                    : AppTheme.primaryColor.withValues(alpha: 0.6)),
+                    : AppTheme.primaryColor.withValues(alpha: 0.6)), 
               ),
             ],
           );
         }),
-      ), // Closing parenthesis for BarChartData
+      ), 
     );
   }
 }

@@ -9,20 +9,20 @@ import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:temanu/theme.dart';
 
-enum BpHighlight { reading, zone, pulsePressure }
+enum HrHighlight { current, resting, zone }
 
-class BloodPressureSharePage extends StatefulWidget {
-  final int sys;
-  final int dia;
+class HeartRateSharePage extends StatefulWidget {
+  final int currentHr;
+  final int restingHr;
   final String zone;
   final String rangeName;
   final String dateRangeLabel;
   final String userName;
 
-  const BloodPressureSharePage({
+  const HeartRateSharePage({
     super.key,
-    required this.sys,
-    required this.dia,
+    required this.currentHr,
+    required this.restingHr,
     required this.zone,
     required this.rangeName,
     required this.dateRangeLabel,
@@ -30,12 +30,12 @@ class BloodPressureSharePage extends StatefulWidget {
   });
 
   @override
-  State<BloodPressureSharePage> createState() => _BloodPressureSharePageState();
+  State<HeartRateSharePage> createState() => _HeartRateSharePageState();
 }
 
-class _BloodPressureSharePageState extends State<BloodPressureSharePage> {
+class _HeartRateSharePageState extends State<HeartRateSharePage> {
   final _screenshotController = ScreenshotController();
-  BpHighlight _selectedHighlight = BpHighlight.reading;
+  HrHighlight _selectedHighlight = HrHighlight.current;
 
   // --- Capture raw bytes for saving/sharing ---
   Future<Uint8List?> _captureImage() async {
@@ -46,7 +46,6 @@ class _BloodPressureSharePageState extends State<BloodPressureSharePage> {
     );
 
     try {
-      // Force a high-res pixel density regardless of screen
       final Uint8List? imageBytes = await _screenshotController.capture(pixelRatio: 3.0);
       
       if (mounted) Navigator.pop(context); // Dismiss loading
@@ -70,12 +69,12 @@ class _BloodPressureSharePageState extends State<BloodPressureSharePage> {
 
     try {
       final directory = await getTemporaryDirectory();
-      final imagePath = await File('${directory.path}/BP_Progress.png').writeAsBytes(bytes);
+      final imagePath = await File('${directory.path}/HR_Progress.png').writeAsBytes(bytes);
 
       await SharePlus.instance.share(
         ShareParams(
           files: [XFile(imagePath.path)],
-          text: "Here's my blood pressure progress from Temanu!",
+          text: "Here's my heart rate progress from Temanu!",
         )
       );
     } catch (e) {
@@ -92,7 +91,7 @@ class _BloodPressureSharePageState extends State<BloodPressureSharePage> {
       if (kIsWeb) {
         // Web: Automatic browser download
         await FileSaver.instance.saveFile(
-          name: 'BP_Progress', 
+          name: 'HR_Progress', 
           bytes: bytes, 
           ext: 'png', 
           mimeType: MimeType.png
@@ -102,7 +101,7 @@ class _BloodPressureSharePageState extends State<BloodPressureSharePage> {
         // Mobile/Desktop: Standard file picker save
         final String? outputPath = await FilePicker.platform.saveFile(
           dialogTitle: 'Save Progress Image', 
-          fileName: 'BP_Progress.png', 
+          fileName: 'HR_Progress.png', 
           type: FileType.custom, 
           allowedExtensions: ['png']
         );
@@ -167,9 +166,9 @@ class _BloodPressureSharePageState extends State<BloodPressureSharePage> {
               spacing: 12.0,
               runSpacing: 12.0,
               children: [
-                _buildFilterChip("Current Reading", BpHighlight.reading),
-                _buildFilterChip("Health Zone", BpHighlight.zone),
-                _buildFilterChip("Pulse Pressure", BpHighlight.pulsePressure),
+                _buildFilterChip("Current Heart Rate", HrHighlight.current),
+                _buildFilterChip("Resting Heart Rate", HrHighlight.resting),
+                _buildFilterChip("Health Zone", HrHighlight.zone),
               ],
             ),
             const SizedBox(height: 40),
@@ -183,7 +182,7 @@ class _BloodPressureSharePageState extends State<BloodPressureSharePage> {
                     onPressed: _saveImage,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                      side: BorderSide(color: Colors.white.withValues(alpha: 0.3)), // Updated opacity method
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
@@ -212,7 +211,7 @@ class _BloodPressureSharePageState extends State<BloodPressureSharePage> {
     );
   }
 
-  Widget _buildFilterChip(String label, BpHighlight highlight) {
+  Widget _buildFilterChip(String label, HrHighlight highlight) {
     final isSelected = _selectedHighlight == highlight;
     return ChoiceChip(
       label: Text(label),
@@ -221,7 +220,7 @@ class _BloodPressureSharePageState extends State<BloodPressureSharePage> {
         if (selected) setState(() => _selectedHighlight = highlight);
       },
       backgroundColor: AppTheme.cardBackground,
-      selectedColor: AppTheme.primaryColor.withOpacity(0.2),
+      selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2), // Updated opacity method
       labelStyle: TextStyle(
         color: isSelected ? AppTheme.primaryColor : Colors.white70,
         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -240,20 +239,20 @@ class _BloodPressureSharePageState extends State<BloodPressureSharePage> {
     String subtitle;
 
     switch (_selectedHighlight) {
-      case BpHighlight.reading:
-        title = "Blood Pressure";
-        value = "${widget.sys} / ${widget.dia}";
-        subtitle = "mmHg";
+      case HrHighlight.current:
+        title = "Current Heart Rate";
+        value = "${widget.currentHr}";
+        subtitle = "bpm";
         break;
-      case BpHighlight.zone:
+      case HrHighlight.resting:
+        title = "Resting Heart Rate";
+        value = "${widget.restingHr}";
+        subtitle = "bpm";
+        break;
+      case HrHighlight.zone:
         title = "Health Category";
         value = widget.zone;
-        subtitle = "Based on ${widget.sys}/${widget.dia} mmHg";
-        break;
-      case BpHighlight.pulsePressure:
-        title = "Pulse Pressure";
-        value = "${widget.sys - widget.dia}";
-        subtitle = "mmHg difference";
+        subtitle = "Based on ${widget.currentHr} bpm";
         break;
     }
 
@@ -264,7 +263,7 @@ class _BloodPressureSharePageState extends State<BloodPressureSharePage> {
       decoration: BoxDecoration(
         color: const Color(0xff040F31), 
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)), // Updated opacity method
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start, 
@@ -277,7 +276,7 @@ class _BloodPressureSharePageState extends State<BloodPressureSharePage> {
               const Icon(Icons.favorite_outline, color: AppTheme.primaryColor, size: 28),
               Text(
                 widget.dateRangeLabel,
-                style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14, fontWeight: FontWeight.w500),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14, fontWeight: FontWeight.w500), // Updated opacity method
               ),
             ],
           ),
@@ -288,15 +287,14 @@ class _BloodPressureSharePageState extends State<BloodPressureSharePage> {
             children: [
               Text(
                 title,
-                style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 16, letterSpacing: 1.2),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 16, letterSpacing: 1.2), // Updated opacity method
               ),
               const SizedBox(height: 8),
               Text(
                 value,
                 style: TextStyle(
                   color: AppTheme.primaryColor, 
-                  // Scale down the font slightly if the zone text is a long word
-                  fontSize: _selectedHighlight == BpHighlight.zone && widget.zone.length > 6 ? 48 : 56, 
+                  fontSize: _selectedHighlight == HrHighlight.zone && widget.zone.length > 6 ? 48 : 56, 
                   fontWeight: FontWeight.w800, 
                   height: 1.1
                 ),
@@ -314,7 +312,7 @@ class _BloodPressureSharePageState extends State<BloodPressureSharePage> {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor: AppTheme.primaryColor.withOpacity(0.15),
+                backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15), // Updated opacity method
                 child: Text(
                   widget.userName.isNotEmpty ? widget.userName[0].toUpperCase() : "U",
                   style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold),
@@ -330,7 +328,7 @@ class _BloodPressureSharePageState extends State<BloodPressureSharePage> {
                   ),
                   Text(
                     "Tracked with Temanu",
-                    style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12), // Updated opacity method
                   ),
                 ],
               ),

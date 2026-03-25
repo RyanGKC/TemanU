@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart'; 
 import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:temanu/heartRateChartPainter.dart';
+import 'package:temanu/heartRateSharePage.dart'; // <-- NEW IMPORT
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/api_service.dart';
 import 'package:temanu/button.dart';
@@ -298,7 +299,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     }
   }
 
-  // ─── UPDATED: Full hover + tap + drag interaction matching body weight ─────
+  // ─── Interaction ──────────────────────────────────────────────────────────
 
   void _handleChartInteraction(Offset localPosition, double width) {
     const double leftPadding  = 55.0;
@@ -361,7 +362,6 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     }
   }
 
-  // --- UPDATED: Glossy dialog matching body weight style, no cancel button ---
   void _showAddDataDialog() {
     final controller = TextEditingController();
     showDialog(
@@ -373,9 +373,9 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
           constraints: const BoxConstraints(maxWidth: 400),
           padding: const EdgeInsets.all(25),
           decoration: BoxDecoration(
-            color: AppTheme.cardBackground.withOpacity(0.95),
+            color: AppTheme.cardBackground.withValues(alpha: 0.95), // <-- Updated opacity to alpha
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.textSecondary.withOpacity(0.2), width: 1.5),
+            border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5), // <-- Updated
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -414,6 +414,23 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     );
   }
 
+  // --- NEW: Routing to Share Page ---
+  void openSharePage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => HeartRateSharePage(
+          currentHr: currentHr,
+          restingHr: restingHr,
+          zone: zoneText,
+          rangeName: fullRangeName,
+          dateRangeLabel: dateRangeLabel,
+          userName: widget.baseUserData['preferred_name'] ?? widget.baseUserData['name'] ?? 'User',
+        ),
+      ),
+    );
+  }
+
   // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
@@ -432,13 +449,20 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(color: AppTheme.background.withOpacity(0.5)),
+            child: Container(color: AppTheme.background.withValues(alpha: 0.5)), // <-- Updated
           ),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppTheme.primaryColor),
           onPressed: () => Navigator.pop(context),
         ),
+        // --- NEW: Share Icon Added ---
+        actions: [
+          IconButton(
+            onPressed: openSharePage,
+            icon: const Icon(Icons.ios_share, color: Colors.white),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -528,7 +552,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
               decoration: BoxDecoration(
                 color: AppTheme.cardBackground,
                 borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
               ),
               child: _isLoadingChart 
                 ? const Center(child: CircularProgressIndicator(color: Colors.white))
@@ -574,7 +598,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
             Container(
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
               decoration: BoxDecoration(
-                color: AppTheme.textSecondary.withOpacity(0.1),
+                color: AppTheme.textSecondary.withValues(alpha: 0.1), // <-- Updated
                 borderRadius: BorderRadius.circular(30),
               ),
               child: Row(
@@ -618,7 +642,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
                 decoration: BoxDecoration(
                   color: AppTheme.cardBackground,
                   borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                  border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -670,7 +694,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
       decoration: BoxDecoration(
         color: AppTheme.cardBackground, 
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

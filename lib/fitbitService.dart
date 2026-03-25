@@ -4,7 +4,7 @@ import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // <-- NEW: For your base URL
+import 'package:shared_preferences/shared_preferences.dart'; 
 
 class FitbitService {
   // Replace with the 6-character Client ID from the Fitbit Developer Portal
@@ -15,10 +15,8 @@ class FitbitService {
       ? 'http://localhost:8080/auth.html' 
       : 'temanu://oauth2redirect';
 
-  // --- NEW: Grab the base URL to route to your Python backend ---
   static final String _baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000';
 
-  // --- Initialize the secure vault ---
   static const _storage = FlutterSecureStorage();
   static const _tokenKey = 'fitbit_access_token';
 
@@ -31,22 +29,14 @@ class FitbitService {
 
   // --- The Smart Token Checker ---
   static Future<String?> getValidToken() async {
-    // 1. Check if we already have it on the device
     String? savedToken = await _storage.read(key: _tokenKey);
     if (savedToken != null) return savedToken; 
 
-    // 2. We don't have one! Trigger the Fitbit Login Screen
     String? newToken = await authenticate();
     
-    // 3. If login was successful, save it!
     if (newToken != null) {
-      // Save it to the phone's secure vault
       await _storage.write(key: _tokenKey, value: newToken);
-      
-      // --- NEW: Ship it to the Python backend immediately! ---
-      // Note: Implicit grant (token flow) doesn't return a refresh_token, so we pass null
       await _linkTokenToBackend(newToken, null);
-      // -------------------------------------------------------
     }
     
     return newToken;
@@ -95,7 +85,6 @@ class FitbitService {
 
   static Future<bool> _linkTokenToBackend(String accessToken, String? refreshToken) async {
     try {
-      // 1. Get the logged-in user's TemanU JWT token
       final prefs = await SharedPreferences.getInstance();
       final jwtToken = prefs.getString('jwt_token');
 
@@ -107,7 +96,6 @@ class FitbitService {
       // Note: Replace this with your actual backend URL if it's stored elsewhere
       const String baseUrl = 'http://127.0.0.1:8000'; 
 
-      // 2. Send the Fitbit keys to the new Python route
       final response = await http.post(
         Uri.parse('$baseUrl/fitbit/link'),
         headers: {
@@ -144,7 +132,6 @@ class FitbitService {
     try {
       String today = _getTodayDateString(); 
       
-      // --- NEW: Grab the TemanU JWT to prove who we are! ---
       final prefs = await SharedPreferences.getInstance();
       final jwtToken = prefs.getString('jwt_token');
 
@@ -154,10 +141,11 @@ class FitbitService {
       }
       
       final response = await http.get(
-        Uri.parse('$_baseUrl/fitbit/activity/$today'), 
+        // --- THE FIX: Passed the force_refresh flag to the backend URL ---
+        Uri.parse('$_baseUrl/fitbit/activity/$today?force_refresh=$forceRefresh'), 
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $jwtToken', // <-- Send the JWT, not the Fitbit token!
+          'Authorization': 'Bearer $jwtToken', 
         },
       );
 
@@ -170,7 +158,6 @@ class FitbitService {
         
         return steps;
       } else if (response.statusCode == 401) {
-        // If Python tells us the Fitbit token is expired, clear our vault
         await logout();
         return null;
       } else {
@@ -185,7 +172,6 @@ class FitbitService {
 
   /// DISABLED HEART RATE: Safely returns null so the app doesn't crash
   static Future<String?> getHeartRate(String accessToken, {bool forceRefresh = false}) async {
-    // Returning null means homepage.dart will simply ignore it and leave the "--" on the dashboard.
     return null; 
   }
 
@@ -200,7 +186,6 @@ class FitbitService {
     try {
       String today = _getTodayDateString();
 
-      // --- NEW: Grab the TemanU JWT to prove who we are! ---
       final prefs = await SharedPreferences.getInstance();
       final jwtToken = prefs.getString('jwt_token');
 
@@ -210,10 +195,11 @@ class FitbitService {
       }
 
       final response = await http.get(
-        Uri.parse('$_baseUrl/fitbit/activity/$today'), 
+        // --- THE FIX: Passed the force_refresh flag to the backend URL ---
+        Uri.parse('$_baseUrl/fitbit/activity/$today?force_refresh=$forceRefresh'), 
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $jwtToken', // <-- Send the JWT, not the Fitbit token!
+          'Authorization': 'Bearer $jwtToken', 
         },
       );
 
@@ -225,7 +211,6 @@ class FitbitService {
         _lastCaloriesFetchTime = DateTime.now();
         return calories;
       } else if (response.statusCode == 401) {
-        // If Python tells us the Fitbit token is expired, clear our vault
         await logout();
         return null;
       } else {

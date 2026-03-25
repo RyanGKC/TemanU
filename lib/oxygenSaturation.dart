@@ -6,6 +6,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:temanu/api_service.dart';
 import 'package:temanu/oxygenSaturationChartPainter.dart'; 
+import 'package:temanu/oxygenSaturationSharePage.dart'; // <-- NEW IMPORT
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/button.dart';
 import 'package:temanu/textbox.dart';
@@ -281,7 +282,6 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     }
   }
 
-  // --- UPDATED: Full hover + tap + drag interaction matching body weight ---
   void _handleChartInteraction(Offset localPosition, double width) {
     const double leftPadding = 55.0;
     final double usableWidth = width - leftPadding - 20.0;
@@ -342,7 +342,6 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     }
   }
 
-  // --- UPDATED: Glossy dialog matching body weight style, no cancel button ---
   void showAddDataDialog() {
     final spo2Controller = TextEditingController();
 
@@ -355,9 +354,9 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
           constraints: const BoxConstraints(maxWidth: 400),
           padding: const EdgeInsets.all(25),
           decoration: BoxDecoration(
-            color: AppTheme.cardBackground.withOpacity(0.95),
+            color: AppTheme.cardBackground.withValues(alpha: 0.95), // <-- Updated
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.textSecondary.withOpacity(0.2), width: 1.5),
+            border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5), // <-- Updated
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -396,6 +395,23 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     );
   }
 
+  // --- NEW: Routing to Share Page ---
+  void openSharePage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => OxygenSaturationSharePage(
+          currentSpO2: currentSpO2,
+          avgSpO2: avgSpO2,
+          zone: zoneText,
+          rangeName: fullRangeName,
+          dateRangeLabel: dateRangeLabel,
+          userName: widget.baseUserData['preferred_name'] ?? widget.baseUserData['name'] ?? 'User',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -416,13 +432,20 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(color: AppTheme.background.withOpacity(0.5))
+            child: Container(color: AppTheme.background.withValues(alpha: 0.5)) // <-- Updated
           )
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppTheme.primaryColor),
           onPressed: () => Navigator.pop(context),
         ),
+        // --- NEW: Share Icon Added ---
+        actions: [
+          IconButton(
+            onPressed: openSharePage,
+            icon: const Icon(Icons.ios_share, color: Colors.white),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -517,7 +540,6 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
 
             const SizedBox(height: 10),
 
-            // --- UPDATED: Chart now uses MouseRegion + GestureDetector like body weight ---
             Container(
               height: 300,
               width: double.infinity,
@@ -525,7 +547,7 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
               decoration: BoxDecoration(
                 color: AppTheme.cardBackground,
                 borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
               ),
               child: _isLoadingChart 
                 ? const Center(child: CircularProgressIndicator(color: Colors.white))
@@ -570,7 +592,7 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
             Container(
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
               decoration: BoxDecoration(
-                color: AppTheme.textSecondary.withOpacity(0.1),
+                color: AppTheme.textSecondary.withValues(alpha: 0.1), // <-- Updated
                 borderRadius: BorderRadius.circular(30),
               ),
               child: Row(
@@ -617,7 +639,7 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
                 decoration: BoxDecoration(
                   color: AppTheme.cardBackground,
                   borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+                  border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -665,7 +687,7 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
       decoration: BoxDecoration(
         color: AppTheme.cardBackground, 
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
