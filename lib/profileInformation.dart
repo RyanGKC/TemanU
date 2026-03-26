@@ -54,35 +54,62 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
   }
 
   Future<void> _loadProfileData() async {
+    setState(() => _isLoading = true);
+
+    final serverProfile = await ApiService.getFullProfile();
     final prefs = await SharedPreferences.getInstance();
-    
+
     if (mounted) {
       setState(() {
-        _fullNameController.text = prefs.getString('full_name') ?? ""; 
-        _preferredNameController.text = prefs.getString('user_name') ?? "User";
-        _usernameController.text = prefs.getString('username') ?? ""; 
-        
-        _heightController.text = prefs.getString('height') ?? "180";
-        
-        double latestWeight = prefs.getDouble('latest_weight') ?? double.tryParse(prefs.getString('weight') ?? '75') ?? 75.0;
-        _weightController.text = latestWeight.toStringAsFixed(1);
-        
-        _gender = prefs.getString('gender') ?? "Male";
-        _bloodType = prefs.getString('blood_type') ?? "O+";
-        
-        String dobStr = prefs.getString('dob') ?? "15/5/1990";
-        try {
-          List<String> parts = dobStr.split('/');
-          if (parts.length == 3) {
-            _dateOfBirth = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+        if (serverProfile != null) {
+          _fullNameController.text = serverProfile['name'] ?? '';
+          _preferredNameController.text = serverProfile['preferred_name'] ?? '';
+          _usernameController.text = serverProfile['username'] ?? '';
+          _gender = serverProfile['gender'] ?? 'Male';
+          _bloodType = serverProfile['blood_type'] ?? 'O+';
+          _heightController.text = serverProfile['height'] ?? prefs.getString('height') ?? '170';
+
+          final dobStr = serverProfile['dob'] ?? '';
+          try {
+            final parts = dobStr.split('/');
+            if (parts.length == 3) {
+              _dateOfBirth = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+            }
+          } catch (_) {}
+
+          prefs.setString('full_name', serverProfile['name'] ?? '');
+          prefs.setString('user_name', serverProfile['preferred_name'] ?? '');
+          prefs.setString('username', serverProfile['username'] ?? '');
+          prefs.setString('gender', serverProfile['gender'] ?? '');
+          prefs.setString('blood_type', serverProfile['blood_type'] ?? '');
+          if (serverProfile['height'] != null) {
+            prefs.setString('height', serverProfile['height']);
           }
-        } catch (e) {
-          _dateOfBirth = DateTime(1990, 5, 15);
+        } else {
+          _fullNameController.text = prefs.getString('full_name') ?? '';
+          _preferredNameController.text = prefs.getString('user_name') ?? 'User';
+          _usernameController.text = prefs.getString('username') ?? '';
+          _heightController.text = prefs.getString('height') ?? '170';
+          _gender = prefs.getString('gender') ?? 'Male';
+          _bloodType = prefs.getString('blood_type') ?? 'O+';
+          final dobStr = prefs.getString('dob') ?? '15/5/1990';
+          try {
+            final parts = dobStr.split('/');
+            if (parts.length == 3) {
+               _dateOfBirth = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+            }
+          } catch (_) {}
         }
+
+        final latestWeight = prefs.getDouble('latest_weight') ??
+            double.tryParse(prefs.getString('weight') ?? '70') ?? 70.0;
+        _weightController.text = latestWeight.toStringAsFixed(1);
 
         _base64Image = prefs.getString('profile_image_base64');
         if (_base64Image != null && _base64Image!.isNotEmpty) {
-          _profileImageBytes = base64Decode(_base64Image!);
+          try {
+            _profileImageBytes = base64Decode(_base64Image!);
+          } catch (_) {}
         }
 
         _isLoading = false;
@@ -124,30 +151,35 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
         setState(() => _isLoading = true);
         
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('user_name', _preferredNameController.text);
-        await prefs.setString('full_name', _fullNameController.text);
-        await prefs.setString('gender', _gender);
-        await prefs.setString('dob', _formattedDob);
-        await prefs.setString('blood_type', _bloodType);
-        await prefs.setString('height', _heightController.text);
-
-        if (_base64Image != null) {
-          await prefs.setString('profile_image_base64', _base64Image!);
-        }
-        
-        final newWeight = double.tryParse(_weightController.text) ?? 0.0;
-        await prefs.setDouble('latest_weight', newWeight);
-
-        await ApiService.saveHealthMetric(metricType: "Height", value: _heightController.text, unit: "cm");
-        await ApiService.saveHealthMetric(metricType: "Body Weight", value: _weightController.text, unit: "kg");
 
         await ApiService.updateProfile(
-          name: _fullNameController.text,
-          preferredName: _preferredNameController.text,
+          name: _fullNameController.text.trim(),
+          preferredName: _preferredNameController.text.trim(),
           gender: _gender,
           dob: _formattedDob,
           bloodType: _bloodType,
+          height: _heightController.text.trim(),
         );
+
+        final newWeight = double.tryParse(_weightController.text) ?? 0.0;
+        if (newWeight > 0) {
+          await ApiService.saveHealthMetric(
+            metricType: "Body Weight",
+            value: _weightController.text,
+            unit: "kg",
+          );
+          await prefs.setDouble('latest_weight', newWeight);
+        }
+
+        await prefs.setString('height', _heightController.text.trim());
+        await prefs.setString('user_name', _preferredNameController.text.trim());
+        await prefs.setString('full_name', _fullNameController.text.trim());
+        await prefs.setString('gender', _gender);
+        await prefs.setString('dob', _formattedDob);
+        await prefs.setString('blood_type', _bloodType);
+        if (_base64Image != null) {
+          await prefs.setString('profile_image_base64', _base64Image!);
+        }
 
         if (mounted) {
           setState(() {

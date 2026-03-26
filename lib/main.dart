@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:temanu/login.dart';
 import 'package:temanu/theme.dart';
+import 'package:temanu/notification_service.dart';
 
 void main() async{
   // Ensure Flutter bindings are initialized before loading the env file
@@ -9,6 +10,10 @@ void main() async{
   
   // Load the hidden variables
   await dotenv.load(fileName: ".env");
+
+  // Initialize local notifications
+  await NotificationService.init();
+
   runApp(TemanU());
 }
 

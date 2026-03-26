@@ -56,30 +56,46 @@ class ApiService {
     String? gender,
     String? dob,
     String? bloodType,
+    String? height,
   }) async {
     try {
       final token = await _getToken();
       if (token == null) return false;
 
-      final url = Uri.parse('$_baseUrl/users/me');
+      final body = <String, dynamic>{};
+      if (name != null) body['name'] = name;
+      if (preferredName != null) body['preferred_name'] = preferredName;
+      if (gender != null) body['gender'] = gender;
+      if (dob != null) body['dob'] = dob;
+      if (bloodType != null) body['blood_type'] = bloodType;
+      if (height != null) body['height'] = height;
+
       final response = await http.put(
-        url,
+        Uri.parse('$_baseUrl/users/me'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({
-          'name': name,
-          'preferred_name': preferredName,
-          'gender': gender,
-          'dob': dob,
-          'blood_type': bloodType,
-        }),
+        body: jsonEncode(body),
       );
-
       return response.statusCode == 200;
     } catch (e) {
       return false;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> getFullProfile() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return null;
+      final response = await http.get(
+        Uri.parse('$_baseUrl/users/me/full'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+      return null;
+    } catch (e) {
+      return null;
     }
   }
 
@@ -173,6 +189,38 @@ class ApiService {
     } catch (e) {
       print('Connection error: $e');
       return null;
+    }
+  }
+
+  static Future<bool> removePersonalDoctor(String doctorId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return false;
+
+      final response = await http.delete(
+        Uri.parse('$_baseUrl/care-team/doctors/$doctorId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getMyAppointments() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return [];
+      final response = await http.get(
+        Uri.parse('$_baseUrl/care-team/appointments'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      }
+      return [];
+    } catch (e) {
+      return [];
     }
   }
 
@@ -915,54 +963,88 @@ class ApiService {
     }
   }
 
-  /// 6. Search Global Doctors
-  static Future<List<Map<String, dynamic>>> searchDoctors(String query) async {
+  // ─── CARE TEAM REQUESTS ───
+
+  static Future<List<Map<String, dynamic>>> getPendingRequests() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('jwt_token');
+      final token = await _getToken();
       if (token == null) return [];
-
-      final url = Uri.parse('$_baseUrl/care-team/search?q=$query');
       final response = await http.get(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+        Uri.parse('$_baseUrl/care-team/requests'),
+        headers: {'Authorization': 'Bearer $token'},
       );
-
       if (response.statusCode == 200) {
         return List<Map<String, dynamic>>.from(jsonDecode(response.body));
-      } else {
-        print("Failed to search doctors: ${response.body}");
-        return [];
       }
+      return [];
     } catch (e) {
-      print("Error searching doctors: $e");
       return [];
     }
   }
 
-  /// 7. Add Doctor to Care Team
-  static Future<bool> linkDoctor(String doctorId) async {
+  static Future<bool> approveRequest(int requestId, Map<String, bool> permissions) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('jwt_token');
+      final token = await _getToken();
       if (token == null) return false;
-
-      final url = Uri.parse('$_baseUrl/care-team/link');
       final response = await http.post(
-        url,
+        Uri.parse('$_baseUrl/care-team/requests/$requestId/approve'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({'doctor_id': doctorId}),
+        body: jsonEncode({'permissions': permissions}),
       );
-
-      return response.statusCode == 200 || response.statusCode == 201;
+      return response.statusCode == 200;
     } catch (e) {
-      print("Error linking doctor: $e");
+      return false;
+    }
+  }
+
+  static Future<bool> declineRequest(int requestId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return false;
+      final response = await http.post(
+        Uri.parse('$_baseUrl/care-team/requests/$requestId/decline'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // ─── PERMISSIONS ───
+
+  static Future<Map<String, dynamic>?> getPermissions(String doctorId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return null;
+      final response = await http.get(
+        Uri.parse('$_baseUrl/care-team/permissions/$doctorId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static Future<bool> updatePermissions(String doctorId, Map<String, bool> permissions) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return false;
+      final response = await http.put(
+        Uri.parse('$_baseUrl/care-team/permissions/$doctorId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(permissions),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
       return false;
     }
   }

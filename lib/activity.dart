@@ -20,9 +20,12 @@ class Activity extends StatefulWidget {
   State<Activity> createState() => _ActivityState();
 }
 
-class _ActivityState extends State<Activity> {
+class _ActivityState extends State<Activity> with TickerProviderStateMixin {
   bool _isLoading = true;
-  bool _isLoadingComparisons = true; 
+  bool _isLoadingComparisons = true;
+  bool _fitbitConnected = false;
+  bool _isRefreshing = false;
+  late AnimationController _refreshIconController;
 
   int currentSteps = 0;
   int averageSteps = 0;
@@ -65,12 +68,22 @@ class _ActivityState extends State<Activity> {
   @override
   void initState() {
     super.initState();
+    _refreshIconController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
     _loadGoal(); 
     _fetchLiveFitbitData(forceRefresh: true).then((_) {
       _generateAITip();
     });
     
     _fetchComparisonData(forceRefresh: true);
+  }
+
+  @override
+  void dispose() {
+    _refreshIconController.dispose();
+    super.dispose();
   }
 
   // ==========================================
@@ -170,6 +183,26 @@ class _ActivityState extends State<Activity> {
         );
       },
     );
+  }
+
+  // ==========================================
+  // FITBIT REFRESH
+  // ==========================================
+
+  Future<void> _handleRefreshFitbit() async {
+    if (_isRefreshing) return;
+    setState(() => _isRefreshing = true);
+    _refreshIconController.repeat();
+
+    await Future.wait([
+      _fetchLiveFitbitData(forceRefresh: true),
+      _fetchComparisonData(forceRefresh: true),
+    ]);
+    _generateAITip(forceRefresh: true);
+
+    _refreshIconController.stop();
+    _refreshIconController.reset();
+    if (mounted) setState(() => _isRefreshing = false);
   }
 
   // ==========================================
@@ -613,10 +646,11 @@ class _ActivityState extends State<Activity> {
           if (selectedRange == "Y" && newLabels.isNotEmpty) { yearlyLabels = newLabels; yearlyValues = newValues; }
           
           _isLoading = false;
+          _fitbitConnected = true;
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() { _isLoading = false; _fitbitConnected = false; });
     }
   }
 
@@ -860,16 +894,33 @@ class _ActivityState extends State<Activity> {
                       const Text("steps", style: TextStyle(color: Colors.white70, fontSize: 16)),
                     ],
                   ),
-                  InkWell(
-                    onTap: _showFitbitConnectDialog,
-                    child: Row(
-                      children: const [
-                        Icon(Icons.watch, color: Colors.white),
-                        SizedBox(width: 6),
-                        Text("Connect Fitbit", style: TextStyle(color: Colors.white, fontSize: 18)),
-                      ],
-                    ),
-                  ),
+                  _fitbitConnected
+                    ? InkWell(
+                        onTap: _isRefreshing ? null : () => _handleRefreshFitbit(),
+                        child: Row(
+                          children: [
+                            RotationTransition(
+                              turns: Tween(begin: 0.0, end: 1.0).animate(_refreshIconController),
+                              child: const Icon(Icons.sync, color: Colors.white),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _isRefreshing ? "Refreshing..." : "Refresh Data",
+                              style: const TextStyle(color: Colors.white, fontSize: 16),
+                            ),
+                          ],
+                        ),
+                      )
+                    : InkWell(
+                        onTap: _showFitbitConnectDialog,
+                        child: Row(
+                          children: const [
+                            Icon(Icons.watch, color: Colors.white),
+                            SizedBox(width: 6),
+                            Text("Connect Fitbit", style: TextStyle(color: Colors.white, fontSize: 18)),
+                          ],
+                        ),
+                      ),
                 ],
               ),
 
