@@ -6,7 +6,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:temanu/theme.dart';
-import 'package:temanu/button.dart';
 import 'package:temanu/api_service.dart';
 import 'package:temanu/notification_service.dart';
 

@@ -6,7 +6,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:temanu/api_service.dart';
 import 'package:temanu/oxygenSaturationChartPainter.dart'; 
-import 'package:temanu/oxygenSaturationSharePage.dart'; // <-- NEW IMPORT
+import 'package:temanu/oxygenSaturationSharePage.dart';
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/button.dart';
 import 'package:temanu/textbox.dart';
