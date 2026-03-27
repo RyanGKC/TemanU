@@ -716,7 +716,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     );
   }
 
-  // ─── MAIN BUILD (NOW WITH TAB CONTROLLER) ─────────────────────────────────
+  // ─── MAIN BUILD (TAB CONTROLLER) ──────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -733,7 +733,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
           flexibleSpace: ClipRect(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-              child: Container(color: AppTheme.background.withValues(alpha: 0.5)), // <-- Updated
+              child: Container(color: AppTheme.background.withValues(alpha: 0.5)), 
             ),
           ),
           leading: IconButton(
@@ -751,7 +751,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                 _loadWeeklyInsights();
               },
             ),
-            // --- NEW: Connected Share Button ---
             IconButton(
               onPressed: openSharePage,
               icon: const Icon(Icons.ios_share, color: Colors.white),
@@ -779,71 +778,100 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
   }
 
   // ─── TAB 1: TODAY ─────────────────────────────────────────────────────────
+
   Widget _buildTodayTab() {
-    final double bottomSafeArea = MediaQuery.paddingOf(context).bottom;
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSideBySideCalorieRings(),
-            const SizedBox(height: 15),
-            _buildCombinedMacrosCard(),
-            const SizedBox(height: 15),
-            _buildAiTipCard(),
-            const SizedBox(height: 40),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        bool isWideScreen = constraints.maxWidth > 850;
+        final double bottomSafeArea = MediaQuery.paddingOf(context).bottom;
+
+        if (isWideScreen) {
+          // ==========================================
+          // DESKTOP LAYOUT (2 Columns)
+          // ==========================================
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Meals Today",
-                  style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                _buildAddMealButton(),
+                // LEFT COLUMN: Rings & Macros
+                Expanded(
+                  flex: 5,
+                  child: Column(
+                    children: [
+                      _buildSideBySideCalorieRings(),
+                      const SizedBox(height: 16),
+                      _buildCombinedMacrosCard(),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 32),
+                // RIGHT COLUMN: AI Tips & Meals List
+                Expanded(
+                  flex: 4,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildAiTipCard(),
+                      const SizedBox(height: 32),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text("Meals Today",
+                            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                          _buildAddMealButton(),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      ...trackedMealsList.map((meal) => _buildMealListItem(meal)),
+                      SizedBox(height: 40 + bottomSafeArea),
+                    ],
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 15),
-            ...trackedMealsList.map((meal) => _buildMealListItem(meal)),
-            SizedBox(height: 40 + bottomSafeArea),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showInfoDialog(String title, String content) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.cardBackground,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            const Icon(Icons.lightbulb_outline, color: AppTheme.primaryColor),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          );
+        } else {
+          // ==========================================
+          // MOBILE LAYOUT (Single Column)
+          // ==========================================
+          return SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSideBySideCalorieRings(),
+                const SizedBox(height: 16),
+                _buildCombinedMacrosCard(),
+                const SizedBox(height: 16),
+                _buildAiTipCard(),
+                const SizedBox(height: 40),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Meals Today",
+                      style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                    _buildAddMealButton(),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ...trackedMealsList.map((meal) => _buildMealListItem(meal)),
+                SizedBox(height: 40 + bottomSafeArea),
+              ],
             ),
-          ],
-        ),
-        content: Text(content, style: const TextStyle(color: Colors.white70, height: 1.4, fontSize: 15)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Got it", style: TextStyle(color: Color(0xff00E5FF), fontWeight: FontWeight.bold, fontSize: 16)),
-          ),
-        ],
-      ),
+          );
+        }
+      },
     );
   }
 
   // ─── TAB 2: INSIGHTS & TRENDS ─────────────────────────────────────────────
+
   Widget _buildInsightsTab() {
     if (_isLoadingInsights) {
       return const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor));
     }
 
-    final double bottomSafeArea = MediaQuery.paddingOf(context).bottom;
-    
     double projectedKg = (_weeklyNetDeficit / 7700).abs();
     String projectionTitle = "Maintaining Weight";
     String projectionText = "Your energy balance is perfectly level. You are projected to maintain your current weight.";
@@ -862,195 +890,79 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
       projectionIcon = Icons.trending_up;
     }
 
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: AppTheme.cardBackground,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: projectionColor.withValues(alpha: 0.5), width: 1.5), // <-- Updated
-              ),
-              child: Column(
-                children: [
-                  Icon(projectionIcon, color: projectionColor, size: 40),
-                  const SizedBox(height: 15),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        bool isWideScreen = constraints.maxWidth > 850;
+        final double bottomSafeArea = MediaQuery.paddingOf(context).bottom;
+
+        if (isWideScreen) {
+          // ==========================================
+          // DESKTOP LAYOUT (2 Columns)
+          // ==========================================
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // LEFT COLUMN: Weekly Chart
+                Expanded(
+                  flex: 5,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(projectionTitle, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: () => _showInfoDialog(
-                          "Projected Impact", 
-                          "This projection is based on the scientific rule that a net deficit of ~7,700 kcal equates to roughly 1 kg of fat loss. It averages your 7-day energy balance to predict future results."
-                        ),
-                        child: const Icon(Icons.info_outline, color: Colors.white54, size: 20),
-                      ),
+                      _buildWeeklyEnergyBalanceHeader(),
+                      const SizedBox(height: 16),
+                      _buildWeeklyEnergyBalanceChart(),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(projectionText, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.4)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 25),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("Weekly Energy Balance", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: const Icon(Icons.info_outline, color: Colors.white54, size: 22),
-                  onPressed: () => _showInfoDialog(
-                    "Energy Balance", 
-                    "This chart compares the calories you consumed (food) against the calories you burned (BMR + activity)."
+                ),
+                const SizedBox(width: 32),
+                // RIGHT COLUMN: Projection & Macros
+                Expanded(
+                  flex: 4,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildProjectedImpactCard(projectedKg, projectionTitle, projectionText, projectionColor, projectionIcon),
+                      const SizedBox(height: 32),
+                      _buildMacroConsistencyHeader(),
+                      const SizedBox(height: 16),
+                      _buildMacroConsistencyCard(),
+                      SizedBox(height: 40 + bottomSafeArea),
+                    ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 15),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppTheme.cardBackground, 
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.circle, color: AppTheme.primaryColor, size: 10),
-                      const SizedBox(width: 5),
-                      const Text("Consumed", style: TextStyle(color: Colors.white70, fontSize: 12)),
-                      const SizedBox(width: 20),
-                      const Icon(Icons.circle, color: Color(0xff00E676), size: 10),
-                      const SizedBox(width: 5),
-                      const Text("Burned", style: TextStyle(color: Colors.white70, fontSize: 12)),
-                    ],
-                  ),
-                  const SizedBox(height: 30),
-                  SizedBox(
-                    height: 150,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: _weeklyBars.map((dayData) {
-                        double maxVal = max(dayData['consumed'], dayData['burned']);
-                        if (maxVal < 1) maxVal = 1; 
-                        
-                        double consumedHeight = (dayData['consumed'] / maxVal) * 120;
-                        double burnedHeight = (dayData['burned'] / maxVal) * 120;
-
-                        return Tooltip(
-                          triggerMode: TooltipTriggerMode.tap, 
-                          showDuration: const Duration(seconds: 3), 
-                          preferBelow: false, 
-                          verticalOffset: 20, 
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: AppTheme.background.withValues(alpha: 0.95), // <-- Updated
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.5)), // <-- Updated
-                          ),
-                          textStyle: const TextStyle(color: Colors.white, fontSize: 13, height: 1.5),
-                          richMessage: TextSpan(
-                            children: [
-                              TextSpan(text: "${dayData['day']}\n", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                              TextSpan(text: "Consumed: ", style: TextStyle(color: Colors.white.withValues(alpha: 0.7))), // <-- Updated
-                              TextSpan(text: "${dayData['consumed'].toInt()} kcal\n", style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold)),
-                              TextSpan(text: "Burned: ", style: TextStyle(color: Colors.white.withValues(alpha: 0.7))), // <-- Updated
-                              TextSpan(text: "${dayData['burned'].toInt()} kcal", style: const TextStyle(color: Color(0xff00E676), fontWeight: FontWeight.bold)),
-                            ]
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Container(width: 10, height: consumedHeight, decoration: BoxDecoration(color: AppTheme.primaryColor, borderRadius: BorderRadius.circular(5))),
-                                  const SizedBox(width: 4),
-                                  Container(width: 10, height: burnedHeight, decoration: BoxDecoration(color: const Color(0xff00E676), borderRadius: BorderRadius.circular(5))),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Text(dayData['day'], style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 25),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          );
+        } else {
+          // ==========================================
+          // MOBILE LAYOUT (Single Column)
+          // ==========================================
+          return SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Macro Consistency", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: const Icon(Icons.info_outline, color: Colors.white54, size: 22),
-                  onPressed: () => _showInfoDialog(
-                    "Macro Consistency", 
-                    "This score shows how many days over the last week you successfully met your Protein, Carbs, and Fats goals. Hitting your macros consistently ensures you can hit your goals!"
-                  ),
-                ),
+                _buildProjectedImpactCard(projectedKg, projectionTitle, projectionText, projectionColor, projectionIcon),
+                const SizedBox(height: 24),
+                _buildWeeklyEnergyBalanceHeader(),
+                const SizedBox(height: 16),
+                _buildWeeklyEnergyBalanceChart(),
+                const SizedBox(height: 24),
+                _buildMacroConsistencyHeader(),
+                const SizedBox(height: 16),
+                _buildMacroConsistencyCard(),
+                SizedBox(height: 40 + bottomSafeArea),
               ],
             ),
-            const SizedBox(height: 15),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppTheme.cardBackground, 
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildMiniMacroCircle("Protein", _proteinHits, Colors.redAccent),
-                  _buildMiniMacroCircle("Carbs", _carbsHits, Colors.orangeAccent),
-                  _buildMiniMacroCircle("Fats", _fatsHits, Colors.purpleAccent),
-                ],
-              ),
-            ),
-            SizedBox(height: 40 + bottomSafeArea),
-          ],
-        ),
-      ),
+          );
+        }
+      },
     );
   }
 
-  Widget _buildMiniMacroCircle(String label, int hits, Color color) {
-    return Column(
-      children: [
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            SizedBox(height: 60, width: 60, child: CircularProgressIndicator(value: 1.0, strokeWidth: 6, color: Colors.white.withValues(alpha: 0.1))), // <-- Updated
-            SizedBox(height: 60, width: 60, child: CircularProgressIndicator(value: hits / 7, strokeWidth: 6, color: color, strokeCap: StrokeCap.round, backgroundColor: Colors.transparent)),
-            Text("$hits/7", style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-      ],
-    );
-  }
+  // ─── UI HELPER METHODS (TAB 1) ────────────────────────────────────────────
 
   Widget _buildAiTipCard() {
     return InkWell(
@@ -1074,7 +986,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
         decoration: BoxDecoration(
           color: AppTheme.cardBackground, 
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
+          border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1093,7 +1005,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                   children: [
                     const Padding(padding: EdgeInsets.only(top: 2.0), child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2))),
                     const SizedBox(width: 12),
-                    Expanded(child: Text("Analyzing your latest data...", style: const TextStyle(color: Colors.white70, fontSize: 14))),
+                    const Expanded(child: Text("Analyzing your latest data...", style: TextStyle(color: Colors.white70, fontSize: 14))),
                   ],
                 )
               : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
@@ -1127,7 +1039,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
           decoration: BoxDecoration(
             color: AppTheme.cardBackground, 
             borderRadius: BorderRadius.circular(25),
-            border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
+            border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
           ),
           child: Column(
             children: [
@@ -1136,7 +1048,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text("Goal: ", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14)), // <-- Updated
+                    Text("Goal: ", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 14)),
                     Text(goalTypeLabel(), style: TextStyle(color: goalColor(), fontSize: 14, fontWeight: FontWeight.bold)),
                     const SizedBox(width: 5),
                     Icon(Icons.edit, color: goalColor(), size: 14),
@@ -1165,7 +1077,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
         Stack(
           alignment: Alignment.center,
           children: [
-            SizedBox(height: 120, width: 120, child: CircularProgressIndicator(value: 1.0, strokeWidth: 10, color: Colors.white.withValues(alpha: 0.08))), // <-- Updated
+            SizedBox(height: 120, width: 120, child: CircularProgressIndicator(value: 1.0, strokeWidth: 10, color: Colors.white.withValues(alpha: 0.08))), 
             SizedBox(height: 120, width: 120, child: CircularProgressIndicator(value: progress, strokeWidth: 10, color: ringColor, backgroundColor: Colors.transparent, strokeCap: StrokeCap.round)),
             isLoading
               ? SizedBox(height: 28, width: 28, child: CircularProgressIndicator(color: ringColor, strokeWidth: 2.5))
@@ -1190,7 +1102,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
       decoration: BoxDecoration(
         color: AppTheme.cardBackground, 
         borderRadius: BorderRadius.circular(25),
-        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
+        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -1214,7 +1126,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
             Stack(
               alignment: Alignment.center,
               children: [
-                SizedBox(height: 75, width: 75, child: CircularProgressIndicator(value: 1.0, strokeWidth: 8, color: Colors.white.withValues(alpha: 0.1))), // <-- Updated
+                SizedBox(height: 75, width: 75, child: CircularProgressIndicator(value: 1.0, strokeWidth: 8, color: Colors.white.withValues(alpha: 0.1))), 
                 SizedBox(height: 75, width: 75, child: CircularProgressIndicator(value: progress, strokeWidth: 8, color: progressColor, backgroundColor: Colors.transparent, strokeCap: StrokeCap.round)),
                 Column(mainAxisSize: MainAxisSize.min, children: [
                   Text("${(consumed * _animation.value).toInt()}", style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
@@ -1239,7 +1151,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
       decoration: BoxDecoration(
         color: AppTheme.cardBackground, 
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
+        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1312,6 +1224,220 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
           ],
         ),
       ),
+    );
+  }
+
+  // ─── UI HELPER METHODS (TAB 2) ────────────────────────────────────────────
+
+  Widget _buildProjectedImpactCard(double projectedKg, String projectionTitle, String projectionText, Color projectionColor, IconData projectionIcon) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBackground,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: projectionColor.withValues(alpha: 0.5), width: 1.5), 
+      ),
+      child: Column(
+        children: [
+          Icon(projectionIcon, color: projectionColor, size: 40),
+          const SizedBox(height: 15),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(projectionTitle, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => _showInfoDialog(
+                  "Projected Impact", 
+                  "This projection is based on the scientific rule that a net deficit of ~7,700 kcal equates to roughly 1 kg of fat loss. It averages your 7-day energy balance to predict future results."
+                ),
+                child: const Icon(Icons.info_outline, color: Colors.white54, size: 20),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(projectionText, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.4)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeeklyEnergyBalanceHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text("Weekly Energy Balance", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          icon: const Icon(Icons.info_outline, color: Colors.white54, size: 22),
+          onPressed: () => _showInfoDialog(
+            "Energy Balance", 
+            "This chart compares the calories you consumed (food) against the calories you burned (BMR + activity)."
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWeeklyEnergyBalanceChart() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBackground, 
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.circle, color: AppTheme.primaryColor, size: 10),
+              const SizedBox(width: 5),
+              const Text("Consumed", style: TextStyle(color: Colors.white70, fontSize: 12)),
+              const SizedBox(width: 20),
+              const Icon(Icons.circle, color: Color(0xff00E676), size: 10),
+              const SizedBox(width: 5),
+              const Text("Burned", style: TextStyle(color: Colors.white70, fontSize: 12)),
+            ],
+          ),
+          const SizedBox(height: 30),
+          SizedBox(
+            height: 150,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: _weeklyBars.map((dayData) {
+                double maxVal = max(dayData['consumed'], dayData['burned']);
+                if (maxVal < 1) maxVal = 1; 
+                
+                double consumedHeight = (dayData['consumed'] / maxVal) * 120;
+                double burnedHeight = (dayData['burned'] / maxVal) * 120;
+
+                return Tooltip(
+                  triggerMode: TooltipTriggerMode.tap, 
+                  showDuration: const Duration(seconds: 3), 
+                  preferBelow: false, 
+                  verticalOffset: 20, 
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.background.withValues(alpha: 0.95), 
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.5)), 
+                  ),
+                  textStyle: const TextStyle(color: Colors.white, fontSize: 13, height: 1.5),
+                  richMessage: TextSpan(
+                    children: [
+                      TextSpan(text: "${dayData['day']}\n", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                      TextSpan(text: "Consumed: ", style: TextStyle(color: Colors.white.withValues(alpha: 0.7))), 
+                      TextSpan(text: "${dayData['consumed'].toInt()} kcal\n", style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold)),
+                      TextSpan(text: "Burned: ", style: TextStyle(color: Colors.white.withValues(alpha: 0.7))), 
+                      TextSpan(text: "${dayData['burned'].toInt()} kcal", style: const TextStyle(color: Color(0xff00E676), fontWeight: FontWeight.bold)),
+                    ]
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Container(width: 10, height: consumedHeight, decoration: BoxDecoration(color: AppTheme.primaryColor, borderRadius: BorderRadius.circular(5))),
+                          const SizedBox(width: 4),
+                          Container(width: 10, height: burnedHeight, decoration: BoxDecoration(color: const Color(0xff00E676), borderRadius: BorderRadius.circular(5))),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(dayData['day'], style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMacroConsistencyHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text("Macro Consistency", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          icon: const Icon(Icons.info_outline, color: Colors.white54, size: 22),
+          onPressed: () => _showInfoDialog(
+            "Macro Consistency", 
+            "This score shows how many days over the last week you successfully met your Protein, Carbs, and Fats goals. Hitting your macros consistently ensures you can hit your goals!"
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMacroConsistencyCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBackground, 
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildMiniMacroCircle("Protein", _proteinHits, Colors.redAccent),
+          _buildMiniMacroCircle("Carbs", _carbsHits, Colors.orangeAccent),
+          _buildMiniMacroCircle("Fats", _fatsHits, Colors.purpleAccent),
+        ],
+      ),
+    );
+  }
+
+  void _showInfoDialog(String title, String content) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.cardBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.lightbulb_outline, color: AppTheme.primaryColor),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+        content: Text(content, style: const TextStyle(color: Colors.white70, height: 1.4, fontSize: 15)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Got it", style: TextStyle(color: Color(0xff00E5FF), fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniMacroCircle(String label, int hits, Color color) {
+    return Column(
+      children: [
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox(height: 60, width: 60, child: CircularProgressIndicator(value: 1.0, strokeWidth: 6, color: Colors.white.withValues(alpha: 0.1))), 
+            SizedBox(height: 60, width: 60, child: CircularProgressIndicator(value: hits / 7, strokeWidth: 6, color: color, strokeCap: StrokeCap.round, backgroundColor: Colors.transparent)),
+            Text("$hits/7", style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+      ],
     );
   }
 }

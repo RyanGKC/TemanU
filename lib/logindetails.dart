@@ -69,27 +69,27 @@ class _LoginDetailsState extends State<LoginDetails> {
   }
 
   // A dedicated fast-path for developers
-  Future<void> _handleDevLogin() async {
-    setState(() => _isLoading = true);
+  // Future<void> _handleDevLogin() async {
+  //   setState(() => _isLoading = true);
 
-    // Hardcoded credentials for your test account
-    bool success = await ApiService.login('RyanG', '12345678');
+  //   // Hardcoded credentials for your test account
+  //   bool success = await ApiService.login('RyanG', '12345678');
 
-    if (mounted) {
-      setState(() => _isLoading = false);
+  //   if (mounted) {
+  //     setState(() => _isLoading = false);
 
-      if (success) {
-        Navigator.pushReplacement(
-          context, 
-          MaterialPageRoute(builder: (context) => const MainScreen())
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Dev login failed. Is the test account registered?')),
-        );
-      }
-    }
-  }
+  //     if (success) {
+  //       Navigator.pushReplacement(
+  //         context, 
+  //         MaterialPageRoute(builder: (context) => const MainScreen())
+  //       );
+  //     } else {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(content: Text('Dev login failed. Is the test account registered?')),
+  //       );
+  //     }
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {

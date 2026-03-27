@@ -822,12 +822,15 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
     );
   }
 
+// ==========================================
+  // MAIN BUILD
+  // ==========================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
       extendBody: true,
-
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -843,9 +846,7 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(
-              color: AppTheme.background.withValues(alpha: 0.5) 
-            )
+            child: Container(color: AppTheme.background.withValues(alpha: 0.5)) 
           )
         ),
         leading: IconButton(
@@ -859,7 +860,6 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
           ),
         ],
       ),
-
       body: RefreshIndicator(
         color: AppTheme.primaryColor,
         backgroundColor: AppTheme.cardBackground,
@@ -870,343 +870,433 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
             _generateAITip(forceRefresh: true),
           ]);
         },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(), 
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(totalStepsLabel, style: const TextStyle(color: Colors.white, fontSize: 16)),
-                      _isLoading 
-                        ? const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 4.0),
-                            child: SizedBox(height: 25, width: 25, child: CircularProgressIndicator(color: AppTheme.primaryColor, strokeWidth: 3)),
-                          )
-                        : Text(
-                            "$currentSteps",
-                            style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
-                          ),
-                      const Text("steps", style: TextStyle(color: Colors.white70, fontSize: 16)),
-                    ],
-                  ),
-                  _fitbitConnected
-                    ? InkWell(
-                        onTap: _isRefreshing ? null : () => _handleRefreshFitbit(),
-                        child: Row(
-                          children: [
-                            RotationTransition(
-                              turns: Tween(begin: 0.0, end: 1.0).animate(_refreshIconController),
-                              child: const Icon(Icons.sync, color: Colors.white),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _isRefreshing ? "Refreshing..." : "Refresh Data",
-                              style: const TextStyle(color: Colors.white, fontSize: 16),
-                            ),
-                          ],
-                        ),
-                      )
-                    : InkWell(
-                        onTap: _showFitbitConnectDialog,
-                        child: Row(
-                          children: const [
-                            Icon(Icons.watch, color: Colors.white),
-                            SizedBox(width: 6),
-                            Text("Connect Fitbit", style: TextStyle(color: Colors.white, fontSize: 18)),
-                          ],
-                        ),
-                      ),
-                ],
-              ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // --- THE RESPONSIVE TRIGGER ---
+            bool isWideScreen = constraints.maxWidth > 850;
 
-              const SizedBox(height: 18),
-
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "$fullRangeName Overview",
-                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-              ),
-
-              const SizedBox(height: 10),
-              
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
-                    onPressed: () {
-                      setState(() => dateOffset--); 
-                      _fetchLiveFitbitData();       
-                    },
-                  ),
-                  Text(
-                    dateLabel, 
-                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      Icons.chevron_right, 
-                      color: dateOffset < 0 ? Colors.white : Colors.white38, 
-                      size: 30
-                    ),
-                    onPressed: dateOffset < 0 ? () {
-                      setState(() => dateOffset++); 
-                      _fetchLiveFitbitData();       
-                    } : null, 
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 10),
-
-              Container(
-                height: 300,
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.cardBackground,
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
-                ),
-                child: _isLoading 
-                  ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                  : MyBarChart(
-                      labels: getLabelsList(),
-                      values: getValuesList(),
-                      showSideLabels: true,
-                      selectedRange: selectedRange,
-                      tooltipLabels: (selectedRange == "3M" || selectedRange == "6M") 
-                          ? (selectedRange == "3M" ? threeMonthTooltipLabels : sixMonthTooltipLabels) 
-                          : null,
-                    ),
-              ),
-
-              const SizedBox(height: 14),
-
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                decoration: BoxDecoration(
-                  color: AppTheme.textSecondary.withValues(alpha: 0.1), 
-                  borderRadius: BorderRadius.circular(30),
-                ),
+            if (isWideScreen) {
+              // ==========================================
+              // DESKTOP / TABLET LAYOUT (2 Columns)
+              // ==========================================
+              return SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(24),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    filterButton("D"),
-                    filterButton("W"),
-                    filterButton("M"),
-                    filterButton("3M"), 
-                    filterButton("6M"),
-                    filterButton("Y"),
+                    // LEFT COLUMN: Chart, Navigation & Filters
+                    Expanded(
+                      flex: 5,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildOverviewHeader(),
+                          const SizedBox(height: 10),
+                          _buildDateNavigator(),
+                          const SizedBox(height: 10),
+                          _buildChart(), 
+                          const SizedBox(height: 16),
+                          _buildFilters(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 32),
+                    // RIGHT COLUMN: Stats, AI Sidebar & Comparisons side-by-side
+                    Expanded(
+                      flex: 4, // Slightly widened from 3 to 4 to give the side-by-side charts room to breathe
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildCurrentStepsAndSync(),
+                          const SizedBox(height: 32),
+                          _buildInfoCards(isWide: true), 
+                          const SizedBox(height: 24),
+                          _buildAiTips(),
+                          const SizedBox(height: 24),
+                          // Comparisons now forcefully side-by-side
+                          _buildComparisonWidgets(), 
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              
-              const SizedBox(height: 16),
-
-              Row(
-                children: [
-                  // --- THE FIX: Updated label for the Day tab ---
-                  Expanded(child: infoCard(selectedRange == "D" ? "Avg (Mon-Sun)" : "Daily Avg", "$averageSteps")), 
-                  const SizedBox(width: 8),
-   
-                  Expanded(
-                    child: InkWell(
-                      onTap: _showEditGoalDialog,
-                      borderRadius: BorderRadius.circular(24),
-                      child: Container(
-                        height: 95,
-                        decoration: BoxDecoration(
-                          color: AppTheme.cardBackground,
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
-                        ),
-                        child: Stack(
-                          children: [
-                            Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Text(
-                                    "Goal",
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(color: Colors.white, fontSize: 16),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    _formatNumber(stepGoal),
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Positioned(
-                              top: 15,
-                              right: 15,
-                              child: Icon(
-                                Icons.edit,
-                                size: 15,
-                                color: Colors.white.withValues(alpha: 0.6), 
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
+              );
+            } else {
               // ==========================================
-              // AI TIPS SECTION
+              // MOBILE LAYOUT (Single Column)
               // ==========================================
-              InkWell(
-                onTap: () {
-                  final updatedData = Map<String, dynamic>.from(widget.baseUserData);
-                  updatedData['activity'] = "$_latestIntradaySteps steps";
-                  updatedData['stepGoal'] = "$stepGoal steps"; 
-                  
-                  Navigator.push(
-                    context, 
-                    MaterialPageRoute(builder: (_) => AssistantPage(userData: updatedData))
-                  );
-                },
-                borderRadius: BorderRadius.circular(22), 
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.cardBackground,
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: const [
-                          Text("💡 AI Tips", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                          Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18), 
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      
-                      _isLoadingTip 
-                        ? Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Padding(
-                                padding: EdgeInsets.only(top: 2.0),
-                                child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2)),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  "Analyzing your activity data...", 
-                                  style: const TextStyle(color: Colors.white70, fontSize: 14)
-                                ),
-                              ),
-                            ],
-                          )
-                        : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
-                    ],
-                  ),
+              return SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    _buildCurrentStepsAndSync(),
+                    const SizedBox(height: 18),
+                    _buildOverviewHeader(),
+                    const SizedBox(height: 10),
+                    _buildDateNavigator(),
+                    const SizedBox(height: 10),
+                    _buildChart(),
+                    const SizedBox(height: 16),
+                    _buildFilters(),
+                    const SizedBox(height: 16),
+                    _buildInfoCards(isWide: false),
+                    const SizedBox(height: 16),
+                    _buildAiTips(),
+                    const SizedBox(height: 16),
+                    _buildComparisonWidgets(),
+                    const SizedBox(height: 40),
+                  ],
                 ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // ==========================================
-              // COMPARISON WIDGETS
-              // ==========================================
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 200,
-                      padding: const EdgeInsets.all(16),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: AppTheme.cardBackground,
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
-                      ),
-                      child: Column(
-                        children: [
-                          const Text("Monthly Avg", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 8),
-                          Expanded(
-                            child: _isLoadingComparisons 
-                              ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                              : MyBarChart(
-                                  values: monthlyAverageValues,
-                                  labels: monthlyAverageLabels,
-                                  showSideLabels: false,
-                                  selectedRange: "COMPARE", 
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Container(
-                      height: 200,
-                      padding: const EdgeInsets.all(16),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: AppTheme.cardBackground,
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
-                      ),
-                      child: Column(
-                        children: [
-                          const Text("Yearly Avg", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 8),
-                          Expanded(
-                            child: _isLoadingComparisons 
-                              ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                              : MyBarChart(
-                                  values: yearlyAverageValues,
-                                  labels: yearlyAverageLabels,
-                                  showSideLabels: false,
-                                  selectedRange: "COMPARE", 
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 40),
-            ],
-          ),
+              );
+            }
+          },
         ),
       ),
     );
   }
 
-  Widget infoCard(String title, String value) {
+  // ==========================================
+  // UI HELPER METHODS
+  // ==========================================
+
+  Widget _buildCurrentStepsAndSync() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(totalStepsLabel, style: const TextStyle(color: Colors.white, fontSize: 16)),
+            _isLoading 
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4.0),
+                  child: SizedBox(height: 25, width: 25, child: CircularProgressIndicator(color: AppTheme.primaryColor, strokeWidth: 3)),
+                )
+              : Text(
+                  "$currentSteps",
+                  style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
+                ),
+            const Text("steps", style: TextStyle(color: Colors.white70, fontSize: 16)),
+          ],
+        ),
+        _fitbitConnected
+          ? InkWell(
+              onTap: _isRefreshing ? null : () => _handleRefreshFitbit(),
+              child: Row(
+                children: [
+                  RotationTransition(
+                    turns: Tween(begin: 0.0, end: 1.0).animate(_refreshIconController),
+                    child: const Icon(Icons.sync, color: Colors.white),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _isRefreshing ? "Refreshing..." : "Refresh Data",
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ],
+              ),
+            )
+          : InkWell(
+              onTap: _showFitbitConnectDialog,
+              child: Row(
+                children: const [
+                  Icon(Icons.watch, color: Colors.white),
+                  SizedBox(width: 6),
+                  Text("Connect Fitbit", style: TextStyle(color: Colors.white, fontSize: 18)),
+                ],
+              ),
+            ),
+      ],
+    );
+  }
+
+  Widget _buildOverviewHeader() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        "$fullRangeName Overview",
+        style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildDateNavigator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
+          onPressed: () {
+            setState(() => dateOffset--); 
+            _fetchLiveFitbitData();       
+          },
+        ),
+        Text(
+          dateLabel, 
+          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        IconButton(
+          icon: Icon(
+            Icons.chevron_right, 
+            color: dateOffset < 0 ? Colors.white : Colors.white38, 
+            size: 30
+          ),
+          onPressed: dateOffset < 0 ? () {
+            setState(() => dateOffset++); 
+            _fetchLiveFitbitData();       
+          } : null, 
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChart() {
+    return Container(
+      height: 317, 
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBackground,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
+      ),
+      child: _isLoading 
+        ? const Center(child: CircularProgressIndicator(color: Colors.white))
+        : MyBarChart(
+            labels: getLabelsList(),
+            values: getValuesList(),
+            showSideLabels: true,
+            selectedRange: selectedRange,
+            tooltipLabels: (selectedRange == "3M" || selectedRange == "6M") 
+                ? (selectedRange == "3M" ? threeMonthTooltipLabels : sixMonthTooltipLabels) 
+                : null,
+          ),
+    );
+  }
+
+  Widget _buildFilters() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+      decoration: BoxDecoration(
+        color: AppTheme.textSecondary.withValues(alpha: 0.1), 
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          filterButton("D"),
+          filterButton("W"),
+          filterButton("M"),
+          filterButton("3M"), 
+          filterButton("6M"),
+          filterButton("Y"),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCards({required bool isWide}) {
+    if (isWide) {
+      return Column(
+        children: [
+          infoCard(selectedRange == "D" ? "Avg (Mon-Sun)" : "Daily Avg", "$averageSteps", isWide: true), 
+          const SizedBox(height: 16),
+          _buildGoalCard(isWide: true),
+        ],
+      );
+    } else {
+      return Row(
+        children: [
+          Expanded(child: infoCard(selectedRange == "D" ? "Avg (Mon-Sun)" : "Daily Avg", "$averageSteps")), 
+          const SizedBox(width: 8),
+          Expanded(child: _buildGoalCard(isWide: false)),
+        ],
+      );
+    }
+  }
+
+  Widget _buildGoalCard({required bool isWide}) {
+    return InkWell(
+      onTap: _showEditGoalDialog,
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        height: 95,
+        width: isWide ? double.infinity : null,
+        decoration: BoxDecoration(
+          color: AppTheme.cardBackground,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    "Goal",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _formatNumber(stepGoal),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              top: 15,
+              right: 15,
+              child: Icon(
+                Icons.edit,
+                size: 15,
+                color: Colors.white.withValues(alpha: 0.6), 
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAiTips() {
+    return InkWell(
+      onTap: () {
+        final updatedData = Map<String, dynamic>.from(widget.baseUserData);
+        updatedData['activity'] = "$_latestIntradaySteps steps";
+        updatedData['stepGoal'] = "$stepGoal steps"; 
+        
+        Navigator.push(
+          context, 
+          MaterialPageRoute(builder: (_) => AssistantPage(userData: updatedData))
+        );
+      },
+      borderRadius: BorderRadius.circular(22), 
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.cardBackground,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: const [
+                Text("💡 AI Tips", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18), 
+              ],
+            ),
+            const SizedBox(height: 12),
+            
+            _isLoadingTip 
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2.0),
+                      child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        "Analyzing your activity data...", 
+                        style: const TextStyle(color: Colors.white70, fontSize: 14)
+                      ),
+                    ),
+                  ],
+                )
+              : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildComparisonWidgets() {
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 200,
+            padding: const EdgeInsets.all(16),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppTheme.cardBackground,
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
+            ),
+            child: Column(
+              children: [
+                const Text("Monthly Avg", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: _isLoadingComparisons 
+                    ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                    : MyBarChart(
+                        values: monthlyAverageValues,
+                        labels: monthlyAverageLabels,
+                        showSideLabels: false,
+                        selectedRange: "COMPARE", 
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Container(
+            height: 200,
+            padding: const EdgeInsets.all(16),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppTheme.cardBackground,
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
+            ),
+            child: Column(
+              children: [
+                const Text("Yearly Avg", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: _isLoadingComparisons 
+                    ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                    : MyBarChart(
+                        values: yearlyAverageValues,
+                        labels: yearlyAverageLabels,
+                        showSideLabels: false,
+                        selectedRange: "COMPARE", 
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Small reusable widgets
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Widget infoCard(String title, String value, {bool isWide = false}) {
     return Container(
       height: 95,
+      width: isWide ? double.infinity : null,
       decoration: BoxDecoration(color: AppTheme.cardBackground, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1))), 
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

@@ -424,10 +424,8 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(
-              color: AppTheme.background.withOpacity(0.5)
-            )
-          )
+            child: Container(color: AppTheme.background.withOpacity(0.5)),
+          ),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppTheme.primaryColor),
@@ -440,237 +438,323 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
           ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // --- THE RESPONSIVE TRIGGER ---
+          bool isWideScreen = constraints.maxWidth > 850;
+
+          if (isWideScreen) {
+            // ==========================================
+            // DESKTOP / TABLET LAYOUT (2 Columns)
+            // ==========================================
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // LEFT COLUMN: Chart & Filters
+                  Expanded(
+                    flex: 5,
+                    child: Column(
+                      children: [
+                        _buildDateNavigator(),
+                        const SizedBox(height: 16),
+                        _buildChart(),
+                        const SizedBox(height: 16),
+                        _buildFilters(),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 32),
+                  // RIGHT COLUMN: Stats & AI Sidebar
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildCurrentWeightAndAddData(),
+                        const SizedBox(height: 32),
+                        _buildInfoCards(isWide: true),
+                        const SizedBox(height: 24),
+                        _buildAiTips(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          } else {
+            // ==========================================
+            // MOBILE LAYOUT (Single Column)
+            // ==========================================
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _buildCurrentWeightAndAddData(),
+                  const SizedBox(height: 18),
+                  _buildDateNavigator(),
+                  const SizedBox(height: 10),
+                  _buildChart(),
+                  const SizedBox(height: 16),
+                  _buildFilters(),
+                  const SizedBox(height: 16),
+                  _buildInfoCards(isWide: false),
+                  const SizedBox(height: 16),
+                  _buildAiTips(),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  // ==========================================
+  // UI HELPER METHODS
+  // ==========================================
+
+  Widget _buildCurrentWeightAndAddData() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Current",
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  currentWeight.toStringAsFixed(1),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 42,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8.0, left: 2),
+                  child: Text(
+                    "kg",
+                    style: TextStyle(color: Colors.white, fontSize: 20),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        InkWell(
+          onTap: showAddDataDialog,
+          child: Row(
+            children: const [
+              Icon(Icons.add_box_outlined, color: Colors.white),
+              SizedBox(width: 6),
+              Text(
+                "Add data",
+                style: TextStyle(color: Colors.white, fontSize: 18),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateNavigator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
+          onPressed: () {
+            setState(() {
+              dateOffset--;
+              touchedIndex = null;
+              _aggregateData();
+            });
+            _animationController.reset();
+            _animationController.forward();
+          },
+        ),
+        Text(
+          dateRangeLabel,
+          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        IconButton(
+          icon: Icon(
+            Icons.chevron_right,
+            color: dateOffset < 0 ? Colors.white : Colors.white38,
+            size: 30,
+          ),
+          onPressed: dateOffset < 0
+              ? () {
+                  setState(() {
+                    dateOffset++;
+                    touchedIndex = null;
+                    _aggregateData();
+                  });
+                  _animationController.reset();
+                  _animationController.forward();
+                }
+              : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChart() {
+    return Container(
+      height: 317,
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBackground,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+      ),
+      child: _isLoadingChart
+          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          : AnimatedBuilder(
+              animation: _animation,
+              builder: (context, child) {
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    return MouseRegion(
+                      onHover: (event) => _handleChartInteraction(event.localPosition, constraints.maxWidth),
+                      onExit: (_) {
+                        if (touchedIndex != null) setState(() => touchedIndex = null);
+                      },
+                      child: GestureDetector(
+                        onTapUp: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                        onHorizontalDragUpdate: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                        onHorizontalDragEnd: (_) {
+                          if (touchedIndex != null) setState(() => touchedIndex = null);
+                        },
+                        child: CustomPaint(
+                          size: Size(constraints.maxWidth, constraints.maxHeight),
+                          painter: WeightLineChartPainter(aggTimes, aggWeights, selectedRange, touchedIndex, _animation.value, dateOffset),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              }),
+    );
+  }
+
+  Widget _buildFilters() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+      decoration: BoxDecoration(
+        color: AppTheme.textSecondary.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          filterButton("D"),
+          filterButton("W"),
+          filterButton("M"),
+          filterButton("3M"),
+          filterButton("6M"),
+          filterButton("Y"),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCards({required bool isWide}) {
+    if (isWide) {
+      // Stack vertically in the desktop sidebar
+      return Column(
+        children: [
+          infoCard("Goal", goalWeight.toStringAsFixed(0), isWide: true),
+          const SizedBox(height: 16),
+          infoCard("Change", "${changeWeight.toStringAsFixed(1)}kg", isWide: true),
+          const SizedBox(height: 16),
+          infoCard("BMI", bmi.toStringAsFixed(1), isWide: true),
+        ],
+      );
+    } else {
+      // Row layout for mobile
+      return Row(
+        children: [
+          Expanded(child: infoCard("Goal", goalWeight.toStringAsFixed(0))),
+          const SizedBox(width: 8),
+          Expanded(child: infoCard("Change", "${changeWeight.toStringAsFixed(1)}kg")),
+          const SizedBox(width: 8),
+          Expanded(child: infoCard("BMI", bmi.toStringAsFixed(1))),
+        ],
+      );
+    }
+  }
+
+  Widget _buildAiTips() {
+    return InkWell(
+      onTap: () {
+        final updatedData = Map<String, dynamic>.from(widget.baseUserData);
+        updatedData['weight'] = currentWeight.toString();
+
+        Navigator.push(
+            context, MaterialPageRoute(builder: (_) => AssistantPage(userData: updatedData)));
+      },
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        width: double.infinity,
         padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.cardBackground,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
+        ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Current",
-                      style: TextStyle(color: Colors.white, fontSize: 16),
-                    ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          currentWeight.toStringAsFixed(1),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 42,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 8.0, left: 2),
-                          child: Text(
-                            "kg",
-                            style: TextStyle(color: Colors.white, fontSize: 20),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                InkWell(
-                  onTap: showAddDataDialog,
-                  child: Row(
-                    children: const [
-                      Icon(Icons.add_box_outlined, color: Colors.white),
-                      SizedBox(width: 6),
-                      Text(
-                        "Add data",
-                        style: TextStyle(color: Colors.white, fontSize: 18),
+              children: const [
+                Text("💡 AI Tips",
+                    style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _isLoadingTip
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(top: 2.0),
+                        child: SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2)),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text("Analyzing your body weight trends...",
+                            style: const TextStyle(color: Colors.white70, fontSize: 14)),
                       ),
                     ],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 18),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
-                  onPressed: () {
-                    setState(() {
-                      dateOffset--;
-                      touchedIndex = null;
-                      _aggregateData(); 
-                    });
-                    _animationController.reset();
-                    _animationController.forward();
-                  },
-                ),
-                Text(
-                  dateRangeLabel, 
-                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                IconButton(
-                  icon: Icon(
-                    Icons.chevron_right, 
-                    color: dateOffset < 0 ? Colors.white : Colors.white38, 
-                    size: 30
-                  ),
-                  onPressed: dateOffset < 0 ? () {
-                    setState(() {
-                      dateOffset++;
-                      touchedIndex = null;
-                      _aggregateData(); 
-                    });
-                    _animationController.reset();
-                    _animationController.forward();
-                  } : null, 
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            
-            // Chart Container
-            Container(
-              height: 300,
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.cardBackground,
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
-              ),
-              child: _isLoadingChart 
-                ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                : AnimatedBuilder(
-                    animation: _animation,
-                    builder: (context, child) {
-                      return LayoutBuilder(
-                        builder: (context, constraints) {
-                          return MouseRegion(
-                            onHover: (event) => _handleChartInteraction(event.localPosition, constraints.maxWidth),
-                            onExit: (_) {
-                              if (touchedIndex != null) setState(() => touchedIndex = null);
-                            },
-                            child: GestureDetector(
-                              onTapUp: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
-                              onHorizontalDragUpdate: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
-                              onHorizontalDragEnd: (_) {
-                                if (touchedIndex != null) setState(() => touchedIndex = null);
-                              },
-                              child: CustomPaint(
-                                size: Size(constraints.maxWidth, constraints.maxHeight),
-                                painter: WeightLineChartPainter(aggTimes, aggWeights, selectedRange, touchedIndex, _animation.value, dateOffset)
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    }
-                  ),
-            ),
-
-            const SizedBox(height: 16),
-
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-              decoration: BoxDecoration(
-                color: AppTheme.textSecondary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  filterButton("D"), 
-                  filterButton("W"),
-                  filterButton("M"),
-                  filterButton("3M"),
-                  filterButton("6M"),
-                  filterButton("Y"),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            Row(
-              children: [
-                Expanded(child: infoCard("Goal", goalWeight.toStringAsFixed(0))),
-                const SizedBox(width: 8),
-                Expanded(child: infoCard("Change", "${changeWeight.toStringAsFixed(1)}kg")),
-                const SizedBox(width: 8),
-                Expanded(child: infoCard("BMI", bmi.toStringAsFixed(1))),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            InkWell(
-              onTap: () {
-                final updatedData = Map<String, dynamic>.from(widget.baseUserData);
-                updatedData['weight'] = currentWeight.toString();
-                
-                Navigator.push(
-                  context, 
-                  MaterialPageRoute(builder: (_) => AssistantPage(userData: updatedData))
-                );
-              },
-              borderRadius: BorderRadius.circular(22), 
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.cardBackground,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
-                        Text("💡 AI Tips", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                        Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18), 
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    
-                    _isLoadingTip 
-                      ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Padding(
-                              padding: EdgeInsets.only(top: 2.0),
-                              child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2)),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                "Analyzing your body weight trends...", 
-                                style: const TextStyle(color: Colors.white70, fontSize: 14)
-                              ),
-                            ),
-                          ],
-                        )
-                      : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
+                  )
+                : Text(_dynamicAiTip,
+                    style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
           ],
         ),
       ),
     );
   }
 
-  Widget infoCard(String title, String value) {
+  Widget infoCard(String title, String value, {bool isWide = false}) {
     return Container(
       height: 95,
+      width: isWide ? double.infinity : null, // Stretch to fill column on wide screens
       decoration: BoxDecoration(
         color: AppTheme.cardBackground,
         borderRadius: BorderRadius.circular(24),
@@ -681,7 +765,8 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
         children: [
           Text(title, style: const TextStyle(color: Colors.white, fontSize: 18)),
           const SizedBox(height: 8),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+          Text(value,
+              style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -694,12 +779,12 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
         setState(() {
           selectedRange = label;
           touchedIndex = null;
-          dateOffset = 0; 
-          _aggregateData(); 
+          dateOffset = 0;
+          _aggregateData();
         });
-        
+
         _generateAITip(forceRefresh: true);
-        
+
         _animationController.reset();
         _animationController.forward();
       },
@@ -709,7 +794,11 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
           color: selected ? AppTheme.primaryColor : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Text(label, style: TextStyle(color: selected ? AppTheme.textPrimary : AppTheme.textSecondary, fontSize: 15, fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
+        child: Text(label,
+            style: TextStyle(
+                color: selected ? AppTheme.textPrimary : AppTheme.textSecondary,
+                fontSize: 15,
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
       ),
     );
   }

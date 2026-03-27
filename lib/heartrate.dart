@@ -431,8 +431,6 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     );
   }
 
-  // ─── Build ────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -449,14 +447,13 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(color: AppTheme.background.withValues(alpha: 0.5)), // <-- Updated
+            child: Container(color: AppTheme.background.withValues(alpha: 0.5)),
           ),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppTheme.primaryColor),
           onPressed: () => Navigator.pop(context),
         ),
-        // --- NEW: Share Icon Added ---
         actions: [
           IconButton(
             onPressed: openSharePage,
@@ -464,222 +461,303 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // ── Header row ──
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("Current", style: TextStyle(color: Colors.white, fontSize: 16)),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Text(
-                          currentHr > 0 ? "$currentHr" : "–",
-                          style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(width: 4),
-                        const Text("bpm", style: TextStyle(color: Colors.white70, fontSize: 20)),
-                      ],
-                    ),
-                    Text(zoneText, style: const TextStyle(color: Colors.white70, fontSize: 16)),
-                  ],
-                ),
-                InkWell(
-                  onTap: _showAddDataDialog,
-                  child: const Row(
-                    children: [
-                      Icon(Icons.add_box_outlined, color: Colors.white),
-                      SizedBox(width: 6),
-                      Text("Add data", style: TextStyle(color: Colors.white, fontSize: 18)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // --- THE RESPONSIVE TRIGGER ---
+          bool isWideScreen = constraints.maxWidth > 850;
 
-            const SizedBox(height: 18),
-
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                "$fullRangeName Overview",
-                style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            // ── Date navigator ──
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
-                  onPressed: () {
-                    setState(() { dateOffset--; touchedIndex = null; _aggregateData(); });
-                    _animationController.reset();
-                    _animationController.forward();
-                  },
-                ),
-                Text(dateRangeLabel,
-                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                IconButton(
-                  icon: Icon(Icons.chevron_right,
-                    color: dateOffset < 0 ? Colors.white : Colors.white38, size: 30),
-                  onPressed: dateOffset < 0 ? () {
-                    setState(() { dateOffset++; touchedIndex = null; _aggregateData(); });
-                    _animationController.reset();
-                    _animationController.forward();
-                  } : null,
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 10),
-
-            // ── Chart ──
-            Container(
-              height: 300,
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.cardBackground,
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
-              ),
-              child: _isLoadingChart 
-                ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                : AnimatedBuilder(
-                    animation: _animation,
-                    builder: (context, child) {
-                      return LayoutBuilder(
-                        builder: (context, constraints) {
-                          return MouseRegion(
-                            onHover: (event) => _handleChartInteraction(event.localPosition, constraints.maxWidth),
-                            onExit: (_) {
-                              if (touchedIndex != null) setState(() => touchedIndex = null);
-                            },
-                            child: GestureDetector(
-                              onTapUp: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
-                              onHorizontalDragUpdate: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
-                              onHorizontalDragEnd: (_) {
-                                if (touchedIndex != null) setState(() => touchedIndex = null);
-                              },
-                              child: CustomPaint(
-                                size: Size(constraints.maxWidth, constraints.maxHeight),
-                                painter: HeartRateChartPainter(
-                                  timeData:     aggTimes,
-                                  minBpmData:   aggMinBpm,
-                                  maxBpmData:   aggMaxBpm,
-                                  rangeLabel:   selectedRange,
-                                  touchedIndex: touchedIndex,
-                                  dateOffset:   dateOffset,
-                                  progress:     _animation.value,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-            ),
-
-            const SizedBox(height: 14),
-
-            // ── Range filter ──
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-              decoration: BoxDecoration(
-                color: AppTheme.textSecondary.withValues(alpha: 0.1), // <-- Updated
-                borderRadius: BorderRadius.circular(30),
-              ),
+          if (isWideScreen) {
+            // ==========================================
+            // DESKTOP / TABLET LAYOUT (2 Columns)
+            // ==========================================
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: ["D","W","M","3M","6M","Y"].map(_filterButton).toList(),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // ── Info cards ──
-            Row(
-              children: [
-                Expanded(child: _infoCard("Current HR",  currentHr > 0 ? "$currentHr\nbpm" : "–")),
-                const SizedBox(width: 8),
-                Expanded(child: _infoCard("Resting HR",  restingHr > 0 ? "$restingHr\nbpm" : "–")),
-                const SizedBox(width: 8),
-                Expanded(child: _zoneCard("Zone", zoneText)),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // ── AI Tips ──
-            InkWell(
-              onTap: () {
-                final updatedData = Map<String, dynamic>.from(widget.baseUserData);
-                updatedData['heartRate'] = currentHr.toString();
-                
-                Navigator.push(
-                  context, 
-                  MaterialPageRoute(
-                    builder: (_) => AssistantPage(userData: updatedData)
-                  )
-                );
-              },
-              borderRadius: BorderRadius.circular(22),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.cardBackground,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
-                        Text("💡 AI Tips", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                        Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // LEFT COLUMN: Chart, Navigation & Filters
+                  Expanded(
+                    flex: 5,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildOverviewHeader(),
+                        const SizedBox(height: 10),
+                        _buildDateNavigator(),
+                        const SizedBox(height: 10),
+                        _buildChart(), // Now 317px tall
+                        const SizedBox(height: 16),
+                        _buildFilters(),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    
-                    _isLoadingTip 
-                      ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Padding(
-                              padding: EdgeInsets.only(top: 2.0),
-                              child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2)),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                "Analyzing your heart rate data...", 
-                                style: const TextStyle(color: Colors.white70, fontSize: 14)
-                              ),
-                            ),
-                          ],
-                        )
-                      : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 32),
+                  // RIGHT COLUMN: Stats & AI Sidebar
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildCurrentHrAndAddData(),
+                        const SizedBox(height: 32),
+                        _buildInfoCards(isWide: true), // Stacked height = 317px
+                        const SizedBox(height: 24),
+                        _buildAiTips(),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ),
+            );
+          } else {
+            // ==========================================
+            // MOBILE LAYOUT (Single Column)
+            // ==========================================
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _buildCurrentHrAndAddData(),
+                  const SizedBox(height: 18),
+                  _buildOverviewHeader(),
+                  const SizedBox(height: 10),
+                  _buildDateNavigator(),
+                  const SizedBox(height: 10),
+                  _buildChart(),
+                  const SizedBox(height: 16),
+                  _buildFilters(),
+                  const SizedBox(height: 24),
+                  _buildInfoCards(isWide: false),
+                  const SizedBox(height: 16),
+                  _buildAiTips(),
+                  const SizedBox(height: 80),
+                ],
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
 
-            const SizedBox(height: 80),
+  // ==========================================
+  // UI HELPER METHODS
+  // ==========================================
+
+  Widget _buildCurrentHrAndAddData() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Current", style: TextStyle(color: Colors.white, fontSize: 16)),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  currentHr > 0 ? "$currentHr" : "–",
+                  style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 4),
+                const Text("bpm", style: TextStyle(color: Colors.white70, fontSize: 20)),
+              ],
+            ),
+            Text(zoneText, style: const TextStyle(color: Colors.white70, fontSize: 16)),
+          ],
+        ),
+        InkWell(
+          onTap: _showAddDataDialog,
+          child: const Row(
+            children: [
+              Icon(Icons.add_box_outlined, color: Colors.white),
+              SizedBox(width: 6),
+              Text("Add data", style: TextStyle(color: Colors.white, fontSize: 18)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOverviewHeader() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        "$fullRangeName Overview",
+        style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildDateNavigator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
+          onPressed: () {
+            setState(() { dateOffset--; touchedIndex = null; _aggregateData(); });
+            _animationController.reset();
+            _animationController.forward();
+          },
+        ),
+        Text(dateRangeLabel, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+        IconButton(
+          icon: Icon(Icons.chevron_right, color: dateOffset < 0 ? Colors.white : Colors.white38, size: 30),
+          onPressed: dateOffset < 0 ? () {
+            setState(() { dateOffset++; touchedIndex = null; _aggregateData(); });
+            _animationController.reset();
+            _animationController.forward();
+          } : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChart() {
+    return Container(
+      // --- HEIGHT MATCHED TO SIDEBAR (3 * 95px cards + 2 * 16px spacers) ---
+      height: 317,
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBackground,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
+      ),
+      child: _isLoadingChart 
+        ? const Center(child: CircularProgressIndicator(color: Colors.white))
+        : AnimatedBuilder(
+            animation: _animation,
+            builder: (context, child) {
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  return MouseRegion(
+                    onHover: (event) => _handleChartInteraction(event.localPosition, constraints.maxWidth),
+                    onExit: (_) {
+                      if (touchedIndex != null) setState(() => touchedIndex = null);
+                    },
+                    child: GestureDetector(
+                      onTapUp: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                      onHorizontalDragUpdate: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                      onHorizontalDragEnd: (_) {
+                        if (touchedIndex != null) setState(() => touchedIndex = null);
+                      },
+                      child: CustomPaint(
+                        size: Size(constraints.maxWidth, constraints.maxHeight),
+                        painter: HeartRateChartPainter(
+                          timeData:     aggTimes,
+                          minBpmData:   aggMinBpm,
+                          maxBpmData:   aggMaxBpm,
+                          rangeLabel:   selectedRange,
+                          touchedIndex: touchedIndex,
+                          dateOffset:   dateOffset,
+                          progress:     _animation.value,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+    );
+  }
+
+  Widget _buildFilters() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+      decoration: BoxDecoration(
+        color: AppTheme.textSecondary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: ["D","W","M","3M","6M","Y"].map(_filterButton).toList(),
+      ),
+    );
+  }
+
+  Widget _buildInfoCards({required bool isWide}) {
+    if (isWide) {
+      // Stack vertically for desktop sidebar
+      return Column(
+        children: [
+          _infoCard("Current HR",  currentHr > 0 ? "$currentHr\nbpm" : "–", isWide: true),
+          const SizedBox(height: 16),
+          _infoCard("Resting HR",  restingHr > 0 ? "$restingHr\nbpm" : "–", isWide: true),
+          const SizedBox(height: 16),
+          _zoneCard("Zone", zoneText, isWide: true),
+        ],
+      );
+    } else {
+      // Row layout for mobile
+      return Row(
+        children: [
+          Expanded(child: _infoCard("Current HR",  currentHr > 0 ? "$currentHr\nbpm" : "–")),
+          const SizedBox(width: 8),
+          Expanded(child: _infoCard("Resting HR",  restingHr > 0 ? "$restingHr\nbpm" : "–")),
+          const SizedBox(width: 8),
+          Expanded(child: _zoneCard("Zone", zoneText)),
+        ],
+      );
+    }
+  }
+
+  Widget _buildAiTips() {
+    return InkWell(
+      onTap: () {
+        final updatedData = Map<String, dynamic>.from(widget.baseUserData);
+        updatedData['heartRate'] = currentHr.toString();
+        
+        Navigator.push(
+          context, 
+          MaterialPageRoute(
+            builder: (_) => AssistantPage(userData: updatedData)
+          )
+        );
+      },
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.cardBackground,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: const [
+                Text("💡 AI Tips", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
+              ],
+            ),
+            const SizedBox(height: 12),
+            
+            _isLoadingTip 
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2.0),
+                      child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        "Analyzing your heart rate data...", 
+                        style: const TextStyle(color: Colors.white70, fontSize: 14)
+                      ),
+                    ),
+                  ],
+                )
+              : Text(_dynamicAiTip, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
           ],
         ),
       ),
@@ -688,13 +766,14 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
 
   // ─── Small widgets ────────────────────────────────────────────────────────
 
-  Widget _infoCard(String title, String value) {
+  Widget _infoCard(String title, String value, {bool isWide = false}) {
     return Container(
       height: 95,
+      width: isWide ? double.infinity : null, // Stretches sideways on desktop
       decoration: BoxDecoration(
         color: AppTheme.cardBackground, 
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
+        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), 
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -708,9 +787,10 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     );
   }
 
-  Widget _zoneCard(String title, String value) {
+  Widget _zoneCard(String title, String value, {bool isWide = false}) {
     return Container(
       height: 95,
+      width: isWide ? double.infinity : null, // Stretches sideways on desktop
       decoration: BoxDecoration(color: zoneColor, borderRadius: BorderRadius.circular(24)),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

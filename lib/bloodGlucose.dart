@@ -449,39 +449,29 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Build
-  // ─────────────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
       extendBody: true,
-
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
         title: const Text(
           "Blood Glucose",
-          style: TextStyle(
-            color: AppTheme.primaryColor,
-            fontSize: 25,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(color: AppTheme.primaryColor, fontSize: 25, fontWeight: FontWeight.w600),
         ),
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(color: AppTheme.background.withValues(alpha: 0.5)), // <-- Updated
+            child: Container(color: AppTheme.background.withValues(alpha: 0.5)),
           ),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppTheme.primaryColor),
           onPressed: () => Navigator.pop(context),
         ),
-        // --- NEW: Share Icon Connected ---
         actions: [
           IconButton(
             onPressed: openSharePage, 
@@ -489,244 +479,313 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
           ),
         ],
       ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // --- THE RESPONSIVE TRIGGER ---
+          bool isWideScreen = constraints.maxWidth > 850;
 
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-
-            // ── Header row ──────────────────────────────────────────────────
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("Current", style: TextStyle(color: Colors.white, fontSize: 16)),
-                    Text(
-                      "${currentBGlevel.toInt()} mg/dL",
-                      style: const TextStyle(
-                          color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
-                    ),
-                    Text(zoneText, style: TextStyle(color: zoneColor, fontSize: 16)),
-                  ],
-                ),
-                InkWell(
-                  onTap: _showAddDataDialog,
-                  child: Row(
-                    children: const [
-                      Icon(Icons.add_box_outlined, color: Colors.white),
-                      SizedBox(width: 6),
-                      Text("Add data", style: TextStyle(color: Colors.white, fontSize: 18)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 18),
-
-            // ── Range title ──────────────────────────────────────────────────
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                "$fullRangeName Overview",
-                style: const TextStyle(
-                    color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            // ── Date navigation ──────────────────────────────────────────────
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
-                  onPressed: () {
-                    setState(() {
-                      dateOffset--;
-                      touchedIndex = null;
-                      _aggregateData();
-                    });
-                    _animationController.reset();
-                    _animationController.forward();
-                  },
-                ),
-                Text(
-                  dateRangeLabel,
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                IconButton(
-                  icon: Icon(
-                    Icons.chevron_right,
-                    color: dateOffset < 0 ? Colors.white : Colors.white38,
-                    size: 30,
-                  ),
-                  onPressed: dateOffset < 0
-                      ? () {
-                          setState(() {
-                            dateOffset++;
-                            touchedIndex = null;
-                            _aggregateData();
-                          });
-                          _animationController.reset();
-                          _animationController.forward();
-                        }
-                      : null,
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 10),
-
-            // ── Chart Container — now with MouseRegion + full gesture support ──
-            Container(
-              height: 300,
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.cardBackground,
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
-              ),
-              child: _isLoadingChart 
-                ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                : AnimatedBuilder(
-                    animation: _animation,
-                    builder: (context, child) {
-                      return LayoutBuilder(
-                        builder: (context, constraints) {
-                          return MouseRegion(
-                            onHover: (event) => _handleChartInteraction(event.localPosition, constraints.maxWidth),
-                            onExit: (_) {
-                              if (touchedIndex != null) setState(() => touchedIndex = null);
-                            },
-                            child: GestureDetector(
-                              onTapUp: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
-                              onHorizontalDragUpdate: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
-                              onHorizontalDragEnd: (_) {
-                                if (touchedIndex != null) setState(() => touchedIndex = null);
-                              },
-                              child: CustomPaint(
-                                size: Size(constraints.maxWidth, constraints.maxHeight),
-                                painter: BloodGlucoseChartPainter(
-                                  timeData: aggTimes,
-                                  minBgData: aggLows,
-                                  maxBgData: aggHighs,
-                                  rangeLabel: selectedRange,
-                                  touchedIndex: touchedIndex,
-                                  dateOffset: dateOffset,
-                                  progress: _animation.value,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    }
-                  ),
-            ),
-
-            const SizedBox(height: 14),
-
-            // ── Range filter pills ───────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-              decoration: BoxDecoration(
-                color: AppTheme.textSecondary.withValues(alpha: 0.1), // <-- Updated
-                borderRadius: BorderRadius.circular(30),
-              ),
+          if (isWideScreen) {
+            // ==========================================
+            // DESKTOP / TABLET LAYOUT (2 Columns)
+            // ==========================================
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: ["D", "W", "M", "3M", "6M", "Y"]
-                    .map((r) => _filterButton(r))
-                    .toList(),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ── Info cards ───────────────────────────────────────────────────
-            Row(
-              children: [
-                Expanded(child: _infoCard("Daily Avg", "${averageBGlevel.toInt()}\nmg/dL", AppTheme.cardBackground)),
-                const SizedBox(width: 8),
-                Expanded(child: _infoCard("Fluctuation", "${fluctuation.toInt()}\nmg/dL", AppTheme.cardBackground)),
-                const SizedBox(width: 8),
-                Expanded(child: _infoCard("Status", zoneText, zoneColor)),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // ── AI tips card ─────────────────────────────────────────────────
-            InkWell(
-              onTap: () {
-                final updatedData = Map<String, dynamic>.from(widget.baseUserData);
-                updatedData['bloodGlucose'] = "${currentBGlevel.toInt()} mg/dL";
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => AssistantPage(userData: updatedData)),
-                );
-              },
-              borderRadius: BorderRadius.circular(22),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.cardBackground,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
-                        Text("💡 AI Tips",
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold)),
-                        Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // LEFT COLUMN: Chart, Navigation & Filters
+                  Expanded(
+                    flex: 5,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildOverviewHeader(),
+                        const SizedBox(height: 10),
+                        _buildDateNavigator(),
+                        const SizedBox(height: 10),
+                        _buildChart(), // Height matched to 317px
+                        const SizedBox(height: 16),
+                        _buildFilters(),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    _isLoadingTip
-                        ? Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Padding(
-                                padding: EdgeInsets.only(top: 2),
-                                child: SizedBox(
-                                  height: 16, width: 16,
-                                  child: CircularProgressIndicator(
-                                      color: Colors.white70, strokeWidth: 2),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  "Analyzing your blood glucose data...",
-                                  style: const TextStyle(
-                                      color: Colors.white70, fontSize: 14),
-                                ),
-                              ),
-                            ],
-                          )
-                        : Text(_dynamicAiTip,
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 15, height: 1.5)),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 32),
+                  // RIGHT COLUMN: Stats & AI Sidebar
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildCurrentBgAndAddData(),
+                        const SizedBox(height: 32),
+                        _buildInfoCards(isWide: true), // Stacked height = 317px
+                        const SizedBox(height: 24),
+                        _buildAiTips(),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ),
+            );
+          } else {
+            // ==========================================
+            // MOBILE LAYOUT (Single Column)
+            // ==========================================
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _buildCurrentBgAndAddData(),
+                  const SizedBox(height: 18),
+                  _buildOverviewHeader(),
+                  const SizedBox(height: 10),
+                  _buildDateNavigator(),
+                  const SizedBox(height: 10),
+                  _buildChart(),
+                  const SizedBox(height: 16),
+                  _buildFilters(),
+                  const SizedBox(height: 24),
+                  _buildInfoCards(isWide: false),
+                  const SizedBox(height: 16),
+                  _buildAiTips(),
+                  const SizedBox(height: 80),
+                ],
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
 
-            const SizedBox(height: 40),
+  // ==========================================
+  // UI HELPER METHODS
+  // ==========================================
+
+  Widget _buildCurrentBgAndAddData() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Current", style: TextStyle(color: Colors.white, fontSize: 16)),
+            Text(
+              "${currentBGlevel.toInt()} mg/dL",
+              style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
+            ),
+            Text(zoneText, style: TextStyle(color: zoneColor, fontSize: 16)),
+          ],
+        ),
+        InkWell(
+          onTap: _showAddDataDialog,
+          child: Row(
+            children: const [
+              Icon(Icons.add_box_outlined, color: Colors.white),
+              SizedBox(width: 6),
+              Text("Add data", style: TextStyle(color: Colors.white, fontSize: 18)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOverviewHeader() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        "$fullRangeName Overview",
+        style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildDateNavigator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
+          onPressed: () {
+            setState(() {
+              dateOffset--;
+              touchedIndex = null;
+              _aggregateData();
+            });
+            _animationController.reset();
+            _animationController.forward();
+          },
+        ),
+        Text(
+          dateRangeLabel,
+          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        IconButton(
+          icon: Icon(
+            Icons.chevron_right,
+            color: dateOffset < 0 ? Colors.white : Colors.white38,
+            size: 30,
+          ),
+          onPressed: dateOffset < 0
+              ? () {
+                  setState(() {
+                    dateOffset++;
+                    touchedIndex = null;
+                    _aggregateData();
+                  });
+                  _animationController.reset();
+                  _animationController.forward();
+                }
+              : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChart() {
+    return Container(
+      // --- HEIGHT MATCHED TO SIDEBAR (3 * 95px cards + 2 * 16px spacers) ---
+      height: 317,
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBackground,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)),
+      ),
+      child: _isLoadingChart 
+        ? const Center(child: CircularProgressIndicator(color: Colors.white))
+        : AnimatedBuilder(
+            animation: _animation,
+            builder: (context, child) {
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  return MouseRegion(
+                    onHover: (event) => _handleChartInteraction(event.localPosition, constraints.maxWidth),
+                    onExit: (_) {
+                      if (touchedIndex != null) setState(() => touchedIndex = null);
+                    },
+                    child: GestureDetector(
+                      onTapUp: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                      onHorizontalDragUpdate: (details) => _handleChartInteraction(details.localPosition, constraints.maxWidth),
+                      onHorizontalDragEnd: (_) {
+                        if (touchedIndex != null) setState(() => touchedIndex = null);
+                      },
+                      child: CustomPaint(
+                        size: Size(constraints.maxWidth, constraints.maxHeight),
+                        painter: BloodGlucoseChartPainter(
+                          timeData: aggTimes,
+                          minBgData: aggLows,
+                          maxBgData: aggHighs,
+                          rangeLabel: selectedRange,
+                          touchedIndex: touchedIndex,
+                          dateOffset: dateOffset,
+                          progress: _animation.value,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            }
+          ),
+    );
+  }
+
+  Widget _buildFilters() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+      decoration: BoxDecoration(
+        color: AppTheme.textSecondary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: ["D", "W", "M", "3M", "6M", "Y"].map((r) => _filterButton(r)).toList(),
+      ),
+    );
+  }
+
+  Widget _buildInfoCards({required bool isWide}) {
+    if (isWide) {
+      // Stack vertically for desktop sidebar
+      return Column(
+        children: [
+          _infoCard("Daily Avg", "${averageBGlevel.toInt()}\nmg/dL", AppTheme.cardBackground, isWide: true),
+          const SizedBox(height: 16),
+          _infoCard("Fluctuation", "${fluctuation.toInt()}\nmg/dL", AppTheme.cardBackground, isWide: true),
+          const SizedBox(height: 16),
+          _infoCard("Status", zoneText, zoneColor, isWide: true),
+        ],
+      );
+    } else {
+      // Row layout for mobile
+      return Row(
+        children: [
+          Expanded(child: _infoCard("Daily Avg", "${averageBGlevel.toInt()}\nmg/dL", AppTheme.cardBackground)),
+          const SizedBox(width: 8),
+          Expanded(child: _infoCard("Fluctuation", "${fluctuation.toInt()}\nmg/dL", AppTheme.cardBackground)),
+          const SizedBox(width: 8),
+          Expanded(child: _infoCard("Status", zoneText, zoneColor)),
+        ],
+      );
+    }
+  }
+
+  Widget _buildAiTips() {
+    return InkWell(
+      onTap: () {
+        final updatedData = Map<String, dynamic>.from(widget.baseUserData);
+        updatedData['bloodGlucose'] = "${currentBGlevel.toInt()} mg/dL";
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => AssistantPage(userData: updatedData)),
+        );
+      },
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.cardBackground,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: const [
+                Text("💡 AI Tips",
+                    style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _isLoadingTip
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(top: 2),
+                        child: SizedBox(
+                          height: 16, width: 16,
+                          child: CircularProgressIndicator(color: Colors.white70, strokeWidth: 2),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          "Analyzing your blood glucose data...",
+                          style: const TextStyle(color: Colors.white70, fontSize: 14),
+                        ),
+                      ),
+                    ],
+                  )
+                : Text(_dynamicAiTip,
+                    style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.5)),
           ],
         ),
       ),
@@ -737,13 +796,14 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
   // Small reusable widgets
   // ─────────────────────────────────────────────────────────────────────────
 
-  Widget _infoCard(String title, String value, Color bgColor) {
+  Widget _infoCard(String title, String value, Color bgColor, {bool isWide = false}) {
     return Container(
       height: 95,
+      width: isWide ? double.infinity : null, // Stretches sideways on desktop
       decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)), // <-- Updated
+          border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.1)),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -754,10 +814,7 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
           const SizedBox(height: 6),
           Text(value,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold)),
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
         ],
       ),
     );
