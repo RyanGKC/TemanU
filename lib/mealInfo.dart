@@ -4,10 +4,12 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:google_generative_ai/google_generative_ai.dart'; // <-- Official SDK
+import 'package:google_generative_ai/google_generative_ai.dart'; 
 import 'package:image_picker/image_picker.dart';
+import 'package:temanu/theme.dart'; // <-- ADDED THEME IMPORT
+
 class MealInfo extends StatefulWidget {
-  final XFile imageFile; // <-- Changed from String imagePath
+  final XFile imageFile; 
 
   const MealInfo({super.key, required this.imageFile});
 
@@ -27,7 +29,6 @@ class _MealInfoState extends State<MealInfo> {
   bool _isAnalyzing = true;
   bool _isSaving = false;
 
-  // 🔑 Get API Key safely from .env
   static String get _geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
 
   @override
@@ -46,13 +47,11 @@ class _MealInfoState extends State<MealInfo> {
   Future<void> _analyzeMeal() async {
     try {
       final model = GenerativeModel(
-        // UPDATE THIS LINE to the newest Flash model
         model: 'gemini-2.5-flash', 
         apiKey: _geminiApiKey,
         generationConfig: GenerationConfig(temperature: 0.2),
       );
 
-      // 2. USE XFILE TO READ BYTES (This works safely on Web, iOS, and Android!)
       final imageBytes = await widget.imageFile.readAsBytes();
 
       final prompt = '''Analyze this meal photo and estimate its nutritional content.
@@ -73,12 +72,10 @@ class _MealInfoState extends State<MealInfo> {
         ])
       ];
 
-      // 4. Send to Gemini
       final response = await model.generateContent(content);
       final rawText = response.text;
 
       if (rawText != null) {
-        // 5. Strip markdown fences and parse
         final cleanText = rawText
             .replaceAll(RegExp(r'```json\s*'), '')
             .replaceAll(RegExp(r'```\s*'), '')
@@ -132,7 +129,6 @@ class _MealInfoState extends State<MealInfo> {
           "fats": _fats,
         };
         
-        // Pass the newMeal map back to the previous screen
         Navigator.pop(context, newMeal); 
       }
     });
@@ -141,7 +137,7 @@ class _MealInfoState extends State<MealInfo> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xff040F31),
+      backgroundColor: AppTheme.background, // <-- APPLIED THEME
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -173,7 +169,7 @@ class _MealInfoState extends State<MealInfo> {
                         height: 250,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xff00E5FF).withValues(alpha: 0.3), width: 2),
+                          border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.3), width: 2), // <-- APPLIED THEME
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.3),
@@ -196,7 +192,7 @@ class _MealInfoState extends State<MealInfo> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: const Color(0xff1A3F6B),
+                          color: AppTheme.cardBackground, // <-- APPLIED THEME
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: _isAnalyzing
@@ -238,9 +234,10 @@ class _MealInfoState extends State<MealInfo> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         decoration: BoxDecoration(
+                          // <-- APPLIED THEME
                           color: (_isAnalyzing || _isSaving)
-                              ? const Color(0xff00E5FF).withValues(alpha: 0.4)
-                              : const Color(0xff00E5FF),
+                              ? AppTheme.primaryColor.withValues(alpha: 0.4)
+                              : AppTheme.primaryColor,
                           borderRadius: BorderRadius.circular(15),
                         ),
                         alignment: Alignment.center,
@@ -248,11 +245,13 @@ class _MealInfoState extends State<MealInfo> {
                             ? const SizedBox(
                                 height: 20,
                                 width: 20,
-                                child: CircularProgressIndicator(color: Color(0xff040F31), strokeWidth: 2),
+                                // <-- APPLIED THEME (White spinner for contrast)
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                               )
                             : const Text(
                                 "Confirm",
-                                style: TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold),
+                                // <-- APPLIED THEME (White text for contrast)
+                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                               ),
                       ),
                     ),
@@ -270,7 +269,7 @@ class _MealInfoState extends State<MealInfo> {
     return Column(
       children: [
         const SizedBox(height: 10),
-        const CircularProgressIndicator(color: Color(0xff00E5FF)),
+        const CircularProgressIndicator(color: AppTheme.primaryColor), // <-- APPLIED THEME
         const SizedBox(height: 16),
         Text("Analyzing your meal...",
             style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 16)),
@@ -297,12 +296,12 @@ class _MealInfoState extends State<MealInfo> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xff00E5FF).withValues(alpha: 0.15),
+              color: AppTheme.primaryColor.withValues(alpha: 0.15), // <-- APPLIED THEME
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xff00E5FF)),
+              border: Border.all(color: AppTheme.primaryColor), // <-- APPLIED THEME
             ),
             child: const Text("Retry",
-                style: TextStyle(color: Color(0xff00E5FF), fontWeight: FontWeight.bold)),
+                style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold)), // <-- APPLIED THEME
           ),
         ),
       ],
@@ -333,7 +332,7 @@ class _MealInfoState extends State<MealInfo> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   focusedBorder: const OutlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xff00E5FF), width: 2),
+                    borderSide: BorderSide(color: AppTheme.primaryColor, width: 2), // <-- APPLIED THEME
                   ),
                 ),
               ),
@@ -343,13 +342,13 @@ class _MealInfoState extends State<MealInfo> {
               margin: const EdgeInsets.only(top: 5),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xff00E5FF).withValues(alpha: 0.1),
+                color: AppTheme.primaryColor.withValues(alpha: 0.1), // <-- APPLIED THEME
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xff00E5FF).withValues(alpha: 0.5)),
+                border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.5)), // <-- APPLIED THEME
               ),
               child: Text(
                 "${_calories ?? '--'} kcal",
-                style: const TextStyle(color: Color(0xff00E5FF), fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(color: AppTheme.primaryColor, fontSize: 16, fontWeight: FontWeight.bold), // <-- APPLIED THEME
               ),
             ),
           ],
@@ -358,7 +357,7 @@ class _MealInfoState extends State<MealInfo> {
         Row(
           children: [
             const SizedBox(width: 10),
-            Icon(Icons.auto_awesome, color: const Color(0xff00E5FF).withValues(alpha: 0.7), size: 12),
+            Icon(Icons.auto_awesome, color: AppTheme.primaryColor.withValues(alpha: 0.7), size: 12), // <-- APPLIED THEME
             const SizedBox(width: 4),
             Text(
               "Gemini AI estimated · tap name to edit",

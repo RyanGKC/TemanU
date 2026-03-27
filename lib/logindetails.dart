@@ -177,17 +177,17 @@ class _LoginDetailsState extends State<LoginDetails> {
                       textColor: AppTheme.textPrimary,
                       onPressed: _handleLogin, // Trigger the API call here
                     ),
-                const SizedBox(height: 16),
-                Center(
-                  child: TextButton.icon(
-                    onPressed: _isLoading ? null : _handleDevLogin,
-                    icon: const Icon(Icons.bug_report, color: AppTheme.textSecondary, size: 18),
-                    label: const Text(
-                      'Dev Fast Login', 
-                      style: TextStyle(color: AppTheme.textSecondary)
-                    ),
-                  ),
-                ),
+                // const SizedBox(height: 16),
+                // Center(
+                //   child: TextButton.icon(
+                //     onPressed: _isLoading ? null : _handleDevLogin,
+                //     icon: const Icon(Icons.bug_report, color: AppTheme.textSecondary, size: 18),
+                //     label: const Text(
+                //       'Dev Fast Login', 
+                //       style: TextStyle(color: AppTheme.textSecondary)
+                //     ),
+                //   ),
+                // ),
                 const SizedBox(height: 32),
                 const Row(
                   children: [

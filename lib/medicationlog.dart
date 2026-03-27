@@ -157,95 +157,102 @@ class _MedicationLogState extends State<MedicationLog> {
 
             return Dialog(
               backgroundColor: AppTheme.cardBackground,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25), side: BorderSide(color: AppTheme.textSecondary.withOpacity(0.1), width: 1.5)),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(22, 25, 22, 30),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(isEditing ? Icons.edit : Icons.add_task, color: AppTheme.primaryColor, size: 24),
-                        const SizedBox(width: 12),
-                        Text(isEditing ? "Edit Medication" : "Add Medication", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    const SizedBox(height: 25),
-                    TextField(controller: nameController, style: const TextStyle(color: Colors.white), decoration: inputDecoration("Medication Name")),
-                    const SizedBox(height: 15),
-                    TextField(
-                      controller: dosageController, 
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*'))],
-                      style: const TextStyle(color: Colors.white), decoration: inputDecoration("Dosage Amount (e.g. 50, 1.5)")
-                    ),
-                    const SizedBox(height: 15),
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 2, 
-                          child: TextField(
-                            controller: inventoryController, 
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*'))],
-                            style: const TextStyle(color: Colors.white), decoration: inputDecoration("Total Amount Left")
-                          )
-                        ),
-                        const SizedBox(width: 15),
-                        Expanded(flex: 1, child: TextField(controller: unitController, style: const TextStyle(color: Colors.white), decoration: inputDecoration("Unit (ml, pills)"))),
-                      ],
-                    ),
-                    const SizedBox(height: 30),
-                    buildTimeMatrix(),
-                    const SizedBox(height: 35),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.white24, width: 1.5),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text("Cancel", style: TextStyle(color: Colors.white, fontSize: 16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(25), 
+                side: BorderSide(color: AppTheme.textSecondary.withOpacity(0.1), width: 1.5)
+              ),
+              // 1. ADDED: Wrap the scroll view in a ConstrainedBox
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500), // Reasonable max width
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(22, 25, 22, 30),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(isEditing ? Icons.edit : Icons.add_task, color: AppTheme.primaryColor, size: 24),
+                          const SizedBox(width: 12),
+                          Text(isEditing ? "Edit Medication" : "Add Medication", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 25),
+                      TextField(controller: nameController, style: const TextStyle(color: Colors.white), decoration: inputDecoration("Medication Name")),
+                      const SizedBox(height: 15),
+                      TextField(
+                        controller: dosageController, 
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*'))],
+                        style: const TextStyle(color: Colors.white), decoration: inputDecoration("Dosage Amount (e.g. 50, 1.5)")
+                      ),
+                      const SizedBox(height: 15),
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 2, 
+                            child: TextField(
+                              controller: inventoryController, 
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*'))],
+                              style: const TextStyle(color: Colors.white), decoration: inputDecoration("Total Amount Left")
+                            )
                           ),
-                        ),
-                        const SizedBox(width: 15),
-                        Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.primaryColor, elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                              padding: const EdgeInsets.symmetric(vertical: 16),
+                          const SizedBox(width: 15),
+                          Expanded(flex: 1, child: TextField(controller: unitController, style: const TextStyle(color: Colors.white), decoration: inputDecoration("Unit (ml, pills)"))),
+                        ],
+                      ),
+                      const SizedBox(height: 30),
+                      buildTimeMatrix(),
+                      const SizedBox(height: 35),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.white24, width: 1.5),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                              ),
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text("Cancel", style: TextStyle(color: Colors.white, fontSize: 16)),
                             ),
-                            onPressed: () async {
-                              final name = nameController.text.trim();
-                              final dosage = dosageController.text.trim();
-                              final inv = double.tryParse(inventoryController.text) ?? 0.0;
-                              final unit = unitController.text.trim();
-                              
-                              if (name.isNotEmpty) {
-                                Navigator.pop(context);
-                                if (selectedTimes.isEmpty) selectedTimes.add("Anytime");
+                          ),
+                          const SizedBox(width: 15),
+                          Expanded(
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primaryColor, elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                              ),
+                              onPressed: () async {
+                                final name = nameController.text.trim();
+                                final dosage = dosageController.text.trim();
+                                final inv = double.tryParse(inventoryController.text) ?? 0.0;
+                                final unit = unitController.text.trim();
                                 
-                                bool success;
-                                if (isEditing) {
-                                  success = await ApiService.editMedication(existingMed['id'], name, dosage, inv, unit, selectedTimes);
-                                } else {
-                                  success = await ApiService.addMedication(name, dosage, inv, unit, selectedTimes);
+                                if (name.isNotEmpty) {
+                                  Navigator.pop(context);
+                                  if (selectedTimes.isEmpty) selectedTimes.add("Anytime");
+                                  
+                                  bool success;
+                                  if (isEditing) {
+                                    success = await ApiService.editMedication(existingMed['id'], name, dosage, inv, unit, selectedTimes);
+                                  } else {
+                                    success = await ApiService.addMedication(name, dosage, inv, unit, selectedTimes);
+                                  }
+                                  
+                                  if (success) _silentRefresh();
                                 }
-                                
-                                if (success) _silentRefresh();
-                              }
-                            },
-                            child: Text(isEditing ? "Update" : "Save", style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+                              },
+                              child: Text(isEditing ? "Update" : "Save", style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );

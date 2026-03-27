@@ -115,9 +115,12 @@ class _RegisterDetailsState extends State<RegisterDetails> {
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                   child: Container(
+                    // 1. ADDED: Max width constraint of 400
+                    constraints: const BoxConstraints(maxWidth: 400),
                     padding: const EdgeInsets.all(25),
                     decoration: BoxDecoration(
-                      color: const Color(0xff1A3F6B).withValues(alpha: 0.8),
+                      // 2. UPDATED: Removed the hardcoded blue and used your theme's card background
+                      color: AppTheme.cardBackground.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(25),
                       border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
                     ),
@@ -212,8 +215,9 @@ class _RegisterDetailsState extends State<RegisterDetails> {
                                   }
                                 },
                                 child: _isVerifying 
-                                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Color(0xff040F31), strokeWidth: 2))
-                                  : const Text("Verify", style: TextStyle(color: Color(0xff040F31), fontSize: 16, fontWeight: FontWeight.bold)),
+                                  // 3. UPDATED: Changed the spinner and text to white to contrast with the red button
+                                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                  : const Text("Verify", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                               ),
                             ),
                           ],

@@ -157,13 +157,20 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
         _appointments = apptsData.map((a) {
           final int id = a['id'];
           final hasReminder = prefs.getBool('reminder_$id') ?? false;
+          
+          // 1. Safely extract the nested doctor dictionary (default to empty map if null)
+          final doctorInfo = a['doctor'] ?? {}; 
+
           return Appointment(
             id: id,
             dateTime: DateTime.parse(a['appointment_time']).toLocal(),
             status: a['status'] ?? 'Unknown',
             purpose: a['purpose'] ?? 'Consultation',
-            doctorName: a['doctor_preferred_name'] ?? a['doctor_name'] ?? 'Unknown Doctor',
-            doctorSpecialisation: a['doctor_specialisation'] ?? '',
+            
+            // 2. Read the names and specialisation from the nested dictionary!
+            doctorName: doctorInfo['preferred_name'] ?? doctorInfo['name'] ?? 'Unknown Doctor',
+            doctorSpecialisation: doctorInfo['specialisation'] ?? '',
+            
             hasReminder: hasReminder,
           );
         }).toList();
@@ -253,13 +260,14 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
         margin: const EdgeInsets.only(bottom: 20),
         padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
         decoration: BoxDecoration(
-          color: const Color(0xff00E5FF).withOpacity(0.15),
-          border: Border.all(color: const Color(0xff00E5FF), width: 1.5),
+          // Changed banner from blue/cyan accents to theme red
+          color: AppTheme.primaryColor.withOpacity(0.15),
+          border: Border.all(color: AppTheme.primaryColor, width: 1.5),
           borderRadius: BorderRadius.circular(15),
         ),
         child: Row(
           children: [
-            const Icon(Icons.notifications_active, color: Color(0xff00E5FF)),
+            const Icon(Icons.notifications_active, color: AppTheme.primaryColor),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -267,9 +275,9 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
               ),
             ),
-            const Text("View", style: TextStyle(color: Color(0xff00E5FF), fontWeight: FontWeight.bold, fontSize: 13)),
+            const Text("View", style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 13)),
             const SizedBox(width: 4),
-            const Icon(Icons.arrow_forward_ios, color: Color(0xff00E5FF), size: 12),
+            const Icon(Icons.arrow_forward_ios, color: AppTheme.primaryColor, size: 12),
           ],
         ),
       ),
@@ -311,13 +319,10 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
+            SafeProfileAvatar(
+              imageUrl: doctor.imageUrl,
+              name: doctor.name,
               radius: 30,
-              backgroundColor: AppTheme.primaryColor.withOpacity(0.2),
-              backgroundImage: doctor.imageUrl.isNotEmpty ? NetworkImage(doctor.imageUrl) : null,
-              child: doctor.imageUrl.isEmpty 
-                  ? Text(doctor.name.isNotEmpty ? doctor.name[0] : 'D', style: const TextStyle(color: AppTheme.primaryColor, fontSize: 24, fontWeight: FontWeight.bold))
-                  : null,
             ),
             const SizedBox(width: 15),
             Expanded(
@@ -408,39 +413,65 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Remove Doctor', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
         content: Text(
-          'Remove Dr. ${doctor.name} from your care team?\n\nThey will no longer be able to view your health data, medications, or medical records.',
+          'Remove ${doctor.name} from your care team?\n\nThey will no longer be able to view your health data, medications, or medical records.',
           style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
         ),
+        // Added padding to give the buttons some breathing room at the bottom
+        actionsPadding: const EdgeInsets.only(left: 20, right: 20, bottom: 20, top: 10),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context); // close dialog immediately
-              final success = await ApiService.removePersonalDoctor(doctor.id);
-              if (mounted) {
-                if (success) {
-                  _fetchData(); // refresh everything
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('Dr. ${doctor.name} removed from your care team'),
-                    backgroundColor: const Color(0xff00E676),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ));
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: const Text('Failed to remove doctor. Please try again.'),
-                    backgroundColor: Colors.redAccent,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ));
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            child: const Text('Remove', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          Row(
+            children: [
+              // Cancel Button
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white12, // A subtle grey/transparent background
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                ),
+              ),
+              
+              const SizedBox(width: 12), // Spacing between the buttons
+              
+              // Remove Button
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(context); // close dialog immediately
+                    final success = await ApiService.removePersonalDoctor(doctor.id);
+                    if (mounted) {
+                      if (success) {
+                        _fetchData(); // refresh everything
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text('${doctor.name} removed from your care team'),
+                          backgroundColor: const Color(0xff00E676),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ));
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: const Text('Failed to remove doctor. Please try again.'),
+                          backgroundColor: Colors.redAccent,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ));
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent, 
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Remove', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -491,7 +522,7 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
           const SizedBox(height: 10),
           const Text("Your doctor will schedule appointments here.", style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
         ],
-      ),
+            ),
     );
   }
 
@@ -552,7 +583,7 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
             IconButton(
               icon: Icon(
                 appt.hasReminder ? Icons.notifications : Icons.notifications_outlined,
-                color: appt.hasReminder ? const Color(0xFF00E5FF) : Colors.white54,
+                color: appt.hasReminder ? AppTheme.primaryColor : Colors.white54,
                 size: 26,
               ),
               onPressed: () => _showReminderDialog(appt),
@@ -616,18 +647,44 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
                 ],
               ],
             ),
+            // --- UPDATED ACTIONS SECTION ---
+            actionsPadding: const EdgeInsets.only(left: 20, right: 20, bottom: 20, top: 10),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
-              ),
-              ElevatedButton(
-                onPressed: () => _handleReminderSelection(appt, selectedOption, ctx),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Text(selectedOption == 3 ? 'Confirm' : 'Set Reminder', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  // Cancel Button (Left)
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white12, // Subtle background matching the theme
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Cancel', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 12), // Spacing between buttons
+                  
+                  // Set Reminder / Confirm Button (Right)
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => _handleReminderSelection(appt, selectedOption, ctx),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text(
+                        selectedOption == 3 ? 'Confirm' : 'Set Reminder', 
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           );
@@ -808,14 +865,10 @@ class _PendingRequestsPageState extends State<PendingRequestsPage> {
                     children: [
                       Row(
                         children: [
-                          CircleAvatar(
+                          SafeProfileAvatar(
+                            imageUrl: req['doctor_profile_image_url']?.toString() ?? '',
+                            name: docName,
                             radius: 30,
-                            backgroundColor: AppTheme.primaryColor.withOpacity(0.2),
-                            backgroundImage: (req['doctor_profile_image_url'] != null && req['doctor_profile_image_url'].toString().isNotEmpty) 
-                                ? NetworkImage(req['doctor_profile_image_url']) : null,
-                            child: (req['doctor_profile_image_url'] == null || req['doctor_profile_image_url'].toString().isEmpty)
-                                ? Text(docName.isNotEmpty ? docName[0] : 'D', style: const TextStyle(color: AppTheme.primaryColor, fontSize: 24, fontWeight: FontWeight.bold))
-                                : null,
                           ),
                           const SizedBox(width: 15),
                           Expanded(
@@ -854,8 +907,9 @@ class _PendingRequestsPageState extends State<PendingRequestsPage> {
                             child: ElevatedButton(
                               onPressed: () => _reviewAndAccept(reqId, docId, docName),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xff00E5FF),
-                                foregroundColor: const Color(0xFF040F31),
+                                // Changed request buttons from blue to theme accents
+                                backgroundColor: AppTheme.primaryColor,
+                                foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                               ),
@@ -957,7 +1011,7 @@ class _PermissionsSheetState extends State<PermissionsSheet> {
         Navigator.pop(context); // Close bottom sheet
         widget.onSuccess();
         final msg = widget.requestIdForApproval != null 
-            ? "Dr. ${widget.doctorName} added to your care team" 
+            ? "${widget.doctorName} added to your care team" 
             : "Permissions updated";
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(msg),
@@ -991,7 +1045,8 @@ class _PermissionsSheetState extends State<PermissionsSheet> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: const Color(0xff00E5FF),
+            // Changed switch accent from blue to theme red
+            activeColor: AppTheme.primaryColor,
             inactiveTrackColor: Colors.white12,
           )
         ],
@@ -1026,8 +1081,8 @@ class _PermissionsSheetState extends State<PermissionsSheet> {
           const SizedBox(height: 10),
           Text(
             widget.requestIdForApproval != null 
-                ? "Dr. ${widget.doctorName} wants to view your health data.\nChoose what information they can access:"
-                : "Choose what data Dr. ${widget.doctorName} can access:", 
+                ? "${widget.doctorName} wants to view your health data.\nChoose what information they can access:"
+                : "Choose what data ${widget.doctorName} can access:", 
             style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.4)
           ),
           const SizedBox(height: 15),
@@ -1036,7 +1091,8 @@ class _PermissionsSheetState extends State<PermissionsSheet> {
             children: [
               TextButton(
                 onPressed: () => _toggleAll(!allOn),
-                style: TextButton.styleFrom(foregroundColor: const Color(0xff00E5FF)),
+                // Changed text accent from blue to theme red
+                style: TextButton.styleFrom(foregroundColor: AppTheme.primaryColor),
                 child: Text(allOn ? "Deselect All" : "Select All", style: const TextStyle(fontWeight: FontWeight.bold)),
               )
             ],
@@ -1047,7 +1103,8 @@ class _PermissionsSheetState extends State<PermissionsSheet> {
                 _buildToggleRow("Heart Rate", Icons.favorite, _hr, (v) => setState(() => _hr = v)),
                 _buildToggleRow("Blood Pressure", Icons.monitor_heart, _bp, (v) => setState(() => _bp = v)),
                 _buildToggleRow("Blood Glucose", Icons.water_drop, _bg, (v) => setState(() => _bg = v)),
-                _buildToggleRow("Oxygen Saturation", Icons.air, _spo2, (v) => setState(() => _spo2 = v)),
+                // Changed icon from Icons.air to Icons.opacity
+                _buildToggleRow("Oxygen Saturation", Icons.opacity, _spo2, (v) => setState(() => _spo2 = v)),
                 _buildToggleRow("Body Weight", Icons.scale, _weight, (v) => setState(() => _weight = v)),
                 _buildToggleRow("Medications", Icons.medication, _meds, (v) => setState(() => _meds = v)),
                 _buildToggleRow("Activity & Steps", Icons.directions_walk, _activity, (v) => setState(() => _activity = v)),
@@ -1060,8 +1117,9 @@ class _PermissionsSheetState extends State<PermissionsSheet> {
             child: ElevatedButton(
               onPressed: _submit,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xff00E5FF),
-                foregroundColor: const Color(0xFF040F31),
+                // Changed button from blue accents to theme accents
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
               ),
@@ -1188,13 +1246,11 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> {
             ),
             child: Column(
               children: [
-                CircleAvatar(
-                  radius: 45,
-                  backgroundColor: AppTheme.primaryColor.withOpacity(0.2),
-                  backgroundImage: widget.doctor.imageUrl.isNotEmpty ? NetworkImage(widget.doctor.imageUrl) : null,
-                  child: widget.doctor.imageUrl.isEmpty 
-                      ? Text(widget.doctor.name.isNotEmpty ? widget.doctor.name[0] : 'D', style: const TextStyle(color: AppTheme.primaryColor, fontSize: 36, fontWeight: FontWeight.bold))
-                      : null,
+                SafeProfileAvatar(
+                  imageUrl: widget.doctor.imageUrl,
+                  name: widget.doctor.name,
+                  radius: 45, // Make it bigger for the profile page!
+                  fontSize: 36,
                 ),
                 const SizedBox(height: 15),
                 Text(widget.doctor.name, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
@@ -1334,5 +1390,53 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> {
 
   String _formatDate(DateTime dt) {
     return "${dt.day} ${_getMonth(dt.month)} ${dt.year}";
+  }
+}
+
+class SafeProfileAvatar extends StatelessWidget {
+  final String imageUrl;
+  final String name;
+  final double radius;
+  final double fontSize;
+
+  const SafeProfileAvatar({
+    super.key,
+    required this.imageUrl,
+    required this.name,
+    this.radius = 30,
+    this.fontSize = 24,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final String initial = name.isNotEmpty ? name[0].toUpperCase() : 'D';
+
+    return ClipOval(
+      child: Container(
+        width: radius * 2,
+        height: radius * 2,
+        color: AppTheme.primaryColor.withOpacity(0.2),
+        child: imageUrl.isNotEmpty
+            ? Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => _fallbackLetter(initial),
+              )
+            : _fallbackLetter(initial),
+      ),
+    );
+  }
+
+  Widget _fallbackLetter(String letter) {
+    return Center(
+      child: Text(
+        letter,
+        style: TextStyle(
+          color: AppTheme.primaryColor,
+          fontSize: fontSize,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
   }
 }
