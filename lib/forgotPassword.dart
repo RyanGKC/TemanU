@@ -91,6 +91,7 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
       backgroundColor: Colors.transparent,
       elevation: 0,
       child: Container(
+        constraints: const BoxConstraints(maxWidth: 400),
         padding: const EdgeInsets.all(25),
         decoration: BoxDecoration(
           color: AppTheme.cardBackground,
