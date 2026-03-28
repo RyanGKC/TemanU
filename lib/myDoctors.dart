@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http; 
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
@@ -61,8 +62,15 @@ class MedicalRecord {
   final String fileName;
   final DateTime uploadDate;
   final String type; 
+  final String description; // <-- Added to support descriptions!
 
-  MedicalRecord({required this.id, required this.fileName, required this.uploadDate, required this.type});
+  MedicalRecord({
+    required this.id, 
+    required this.fileName, 
+    required this.uploadDate, 
+    required this.type,
+    this.description = '',
+  });
 }
 
 // ==========================================
@@ -158,7 +166,6 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
           final int id = a['id'];
           final hasReminder = prefs.getBool('reminder_$id') ?? false;
           
-          // 1. Safely extract the nested doctor dictionary (default to empty map if null)
           final doctorInfo = a['doctor'] ?? {}; 
 
           return Appointment(
@@ -166,11 +173,8 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
             dateTime: DateTime.parse(a['appointment_time']).toLocal(),
             status: a['status'] ?? 'Unknown',
             purpose: a['purpose'] ?? 'Consultation',
-            
-            // 2. Read the names and specialisation from the nested dictionary!
             doctorName: doctorInfo['preferred_name'] ?? doctorInfo['name'] ?? 'Unknown Doctor',
             doctorSpecialisation: doctorInfo['specialisation'] ?? '',
-            
             hasReminder: hasReminder,
           );
         }).toList();
@@ -254,13 +258,12 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
     return GestureDetector(
       onTap: () async {
         await Navigator.push(context, MaterialPageRoute(builder: (context) => const PendingRequestsPage()));
-        _fetchData(); // refresh when returning
+        _fetchData(); 
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 20),
         padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
         decoration: BoxDecoration(
-          // Changed banner from blue/cyan accents to theme red
           color: AppTheme.primaryColor.withOpacity(0.15),
           border: Border.all(color: AppTheme.primaryColor, width: 1.5),
           borderRadius: BorderRadius.circular(15),
@@ -381,11 +384,10 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
   void _openPermissionsSheet(String doctorId, String doctorName, {int? requestIdForApproval}) async {
     Map<String, dynamic>? currentPerms;
     
-    // If we're editing an existing doc, fetch their current permissions
     if (requestIdForApproval == null) {
       showDialog(context: context, barrierDismissible: false, builder: (ctx) => const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)));
       currentPerms = await ApiService.getPermissions(doctorId);
-      if (mounted) Navigator.pop(context); // close loader
+      if (mounted) Navigator.pop(context); 
     }
 
     if (!mounted) return;
@@ -416,17 +418,15 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
           'Remove ${doctor.name} from your care team?\n\nThey will no longer be able to view your health data, medications, or medical records.',
           style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
         ),
-        // Added padding to give the buttons some breathing room at the bottom
         actionsPadding: const EdgeInsets.only(left: 20, right: 20, bottom: 20, top: 10),
         actions: [
           Row(
             children: [
-              // Cancel Button
               Expanded(
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white12, // A subtle grey/transparent background
+                    backgroundColor: Colors.white12, 
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -434,18 +434,15 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
                   child: const Text('Cancel', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
                 ),
               ),
-              
-              const SizedBox(width: 12), // Spacing between the buttons
-              
-              // Remove Button
+              const SizedBox(width: 12), 
               Expanded(
                 child: ElevatedButton(
                   onPressed: () async {
-                    Navigator.pop(context); // close dialog immediately
+                    Navigator.pop(context); 
                     final success = await ApiService.removePersonalDoctor(doctor.id);
                     if (mounted) {
                       if (success) {
-                        _fetchData(); // refresh everything
+                        _fetchData(); 
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                           content: Text('${doctor.name} removed from your care team'),
                           backgroundColor: const Color(0xff00E676),
@@ -522,7 +519,7 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
           const SizedBox(height: 10),
           const Text("Your doctor will schedule appointments here.", style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
         ],
-            ),
+      ),
     );
   }
 
@@ -647,17 +644,15 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
                 ],
               ],
             ),
-            // --- UPDATED ACTIONS SECTION ---
             actionsPadding: const EdgeInsets.only(left: 20, right: 20, bottom: 20, top: 10),
             actions: [
               Row(
                 children: [
-                  // Cancel Button (Left)
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(ctx),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white12, // Subtle background matching the theme
+                        backgroundColor: Colors.white12, 
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -665,10 +660,7 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
                       child: const Text('Cancel', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
                     ),
                   ),
-                  
-                  const SizedBox(width: 12), // Spacing between buttons
-                  
-                  // Set Reminder / Confirm Button (Right)
+                  const SizedBox(width: 12), 
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () => _handleReminderSelection(appt, selectedOption, ctx),
@@ -784,7 +776,6 @@ class _PendingRequestsPageState extends State<PendingRequestsPage> {
   }
 
   Future<void> _declineRequest(int requestId) async {
-    // Show confirmation
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -803,7 +794,6 @@ class _PendingRequestsPageState extends State<PendingRequestsPage> {
 
     if (confirm != true) return;
     
-    // Proceed with decline
     final success = await ApiService.declineRequest(requestId);
     if (success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Request declined'), backgroundColor: Colors.white24));
@@ -907,7 +897,6 @@ class _PendingRequestsPageState extends State<PendingRequestsPage> {
                             child: ElevatedButton(
                               onPressed: () => _reviewAndAccept(reqId, docId, docName),
                               style: ElevatedButton.styleFrom(
-                                // Changed request buttons from blue to theme accents
                                 backgroundColor: AppTheme.primaryColor,
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -933,7 +922,7 @@ class _PendingRequestsPageState extends State<PendingRequestsPage> {
 class PermissionsSheet extends StatefulWidget {
   final String doctorId;
   final String doctorName;
-  final int? requestIdForApproval; // If not null -> Approving a request. If null -> Editing existing permissions.
+  final int? requestIdForApproval; 
   final Map<String, dynamic>? initialPerms;
   final VoidCallback onSuccess;
 
@@ -1006,9 +995,9 @@ class _PermissionsSheetState extends State<PermissionsSheet> {
     }
 
     if (mounted) {
-      Navigator.pop(context); // Close loading spinner
+      Navigator.pop(context); 
       if (success) {
-        Navigator.pop(context); // Close bottom sheet
+        Navigator.pop(context); 
         widget.onSuccess();
         final msg = widget.requestIdForApproval != null 
             ? "${widget.doctorName} added to your care team" 
@@ -1045,7 +1034,6 @@ class _PermissionsSheetState extends State<PermissionsSheet> {
           Switch(
             value: value,
             onChanged: onChanged,
-            // Changed switch accent from blue to theme red
             activeColor: AppTheme.primaryColor,
             inactiveTrackColor: Colors.white12,
           )
@@ -1060,7 +1048,7 @@ class _PermissionsSheetState extends State<PermissionsSheet> {
 
     return Container(
       decoration: const BoxDecoration(
-        color: AppTheme.background, // Match dark aesthetic
+        color: AppTheme.background, 
         borderRadius: BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
       ),
       height: MediaQuery.of(context).size.height * 0.85,
@@ -1068,7 +1056,6 @@ class _PermissionsSheetState extends State<PermissionsSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Handle bar
           Center(
             child: Container(
               width: 50,
@@ -1091,7 +1078,6 @@ class _PermissionsSheetState extends State<PermissionsSheet> {
             children: [
               TextButton(
                 onPressed: () => _toggleAll(!allOn),
-                // Changed text accent from blue to theme red
                 style: TextButton.styleFrom(foregroundColor: AppTheme.primaryColor),
                 child: Text(allOn ? "Deselect All" : "Select All", style: const TextStyle(fontWeight: FontWeight.bold)),
               )
@@ -1103,7 +1089,6 @@ class _PermissionsSheetState extends State<PermissionsSheet> {
                 _buildToggleRow("Heart Rate", Icons.favorite, _hr, (v) => setState(() => _hr = v)),
                 _buildToggleRow("Blood Pressure", Icons.monitor_heart, _bp, (v) => setState(() => _bp = v)),
                 _buildToggleRow("Blood Glucose", Icons.water_drop, _bg, (v) => setState(() => _bg = v)),
-                // Changed icon from Icons.air to Icons.opacity
                 _buildToggleRow("Oxygen Saturation", Icons.opacity, _spo2, (v) => setState(() => _spo2 = v)),
                 _buildToggleRow("Body Weight", Icons.scale, _weight, (v) => setState(() => _weight = v)),
                 _buildToggleRow("Medications", Icons.medication, _meds, (v) => setState(() => _meds = v)),
@@ -1117,7 +1102,6 @@ class _PermissionsSheetState extends State<PermissionsSheet> {
             child: ElevatedButton(
               onPressed: _submit,
               style: ElevatedButton.styleFrom(
-                // Changed button from blue accents to theme accents
                 backgroundColor: AppTheme.primaryColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -1134,7 +1118,7 @@ class _PermissionsSheetState extends State<PermissionsSheet> {
 }
 
 // ==========================================
-// PAGE 3: DOCTOR PROFILE & RECORDS (Same as before)
+// PAGE 3: DOCTOR PROFILE & RECORDS 
 // ==========================================
 class DoctorProfilePage extends StatefulWidget {
   final Doctor doctor;
@@ -1167,6 +1151,7 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> {
                   fileName: r['file_name'] ?? 'Document',
                   uploadDate: DateTime.parse(r['created_at']).toLocal(),
                   type: r['record_type'] ?? 'Uploaded Document',
+                  description: r['description'] ?? '', // <-- Extracting the description
                 ))
             .toList();
         _isLoadingRecords = false;
@@ -1174,33 +1159,225 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> {
     }
   }
 
-  Future<void> _uploadRecord() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'png', 'jpeg'],
-    );
+  // ==========================================
+  // UPDATED: PATIENT UPLOAD SHEET
+  // ==========================================
+  void _showUploadSheet() {
+    final descriptionController = TextEditingController();
+    String selectedType = 'Lab Report';
+    PlatformFile? selectedFile;
+    bool isUploading = false;
 
-    if (result != null) {
-      showDialog(context: context, barrierDismissible: false, builder: (context) => const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)));
-      String mockFileUrl = "https://example.com/mock_storage/${result.files.single.name}";
-      
-      final success = await ApiService.saveMedicalRecord(
-        doctorId: widget.doctor.id,
-        fileName: result.files.single.name,
-        recordType: 'Uploaded Document',
-        fileUrl: mockFileUrl,
-      );
-      
-      if (mounted) {
-        Navigator.pop(context); 
-        if (success) {
-          await _fetchRecords(); 
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Document Uploaded Securely"), backgroundColor: Color(0xff00E676)));
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to upload document. Please try again."), backgroundColor: Colors.redAccent));
-        }
-      }
-    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          return Container(
+            padding: EdgeInsets.only(
+              left: 24, right: 24, top: 24,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+            ),
+            decoration: const BoxDecoration(
+              color: AppTheme.background, 
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('Upload Record', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 20),
+
+                  // Record Type
+                  const Text('Record Type', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textSecondary)),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.cardBackground,
+                      border: Border.all(color: AppTheme.textSecondary.withOpacity(0.2)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        dropdownColor: AppTheme.cardBackground,
+                        value: selectedType,
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        items: ['Lab Report', 'Prescription', 'Imaging', 'Discharge Summary', 'Other']
+                            .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                            .toList(),
+                        onChanged: (v) => setSheetState(() => selectedType = v!),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Document File Picker
+                  const Text('Document File', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textSecondary)),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () async {
+                      FilePickerResult? result = await FilePicker.platform.pickFiles(
+                        type: FileType.custom,
+                        allowedExtensions: ['pdf', 'jpg', 'png', 'jpeg'],
+                        withData: true,
+                      );
+                      if (result != null) {
+                        setSheetState(() => selectedFile = result.files.single);
+                      }
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: selectedFile != null ? const Color(0xff00E676).withOpacity(0.1) : AppTheme.cardBackground,
+                        border: Border.all(color: selectedFile != null ? const Color(0xff00E676) : AppTheme.textSecondary.withOpacity(0.2)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            selectedFile != null ? Icons.check_circle : Icons.upload_file,
+                            color: selectedFile != null ? const Color(0xff00E676) : AppTheme.textSecondary
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              selectedFile != null ? selectedFile!.name : 'Tap to select PDF or Image',
+                              style: TextStyle(
+                                color: selectedFile != null ? const Color(0xff00E676) : AppTheme.textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Description
+                  const Text('Description (optional)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textSecondary)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: descriptionController,
+                    maxLines: 2,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Brief description...',
+                      hintStyle: const TextStyle(color: Colors.white54),
+                      filled: true,
+                      fillColor: AppTheme.cardBackground,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Upload Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton.icon(
+                      onPressed: isUploading ? null : () async {
+                        if (selectedFile == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                            content: Text('Please select a file to upload.'),
+                            backgroundColor: Colors.redAccent,
+                            behavior: SnackBarBehavior.floating,
+                          ));
+                          return;
+                        }
+
+                        setSheetState(() => isUploading = true);
+
+                        try {
+                          final fileName = selectedFile!.name;
+                          final extension = selectedFile!.extension?.toLowerCase() ?? '';
+                          final contentType = extension == 'pdf' ? 'application/pdf' : 'image/$extension';
+
+                          // 1. Get Ticket
+                          final ticketData = await ApiService.getUploadUrl(fileName, contentType);
+                          if (ticketData == null) throw Exception("Failed to get upload ticket.");
+
+                          // 2. Upload to S3
+                          final uploadResponse = await http.put(
+                            Uri.parse(ticketData['upload_url']),
+                            headers: {'Content-Type': contentType},
+                            body: selectedFile!.bytes!,
+                          );
+
+                          if (uploadResponse.statusCode != 200) {
+                            throw Exception("AWS rejected the file upload.");
+                          }
+
+                          // 3. Save to DB
+                          final success = await ApiService.saveMedicalRecord(
+                            doctorId: widget.doctor.id,
+                            fileName: fileName,
+                            recordType: selectedType,
+                            fileUrl: ticketData['file_key'],
+                            description: descriptionController.text.trim(),
+                          );
+
+                          if (context.mounted) {
+                            Navigator.pop(context); // Close sheet
+                            if (success) {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                                content: Text('Document Uploaded Securely'),
+                                backgroundColor: Color(0xff00E676),
+                                behavior: SnackBarBehavior.floating,
+                              ));
+                              _fetchRecords(); // Refresh the list
+                            } else {
+                              throw Exception("Failed to save record metadata.");
+                            }
+                          }
+                        } catch (e) {
+                          setSheetState(() => isUploading = false);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text('Upload failed: $e'),
+                              backgroundColor: Colors.redAccent,
+                              behavior: SnackBarBehavior.floating,
+                            ));
+                          }
+                        }
+                      },
+                      icon: isUploading
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : const Icon(Icons.cloud_upload, size: 20),
+                      label: Text(
+                        isUploading ? 'Uploading...' : 'Upload Record',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _launchCommunication() async {
@@ -1237,7 +1414,6 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> {
       ),
       body: Column(
         children: [
-          // --- HEADER PROFILE SECTION ---
           Container(
             padding: const EdgeInsets.fromLTRB(20, 10, 20, 25),
             decoration: BoxDecoration(
@@ -1249,7 +1425,7 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> {
                 SafeProfileAvatar(
                   imageUrl: widget.doctor.imageUrl,
                   name: widget.doctor.name,
-                  radius: 45, // Make it bigger for the profile page!
+                  radius: 45, 
                   fontSize: 36,
                 ),
                 const SizedBox(height: 15),
@@ -1346,14 +1522,45 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> {
                         children: [
                           Text(rec.fileName, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
                           const SizedBox(height: 4),
-                          Text("${rec.type} • ${_formatDate(rec.uploadDate)}", style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primaryColor.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(6)
+                                ),
+                                child: Text(rec.type, style: const TextStyle(color: AppTheme.primaryColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                              ),
+                              const Spacer(),
+                              Text(_formatDate(rec.uploadDate), style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                            ],
+                          ),
+                          // Display description if available!
+                          if (rec.description.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(rec.description, style: const TextStyle(color: Colors.white70, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
+                          ],
                         ],
                       ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.download_rounded, color: Colors.white70),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Downloading ${rec.fileName}...")));
+                      onPressed: () async {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Fetching secure link for ${rec.fileName}...")));
+                        try {
+                          final urlData = await ApiService.getDownloadUrl(rec.id);
+                          if (urlData != null && urlData['download_url'] != null) {
+                            final Uri url = Uri.parse(urlData['download_url']);
+                            if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                              throw Exception('Could not launch URL');
+                            }
+                          } else {
+                            throw Exception('Failed to get URL');
+                          }
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error opening file: $e"), backgroundColor: Colors.redAccent));
+                        }
                       },
                     ),
                   ],
@@ -1376,7 +1583,7 @@ class _DoctorProfilePageState extends State<DoctorProfilePage> {
             ),
             icon: const Icon(Icons.upload_file, color: AppTheme.primaryColor),
             label: const Text("Upload Lab Result / Report", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            onPressed: _uploadRecord,
+            onPressed: _showUploadSheet, // <-- Replaced basic upload with the new Sheet!
           ),
         ),
       ],

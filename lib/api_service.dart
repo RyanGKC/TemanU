@@ -1080,4 +1080,59 @@ class ApiService {
       return null;
     }
   }
+
+  // ==========================================
+  // AWS S3 SECURE FILE UPLOAD & DOWNLOAD
+  // ==========================================
+
+  /// 6. Get a secure Pre-signed URL to upload a file to AWS S3
+  static Future<Map<String, dynamic>?> getUploadUrl(String fileName, String fileType) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return null;
+
+      // We use Uri.encodeComponent to safely handle filenames with spaces (e.g. "Blood Test.pdf")
+      final url = Uri.parse('$_baseUrl/care-team/records/upload-url?file_name=${Uri.encodeComponent(fileName)}&file_type=${Uri.encodeComponent(fileType)}');
+      
+      final response = await http.get(
+        url,
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        print("Failed to get upload URL: ${response.body}");
+        return null;
+      }
+    } catch (e) {
+      print("Error getting upload URL: $e");
+      return null;
+    }
+  }
+
+  /// 7. Get a secure Pre-signed URL to view/download a private file from AWS S3
+  static Future<Map<String, dynamic>?> getDownloadUrl(String recordId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return null;
+
+      final url = Uri.parse('$_baseUrl/care-team/records/$recordId/download-url');
+      
+      final response = await http.get(
+        url,
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        print("Failed to get download URL: ${response.body}");
+        return null;
+      }
+    } catch (e) {
+      print("Error getting download URL: $e");
+      return null;
+    }
+  }
 }
