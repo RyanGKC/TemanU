@@ -430,6 +430,12 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
     final todayStr = "${currentNow.year}-${currentNow.month.toString().padLeft(2, '0')}-${currentNow.day.toString().padLeft(2, '0')}";
     final dateStr = targetDateString;
     
+    // ==========================================
+    // THE GROUNDHOG DAY BUG FIX
+    // ==========================================
+    // If viewing a specific day, fetch that day. Otherwise, fetch today to patch Fitbit's lagging timeseries.
+    final String intradayFetchDate = (selectedRange == "D") ? dateStr : todayStr;
+
     // We ALWAYS fetch Intraday (for the top number) & Weekly (for the Daily Average card)
     DateTime viewedDay = rangeStart; 
     DateTime mondayOfWeek = viewedDay.subtract(Duration(days: viewedDay.weekday - 1));
@@ -437,7 +443,7 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
     String weekEndStr = "${sundayOfWeek.year}-${sundayOfWeek.month.toString().padLeft(2, '0')}-${sundayOfWeek.day.toString().padLeft(2, '0')}";
 
     List<Future<dynamic>> apiCalls = [
-      ApiService.getFitbitIntradaySteps(todayStr, forceRefresh: forceRefresh),
+      ApiService.getFitbitIntradaySteps(intradayFetchDate, forceRefresh: forceRefresh), // <-- Changed this line!
       ApiService.getFitbitTimeSeriesSteps("1w", weekEndStr, forceRefresh: forceRefresh),
     ];
 
