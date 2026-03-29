@@ -2,8 +2,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temanu/api_service.dart';
 import 'package:temanu/fitbitService.dart'; 
@@ -419,34 +417,24 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
     if (mounted) setState(() => _isLoadingTip = true);
 
     try {
-      final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
-      if (apiKey.isEmpty) return;
-
-      final model = GenerativeModel(
-        model: 'gemini-2.5-flash', 
-        apiKey: apiKey,
-        generationConfig: GenerationConfig(temperature: 0.4),
-      );
-
-      final userName = widget.baseUserData['name'] ?? 'the user';
+      final userName = widget.baseUserData['preferred_name'] ?? widget.baseUserData['name'] ?? 'User';
 
       final prompt = '''
-        You are a concise health AI assistant. The user, $userName, has taken $_latestIntradaySteps steps so far today against a daily goal of $stepGoal steps.
-        
-        Write a SHORT, 2-sentence encouraging insight or tip based exactly on this progress toward their goal. 
-        Keep it under 120 characters. Do not use asterisks or markdown formatting.
+        The user, $userName, has taken $_latestIntradaySteps steps so far today against a daily goal of $stepGoal steps.
+        Write a SHORT, 2-sentence encouraging insight or tip based exactly on this progress toward their goal.
       ''';
 
-      final response = await model.generateContent([Content.text(prompt)]);
+      // --- NEW: Calls your secure FastAPI backend! ---
+      final newTip = await ApiService.getAITip(prompt);
       
-      if (mounted && response.text != null) {
-        final newTip = response.text!.trim();
+      if (mounted && newTip != null) {
         await prefs.setString('ai_tip_cached_activity', newTip);
-
         setState(() {
           _dynamicAiTip = newTip;
           _isLoadingTip = false;
         });
+      } else {
+        throw Exception("Backend returned null");
       }
     } catch (e) {
       if (mounted) {

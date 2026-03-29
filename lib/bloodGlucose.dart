@@ -1,12 +1,10 @@
 import 'dart:ui';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temanu/api_service.dart';
 import 'package:temanu/assistantpage.dart';
-import 'package:temanu/bloodGlucoseSharePage.dart'; // <-- NEW IMPORT
+import 'package:temanu/bloodGlucoseSharePage.dart';
 import 'package:temanu/button.dart'; 
 import 'package:temanu/textbox.dart';
 import 'package:temanu/theme.dart';
@@ -416,16 +414,7 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
     if (mounted) setState(() => _isLoadingTip = true);
 
     try {
-      final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
-      if (apiKey.isEmpty) return;
-
-      final model = GenerativeModel(
-        model: 'gemini-2.5-flash',
-        apiKey: apiKey,
-        generationConfig: GenerationConfig(temperature: 0.4),
-      );
-
-      final userName = widget.baseUserData['name'] ?? 'the user';
+      final userName = widget.baseUserData['preferred_name'] ?? widget.baseUserData['name'] ?? 'User';
       
       String prompt;
 
@@ -434,27 +423,27 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
         prompt = '''
           The user, $userName, just joined the app and hasn't logged any Blood Glucose data yet. 
           Write a short, 2-sentence welcoming tip encouraging them to log their first reading 
-          and briefly explaining why tracking blood glucose is helpful. Keep it under 120 characters. 
-          Do not use asterisks or markdown formatting.
+          and briefly explaining why tracking blood glucose is helpful.
         ''';
       } else {
         // --- THE CLINICAL PROMPT (HAS DATA) ---
         prompt = '''
-          You are a concise health AI assistant. The user, $userName, has a current blood glucose level of ${currentBGlevel.toInt()} mg/dL.
+          The user, $userName, has a current blood glucose level of ${currentBGlevel.toInt()} mg/dL.
           Their daily average is ${averageBGlevel.toInt()} mg/dL and today's fluctuation is ${fluctuation.toInt()} mg/dL.
           Their status is "$zoneText".
 
           Write a SHORT, 2-sentence encouraging insight or safety tip based exactly on these numbers.
-          Keep it under 120 characters. Do not use asterisks or markdown formatting.
         ''';
       }
 
-      final response = await model.generateContent([Content.text(prompt)]);
+      // --- NEW: Calls your secure FastAPI backend! ---
+      final newTip = await ApiService.getAITip(prompt);
 
-      if (mounted && response.text != null) {
-        final newTip = response.text!.trim();
+      if (mounted && newTip != null) {
         await prefs.setString('ai_tip_cached_bg', newTip);
         setState(() { _dynamicAiTip = newTip; _isLoadingTip = false; });
+      } else {
+        throw Exception("Backend returned null");
       }
     } catch (_) {
       if (mounted) {

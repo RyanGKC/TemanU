@@ -1200,4 +1200,54 @@ class ApiService {
       return [];
     }
   }
+
+  // ─── AI TIPS ───
+  static Future<String?> getAITip(String prompt) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return null;
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/generate-tip'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'prompt': prompt}),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body)['tip'];
+      }
+      return null;
+    } catch (e) {
+      print("Error generating AI tip: $e");
+      return null;
+    }
+  }
+
+  // ─── MEAL VISION AI ───
+  static Future<Map<String, dynamic>?> analyzeMealImage(String base64Image) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return null;
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/analyze-meal'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'image_base64': base64Image}),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return null;
+    } catch (e) {
+      print("Error analyzing meal image: $e");
+      return null;
+    }
+  }
 }

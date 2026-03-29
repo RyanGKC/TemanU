@@ -1,8 +1,6 @@
 import 'dart:ui';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; 
-import 'package:google_generative_ai/google_generative_ai.dart'; 
 import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:temanu/api_service.dart';
 import 'package:temanu/oxygenSaturationChartPainter.dart'; 
@@ -187,45 +185,36 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     if (mounted) setState(() => _isLoadingTip = true);
 
     try {
-      final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
-      if (apiKey.isEmpty) return;
-
-      final model = GenerativeModel(
-        model: 'gemini-2.5-flash', 
-        apiKey: apiKey,
-        generationConfig: GenerationConfig(temperature: 0.4),
-      );
-
-      final userName = widget.baseUserData['name'] ?? 'the user';
+      final userName = widget.baseUserData['preferred_name'] ?? widget.baseUserData['name'] ?? 'User';
       String prompt;
 
-      // --- THE FIX: Handle empty state gracefully ---
       if (currentSpO2 == 0) {
+        // --- THE ONBOARDING PROMPT (NO DATA) ---
         prompt = '''
           The user, $userName, just joined the app and hasn't logged any Oxygen Saturation (SpO2) data yet. 
           Write a short, 2-sentence welcoming tip encouraging them to log their first reading 
-          and briefly explaining why tracking blood oxygen is helpful. Keep it under 120 characters. 
-          Do not use asterisks or markdown formatting.
+          and briefly explaining why tracking blood oxygen is helpful.
         ''';
       } else {
+        // --- THE CLINICAL PROMPT (HAS DATA) ---
         prompt = '''
-          You are a concise health AI assistant. The user, $userName, has a current blood oxygen saturation (SpO2) of $currentSpO2% and a daily average of $avgSpO2%.
-          
-          Write a SHORT, 2-sentence encouraging insight or safety tip based exactly on these numbers. 
-          Keep it under 120 characters. Do not use asterisks or markdown formatting.
+          The user, $userName, has a current blood oxygen saturation (SpO2) of $currentSpO2% and a daily average of $avgSpO2%.
+          Write a SHORT, 2-sentence encouraging insight or safety tip based exactly on these numbers.
         ''';
       }
 
-      final response = await model.generateContent([Content.text(prompt)]);
+      // --- NEW: Calls your secure FastAPI backend! ---
+      final newTip = await ApiService.getAITip(prompt);
       
-      if (mounted && response.text != null) {
-        final newTip = response.text!.trim();
+      if (mounted && newTip != null) {
         await prefs.setString('ai_tip_cached_spo2', newTip);
 
         setState(() {
           _dynamicAiTip = newTip;
           _isLoadingTip = false;
         });
+      } else {
+        throw Exception("Backend returned null");
       }
     } catch (e) {
       if (mounted) {

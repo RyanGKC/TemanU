@@ -1,8 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/cameraCapture.dart';
 import 'package:temanu/caloriesSharePage.dart';
@@ -733,35 +731,24 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
     if (mounted) setState(() => _isLoadingTip = true);
 
-    try {
-      final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
-      if (apiKey.isEmpty) return;
+    // --- NEW CLEAN LOGIC ---
+    final prompt = '''
+      The user, ${widget.patientData.name}, is aiming to $_bodyGoal their weight.
+      Today's Progress:
+      - Calories: ${caloriesConsumed.toInt()} / ${caloriesIntakeTarget.toInt()} kcal
+      - Protein: ${proteinConsumed.toInt()}g / ${proteinTarget.toInt()}g
+      - Carbs: ${carbsConsumed.toInt()}g / ${carbsTarget.toInt()}g
+      - Fats: ${fatsConsumed.toInt()}g / ${fatsTarget.toInt()}g
+      Write a SHORT, 2-sentence encouraging insight or tip based exactly on these numbers.
+    ''';
 
-      final model = GenerativeModel(
-        model: 'gemini-2.5-flash', apiKey: apiKey,
-        generationConfig: GenerationConfig(temperature: 0.4),
-      );
+    final newTip = await ApiService.getAITip(prompt);
 
-      final prompt = '''
-        You are a concise health AI assistant. The user, ${widget.patientData.name}, is aiming to $_bodyGoal their weight.
-        Today's Progress:
-        - Calories: ${caloriesConsumed.toInt()} / ${caloriesIntakeTarget.toInt()} kcal
-        - Protein: ${proteinConsumed.toInt()}g / ${proteinTarget.toInt()}g
-        - Carbs: ${carbsConsumed.toInt()}g / ${carbsTarget.toInt()}g
-        - Fats: ${fatsConsumed.toInt()}g / ${fatsTarget.toInt()}g
-        Write a SHORT, 2-sentence encouraging insight or tip based exactly on these numbers. 
-        Keep it under 120 characters. Do not use asterisks or markdown formatting.
-      ''';
-
-      final response = await model.generateContent([Content.text(prompt)]);
-      
-      if (mounted && response.text != null) {
-        final newTip = response.text!.trim();
+    if (mounted) {
+      if (newTip != null) {
         await prefs.setString('ai_tip_cached', newTip);
         setState(() { _dynamicAiTip = newTip; _isLoadingTip = false; });
-      }
-    } catch (e) {
-      if (mounted) {
+      } else {
         setState(() {
           _dynamicAiTip = "Keep up the great work today! Tap here to chat for more insights.";
           _isLoadingTip = false;

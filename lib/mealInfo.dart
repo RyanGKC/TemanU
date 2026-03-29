@@ -3,10 +3,9 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:google_generative_ai/google_generative_ai.dart'; 
 import 'package:image_picker/image_picker.dart';
-import 'package:temanu/theme.dart'; // <-- ADDED THEME IMPORT
+import 'package:temanu/api_service.dart'; // <-- ADDED API SERVICE
+import 'package:temanu/theme.dart';
 
 class MealInfo extends StatefulWidget {
   final XFile imageFile; 
@@ -29,8 +28,6 @@ class _MealInfoState extends State<MealInfo> {
   bool _isAnalyzing = true;
   bool _isSaving = false;
 
-  static String get _geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
-
   @override
   void initState() {
     super.initState();
@@ -44,57 +41,27 @@ class _MealInfoState extends State<MealInfo> {
     super.dispose();
   }
 
+  // --- NEW: Fast, Secure Backend GPT-4o-Mini Call ---
   Future<void> _analyzeMeal() async {
     try {
-      final model = GenerativeModel(
-        model: 'gemini-2.5-flash', 
-        apiKey: _geminiApiKey,
-        generationConfig: GenerationConfig(temperature: 0.2),
-      );
-
+      // 1. Read the image and convert to Base64
       final imageBytes = await widget.imageFile.readAsBytes();
+      final base64Image = base64Encode(imageBytes);
 
-      final prompt = '''Analyze this meal photo and estimate its nutritional content.
-                      Respond ONLY with a valid JSON object (no markdown, no extra text) in this exact format:
-                      {
-                        "meal_name": "short descriptive name of the meal",
-                        "calories": <integer>,
-                        "protein_g": <integer>,
-                        "carbs_g": <integer>,
-                        "fats_g": <integer>
-                      }
-                      Base your estimates on typical portion sizes visible in the photo. If you cannot identify a meal, use 0 for all values and "Unknown Meal" as the name.''';
+      // 2. Beam it to your FastAPI server
+      final mealData = await ApiService.analyzeMealImage(base64Image);
 
-      final content = [
-        Content.multi([
-          TextPart(prompt),
-          DataPart('image/jpeg', imageBytes), 
-        ])
-      ];
-
-      final response = await model.generateContent(content);
-      final rawText = response.text;
-
-      if (rawText != null) {
-        final cleanText = rawText
-            .replaceAll(RegExp(r'```json\s*'), '')
-            .replaceAll(RegExp(r'```\s*'), '')
-            .trim();
-
-        final mealData = jsonDecode(cleanText);
-
-        if (mounted) {
-          setState(() {
-            _nameController.text = mealData['meal_name'] ?? 'Unknown Meal';
-            _calories = (mealData['calories'] as num).toInt();
-            _protein = (mealData['protein_g'] as num).toInt();
-            _carbs = (mealData['carbs_g'] as num).toInt();
-            _fats = (mealData['fats_g'] as num).toInt();
-            _isAnalyzing = false;
-          });
-        }
+      if (mealData != null && mounted) {
+        setState(() {
+          _nameController.text = mealData['meal_name'] ?? 'Unknown Meal';
+          _calories = (mealData['calories'] as num?)?.toInt() ?? 0;
+          _protein = (mealData['protein_g'] as num?)?.toInt() ?? 0;
+          _carbs = (mealData['carbs_g'] as num?)?.toInt() ?? 0;
+          _fats = (mealData['fats_g'] as num?)?.toInt() ?? 0;
+          _isAnalyzing = false;
+        });
       } else {
-        throw Exception("Gemini returned an empty response.");
+        throw Exception("Backend returned null.");
       }
     } catch (e) {
       if (mounted) {
@@ -137,7 +104,7 @@ class _MealInfoState extends State<MealInfo> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background, // <-- APPLIED THEME
+      backgroundColor: AppTheme.background, 
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -169,7 +136,7 @@ class _MealInfoState extends State<MealInfo> {
                         height: 250,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.3), width: 2), // <-- APPLIED THEME
+                          border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.3), width: 2), 
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.3),
@@ -192,7 +159,7 @@ class _MealInfoState extends State<MealInfo> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: AppTheme.cardBackground, // <-- APPLIED THEME
+                          color: AppTheme.cardBackground, 
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: _isAnalyzing
@@ -234,7 +201,6 @@ class _MealInfoState extends State<MealInfo> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         decoration: BoxDecoration(
-                          // <-- APPLIED THEME
                           color: (_isAnalyzing || _isSaving)
                               ? AppTheme.primaryColor.withValues(alpha: 0.4)
                               : AppTheme.primaryColor,
@@ -245,12 +211,10 @@ class _MealInfoState extends State<MealInfo> {
                             ? const SizedBox(
                                 height: 20,
                                 width: 20,
-                                // <-- APPLIED THEME (White spinner for contrast)
                                 child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                               )
                             : const Text(
                                 "Confirm",
-                                // <-- APPLIED THEME (White text for contrast)
                                 style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                               ),
                       ),
@@ -269,7 +233,7 @@ class _MealInfoState extends State<MealInfo> {
     return Column(
       children: [
         const SizedBox(height: 10),
-        const CircularProgressIndicator(color: AppTheme.primaryColor), // <-- APPLIED THEME
+        const CircularProgressIndicator(color: AppTheme.primaryColor), 
         const SizedBox(height: 16),
         Text("Analyzing your meal...",
             style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 16)),
@@ -296,12 +260,12 @@ class _MealInfoState extends State<MealInfo> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
             decoration: BoxDecoration(
-              color: AppTheme.primaryColor.withValues(alpha: 0.15), // <-- APPLIED THEME
+              color: AppTheme.primaryColor.withValues(alpha: 0.15), 
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppTheme.primaryColor), // <-- APPLIED THEME
+              border: Border.all(color: AppTheme.primaryColor), 
             ),
             child: const Text("Retry",
-                style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold)), // <-- APPLIED THEME
+                style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold)), 
           ),
         ),
       ],
@@ -332,7 +296,7 @@ class _MealInfoState extends State<MealInfo> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   focusedBorder: const OutlineInputBorder(
-                    borderSide: BorderSide(color: AppTheme.primaryColor, width: 2), // <-- APPLIED THEME
+                    borderSide: BorderSide(color: AppTheme.primaryColor, width: 2), 
                   ),
                 ),
               ),
@@ -342,13 +306,13 @@ class _MealInfoState extends State<MealInfo> {
               margin: const EdgeInsets.only(top: 5),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.1), // <-- APPLIED THEME
+                color: AppTheme.primaryColor.withValues(alpha: 0.1), 
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.5)), // <-- APPLIED THEME
+                border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.5)), 
               ),
               child: Text(
                 "${_calories ?? '--'} kcal",
-                style: const TextStyle(color: AppTheme.primaryColor, fontSize: 16, fontWeight: FontWeight.bold), // <-- APPLIED THEME
+                style: const TextStyle(color: AppTheme.primaryColor, fontSize: 16, fontWeight: FontWeight.bold), 
               ),
             ),
           ],
@@ -357,10 +321,10 @@ class _MealInfoState extends State<MealInfo> {
         Row(
           children: [
             const SizedBox(width: 10),
-            Icon(Icons.auto_awesome, color: AppTheme.primaryColor.withValues(alpha: 0.7), size: 12), // <-- APPLIED THEME
+            Icon(Icons.auto_awesome, color: AppTheme.primaryColor.withValues(alpha: 0.7), size: 12), 
             const SizedBox(width: 4),
             Text(
-              "Gemini AI estimated · tap name to edit",
+              "AI estimated · tap name to edit", // <-- UPDATED LABEL
               style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11),
             ),
           ],

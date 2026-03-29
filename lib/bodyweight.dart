@@ -1,8 +1,6 @@
 import 'dart:ui';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; 
-import 'package:google_generative_ai/google_generative_ai.dart'; 
 import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:temanu/api_service.dart'; 
 import 'package:temanu/assistantpage.dart';
@@ -200,37 +198,28 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     if (mounted) setState(() => _isLoadingTip = true);
 
     try {
-      final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
-      if (apiKey.isEmpty) return;
-
-      final model = GenerativeModel(
-        model: 'gemini-2.5-flash', 
-        apiKey: apiKey,
-        generationConfig: GenerationConfig(temperature: 0.4),
-      );
-
-      final userName = widget.baseUserData['name'] ?? 'the user';
+      final userName = widget.baseUserData['preferred_name'] ?? widget.baseUserData['name'] ?? 'User';
       final bodyGoal = widget.baseUserData['bodyGoal'] ?? 'maintain';
 
       final prompt = '''
-        You are a concise health AI assistant. The user, $userName, has a current weight of ${currentWeight.toStringAsFixed(1)} kg and a BMI of ${bmi.toStringAsFixed(1)}. 
-        Their overall goal is to $bodyGoal their weight. Their target weight is ${goalWeight != null ? '$goalWeight kg' : 'not yet set'}.
+        The user, $userName, has a current weight of ${currentWeight.toStringAsFixed(1)} kg and a BMI of ${bmi.toStringAsFixed(1)}. 
+        Their overall goal is to $bodyGoal their weight. Their target weight is $goalWeight kg.
         In the selected time period, their weight has changed by ${changeWeight > 0 ? '+' : ''}${changeWeight.toStringAsFixed(1)} kg.
         
-        Write a SHORT, 2-sentence encouraging insight or tip based exactly on these numbers and their goal. 
-        Keep it under 120 characters. Do not use asterisks or markdown formatting.
+        Write a SHORT, 2-sentence encouraging insight or tip based exactly on these numbers and their goal.
       ''';
 
-      final response = await model.generateContent([Content.text(prompt)]);
+      // --- NEW: Calls your secure FastAPI backend! ---
+      final newTip = await ApiService.getAITip(prompt);
       
-      if (mounted && response.text != null) {
-        final newTip = response.text!.trim();
+      if (mounted && newTip != null) {
         await prefs.setString('ai_tip_cached_bw', newTip);
-
         setState(() {
           _dynamicAiTip = newTip;
           _isLoadingTip = false;
         });
+      } else {
+        throw Exception("Backend returned null");
       }
     } catch (e) {
       if (mounted) {
