@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
@@ -1050,11 +1051,18 @@ class ApiService {
   }
 
   // 8. Chatbot
-
-  static Future<String?> sendChatMessage(String message, List<Map<String, String>> history) async {
+  // ADDED: Optional [XFile? image] parameter
+  static Future<String?> sendChatMessage(String message, List<Map<String, String>> history, {XFile? image}) async {
     try {
       final token = await _getToken();
       if (token == null) return null;
+
+      // NEW: Convert the image to a Base64 string if one was provided
+      String? base64Image;
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        base64Image = base64Encode(bytes);
+      }
 
       final response = await http.post(
         Uri.parse('$_baseUrl/chat'),
@@ -1065,6 +1073,7 @@ class ApiService {
         body: jsonEncode({
           'message': message,
           'history': history,
+          if (base64Image != null) 'image': base64Image, // Inject the image string if it exists!
         }),
       );
 

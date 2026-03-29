@@ -5,7 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart'; 
 import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:temanu/heartRateChartPainter.dart';
-import 'package:temanu/heartRateSharePage.dart'; // <-- NEW IMPORT
+import 'package:temanu/heartRateSharePage.dart'; 
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/api_service.dart';
 import 'package:temanu/button.dart';
@@ -115,8 +115,8 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
     
-    _fetchHrData();
-    _generateAITip();
+    // --- THE FIX: Chain fetch and force refresh cache ---
+    _fetchHrData().then((_) => _generateAITip(forceRefresh: true));
   }
 
   @override
@@ -210,13 +210,24 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
       );
 
       final userName = widget.baseUserData['name'] ?? 'the user';
+      String prompt;
 
-      final prompt = '''
-        You are a concise health AI assistant. The user, $userName, has a current heart rate of $currentHr bpm and a resting heart rate of $restingHr bpm.
-        
-        Write a SHORT, 2-sentence encouraging insight or safety tip based exactly on these numbers. 
-        Keep it under 120 characters. Do not use asterisks or markdown formatting.
-      ''';
+      // --- THE FIX: Handle empty state gracefully ---
+      if (currentHr == 0) {
+        prompt = '''
+          The user, $userName, just joined the app and hasn't logged any Heart Rate data yet. 
+          Write a short, 2-sentence welcoming tip encouraging them to log their first reading 
+          and briefly explaining why tracking heart rate is helpful. Keep it under 120 characters. 
+          Do not use asterisks or markdown formatting.
+        ''';
+      } else {
+        prompt = '''
+          You are a concise health AI assistant. The user, $userName, has a current heart rate of $currentHr bpm and a resting heart rate of $restingHr bpm.
+          
+          Write a SHORT, 2-sentence encouraging insight or safety tip based exactly on these numbers. 
+          Keep it under 120 characters. Do not use asterisks or markdown formatting.
+        ''';
+      }
 
       final response = await model.generateContent([Content.text(prompt)]);
       
@@ -281,21 +292,24 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
 
   // ─── Zone helpers ─────────────────────────────────────────────────────────
 
+  // --- THE FIX: Safe zoneText ---
   String get zoneText {
-    if (currentHr == 0)    return "–";
+    if (currentHr == 0)    return "No Data";
     if (currentHr < 60)    return "Low";
     if (currentHr <= 100)  return "Normal";
     if (currentHr <= 120)  return "Elevated";
     return "High";
   }
 
+  // --- THE FIX: Safe zoneColor ---
   Color get zoneColor {
+    if (currentHr == 0) return AppTheme.textSecondary;
     switch (zoneText) {
       case "Normal":   return const Color(0xff4DA5E0);
       case "Low":      return Colors.deepPurple;
       case "Elevated": return Colors.orange;
       case "High":     return Colors.red;
-      default:         return Colors.grey;
+      default:         return AppTheme.textSecondary;
     }
   }
 
@@ -373,9 +387,9 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
           constraints: const BoxConstraints(maxWidth: 400),
           padding: const EdgeInsets.all(25),
           decoration: BoxDecoration(
-            color: AppTheme.cardBackground.withValues(alpha: 0.95), // <-- Updated opacity to alpha
+            color: AppTheme.cardBackground.withValues(alpha: 0.95), 
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5), // <-- Updated
+            border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5), 
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -414,7 +428,6 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     );
   }
 
-  // --- NEW: Routing to Share Page ---
   void openSharePage() {
     Navigator.push(
       context,
@@ -463,19 +476,14 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          // --- THE RESPONSIVE TRIGGER ---
           bool isWideScreen = constraints.maxWidth > 850;
 
           if (isWideScreen) {
-            // ==========================================
-            // DESKTOP / TABLET LAYOUT (2 Columns)
-            // ==========================================
             return SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // LEFT COLUMN: Chart, Navigation & Filters
                   Expanded(
                     flex: 5,
                     child: Column(
@@ -485,14 +493,13 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
                         const SizedBox(height: 10),
                         _buildDateNavigator(),
                         const SizedBox(height: 10),
-                        _buildChart(), // Now 317px tall
+                        _buildChart(), 
                         const SizedBox(height: 16),
                         _buildFilters(),
                       ],
                     ),
                   ),
                   const SizedBox(width: 32),
-                  // RIGHT COLUMN: Stats & AI Sidebar
                   Expanded(
                     flex: 3,
                     child: Column(
@@ -500,7 +507,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
                       children: [
                         _buildCurrentHrAndAddData(),
                         const SizedBox(height: 32),
-                        _buildInfoCards(isWide: true), // Stacked height = 317px
+                        _buildInfoCards(isWide: true), 
                         const SizedBox(height: 24),
                         _buildAiTips(),
                       ],
@@ -510,9 +517,6 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
               ),
             );
           } else {
-            // ==========================================
-            // MOBILE LAYOUT (Single Column)
-            // ==========================================
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -556,15 +560,16 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
+                // --- THE FIX: Double dashes when empty ---
                 Text(
-                  currentHr > 0 ? "$currentHr" : "–",
+                  currentHr > 0 ? "$currentHr" : "--",
                   style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(width: 4),
                 const Text("bpm", style: TextStyle(color: Colors.white70, fontSize: 20)),
               ],
             ),
-            Text(zoneText, style: const TextStyle(color: Colors.white70, fontSize: 16)),
+            Text(zoneText, style: TextStyle(color: zoneColor, fontSize: 16)),
           ],
         ),
         InkWell(
@@ -618,7 +623,6 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
 
   Widget _buildChart() {
     return Container(
-      // --- HEIGHT MATCHED TO SIDEBAR (3 * 95px cards + 2 * 16px spacers) ---
       height: 317,
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -681,24 +685,26 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
   }
 
   Widget _buildInfoCards({required bool isWide}) {
+    // --- THE FIX: Format empty states safely ---
+    final String currStr = currentHr > 0 ? "$currentHr\nbpm" : "--\nbpm";
+    final String restStr = restingHr > 0 ? "$restingHr\nbpm" : "--\nbpm";
+
     if (isWide) {
-      // Stack vertically for desktop sidebar
       return Column(
         children: [
-          _infoCard("Current HR",  currentHr > 0 ? "$currentHr\nbpm" : "–", isWide: true),
+          _infoCard("Current HR", currStr, isWide: true),
           const SizedBox(height: 16),
-          _infoCard("Resting HR",  restingHr > 0 ? "$restingHr\nbpm" : "–", isWide: true),
+          _infoCard("Resting HR", restStr, isWide: true),
           const SizedBox(height: 16),
           _zoneCard("Zone", zoneText, isWide: true),
         ],
       );
     } else {
-      // Row layout for mobile
       return Row(
         children: [
-          Expanded(child: _infoCard("Current HR",  currentHr > 0 ? "$currentHr\nbpm" : "–")),
+          Expanded(child: _infoCard("Current HR", currStr)),
           const SizedBox(width: 8),
-          Expanded(child: _infoCard("Resting HR",  restingHr > 0 ? "$restingHr\nbpm" : "–")),
+          Expanded(child: _infoCard("Resting HR", restStr)),
           const SizedBox(width: 8),
           Expanded(child: _zoneCard("Zone", zoneText)),
         ],
@@ -764,12 +770,10 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
     );
   }
 
-  // ─── Small widgets ────────────────────────────────────────────────────────
-
   Widget _infoCard(String title, String value, {bool isWide = false}) {
     return Container(
       height: 95,
-      width: isWide ? double.infinity : null, // Stretches sideways on desktop
+      width: isWide ? double.infinity : null, 
       decoration: BoxDecoration(
         color: AppTheme.cardBackground, 
         borderRadius: BorderRadius.circular(24),
@@ -790,7 +794,7 @@ class _HeartRatePageState extends State<HeartRatePage> with SingleTickerProvider
   Widget _zoneCard(String title, String value, {bool isWide = false}) {
     return Container(
       height: 95,
-      width: isWide ? double.infinity : null, // Stretches sideways on desktop
+      width: isWide ? double.infinity : null, 
       decoration: BoxDecoration(color: zoneColor, borderRadius: BorderRadius.circular(24)),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

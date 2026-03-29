@@ -527,23 +527,23 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
               "Current",
               style: TextStyle(color: Colors.white, fontSize: 16),
             ),
+            // --- THE FIX: Baseline Row for perfect typography alignment ---
             Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
               children: [
                 Text(
-                  currentWeight.toStringAsFixed(1),
+                  currentWeight == 0 ? "--" : currentWeight.toStringAsFixed(1),
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 42,
+                    fontSize: 38, // Standardized to 38
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 8.0, left: 2),
-                  child: Text(
-                    "kg",
-                    style: TextStyle(color: Colors.white, fontSize: 20),
-                  ),
+                const SizedBox(width: 4), // Swapped Padding for a clean SizedBox
+                const Text(
+                  "kg",
+                  style: TextStyle(color: Colors.white70, fontSize: 20), // Standardized to white70
                 ),
               ],
             ),
@@ -565,7 +565,7 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
       ],
     );
   }
-
+  
   Widget _buildDateNavigator() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,

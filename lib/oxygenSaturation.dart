@@ -111,8 +111,8 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
     
-    _fetchSpO2Data();
-    _generateAITip();
+    // --- THE FIX: Chain fetch and force refresh cache ---
+    _fetchSpO2Data().then((_) => _generateAITip(forceRefresh: true));
   }
 
   @override
@@ -155,8 +155,9 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
           currentSpO2 = _liveReadings.last.spo2;
           avgSpO2 = countForToday > 0 ? (sumForToday / countForToday).round() : currentSpO2;
         } else {
-          currentSpO2 = 98;
-          avgSpO2 = 98;
+          // --- THE FIX: Use 0 for empty state ---
+          currentSpO2 = 0;
+          avgSpO2 = 0;
         }
 
         _isLoadingChart = false;
@@ -196,13 +197,24 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
       );
 
       final userName = widget.baseUserData['name'] ?? 'the user';
+      String prompt;
 
-      final prompt = '''
-        You are a concise health AI assistant. The user, $userName, has a current blood oxygen saturation (SpO2) of $currentSpO2% and a daily average of $avgSpO2%.
-        
-        Write a SHORT, 2-sentence encouraging insight or safety tip based exactly on these numbers. 
-        Keep it under 120 characters. Do not use asterisks or markdown formatting.
-      ''';
+      // --- THE FIX: Handle empty state gracefully ---
+      if (currentSpO2 == 0) {
+        prompt = '''
+          The user, $userName, just joined the app and hasn't logged any Oxygen Saturation (SpO2) data yet. 
+          Write a short, 2-sentence welcoming tip encouraging them to log their first reading 
+          and briefly explaining why tracking blood oxygen is helpful. Keep it under 120 characters. 
+          Do not use asterisks or markdown formatting.
+        ''';
+      } else {
+        prompt = '''
+          You are a concise health AI assistant. The user, $userName, has a current blood oxygen saturation (SpO2) of $currentSpO2% and a daily average of $avgSpO2%.
+          
+          Write a SHORT, 2-sentence encouraging insight or safety tip based exactly on these numbers. 
+          Keep it under 120 characters. Do not use asterisks or markdown formatting.
+        ''';
+      }
 
       final response = await model.generateContent([Content.text(prompt)]);
       
@@ -267,13 +279,17 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     }
   }
 
+  // --- THE FIX: Safe zoneText ---
   String get zoneText {
+    if (currentSpO2 == 0) return "No Data"; 
     if (currentSpO2 >= 95) return "Normal";
     if (currentSpO2 >= 90) return "Borderline";
     return "Low"; 
   }
 
+  // --- THE FIX: Safe zoneColor ---
   Color get zoneColor {
+    if (currentSpO2 == 0) return AppTheme.textSecondary;
     switch (zoneText) {
       case "Normal": return AppTheme.success;
       case "Borderline": return AppTheme.warning;
@@ -354,9 +370,9 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
           constraints: const BoxConstraints(maxWidth: 400),
           padding: const EdgeInsets.all(25),
           decoration: BoxDecoration(
-            color: AppTheme.cardBackground.withValues(alpha: 0.95), // <-- Updated
+            color: AppTheme.cardBackground.withValues(alpha: 0.95), 
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5), // <-- Updated
+            border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5), 
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -395,7 +411,6 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     );
   }
 
-  // --- NEW: Routing to Share Page ---
   void openSharePage() {
     Navigator.push(
       context,
@@ -448,19 +463,14 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          // --- THE RESPONSIVE TRIGGER ---
           bool isWideScreen = constraints.maxWidth > 850;
 
           if (isWideScreen) {
-            // ==========================================
-            // DESKTOP / TABLET LAYOUT (2 Columns)
-            // ==========================================
             return SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // LEFT COLUMN: Chart, Navigation & Filters
                   Expanded(
                     flex: 5,
                     child: Column(
@@ -470,14 +480,13 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
                         const SizedBox(height: 10),
                         _buildDateNavigator(),
                         const SizedBox(height: 10),
-                        _buildChart(), // Height matched to 317px
+                        _buildChart(), 
                         const SizedBox(height: 16),
                         _buildFilters(),
                       ],
                     ),
                   ),
                   const SizedBox(width: 32),
-                  // RIGHT COLUMN: Stats & AI Sidebar
                   Expanded(
                     flex: 3,
                     child: Column(
@@ -485,7 +494,7 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
                       children: [
                         _buildCurrentSpO2AndAddData(),
                         const SizedBox(height: 32),
-                        _buildInfoCards(isWide: true), // Stacked height = 317px
+                        _buildInfoCards(isWide: true), 
                         const SizedBox(height: 24),
                         _buildAiTips(),
                       ],
@@ -495,9 +504,6 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
               ),
             );
           } else {
-            // ==========================================
-            // MOBILE LAYOUT (Single Column)
-            // ==========================================
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -541,18 +547,21 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(
-                  "$currentSpO2",
-                  style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(width: 4),
-                const Text(
-                  "%",
-                  style: TextStyle(color: Colors.white70, fontSize: 24, fontWeight: FontWeight.bold),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      currentSpO2 == 0 ? "--" : "$currentSpO2",
+                      style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 4),
+                    const Text("%", style: TextStyle(color: Colors.white70, fontSize: 20)), // <-- Fixed size & weight
+                  ],
                 ),
               ],
             ),
-            Text(zoneText, style: const TextStyle(color: Colors.white70, fontSize: 16)),
+            Text(zoneText, style: TextStyle(color: zoneColor, fontSize: 16)),
           ],
         ),
         InkWell(
@@ -621,7 +630,6 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
 
   Widget _buildChart() {
     return Container(
-      // --- HEIGHT MATCHED TO SIDEBAR (3 * 95px cards + 2 * 16px spacers) ---
       height: 317,
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -691,24 +699,26 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
   }
 
   Widget _buildInfoCards({required bool isWide}) {
+    // --- THE FIX: Hide 0 nicely ---
+    final String currStr = currentSpO2 == 0 ? "--%" : "$currentSpO2%";
+    final String avgStr = avgSpO2 == 0 ? "--%" : "$avgSpO2%";
+
     if (isWide) {
-      // Stack vertically for desktop sidebar
       return Column(
         children: [
-          _infoCard("Current", "$currentSpO2%", isWide: true),
+          _infoCard("Current", currStr, isWide: true),
           const SizedBox(height: 16),
-          _infoCard("Daily Avg", "$avgSpO2%", isWide: true),
+          _infoCard("Daily Avg", avgStr, isWide: true),
           const SizedBox(height: 16),
           _zoneCard("Zone", zoneText, isWide: true),
         ],
       );
     } else {
-      // Row layout for mobile
       return Row(
         children: [
-          Expanded(child: _infoCard("Current", "$currentSpO2%")), 
+          Expanded(child: _infoCard("Current", currStr)), 
           const SizedBox(width: 8),
-          Expanded(child: _infoCard("Daily Avg", "$avgSpO2%")),
+          Expanded(child: _infoCard("Daily Avg", avgStr)),
           const SizedBox(width: 8),
           Expanded(child: _zoneCard("Zone", zoneText)),
         ],
@@ -772,14 +782,10 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Small reusable widgets
-  // ─────────────────────────────────────────────────────────────────────────
-
   Widget _infoCard(String title, String value, {bool isWide = false}) {
     return Container(
       height: 95,
-      width: isWide ? double.infinity : null, // Stretches sideways on desktop
+      width: isWide ? double.infinity : null, 
       decoration: BoxDecoration(
         color: AppTheme.cardBackground, 
         borderRadius: BorderRadius.circular(24),
@@ -799,7 +805,7 @@ class _OxygenSaturationPageState extends State<OxygenSaturationPage> with Single
   Widget _zoneCard(String title, String value, {bool isWide = false}) {
     return Container(
       height: 95,
-      width: isWide ? double.infinity : null, // Stretches sideways on desktop
+      width: isWide ? double.infinity : null, 
       decoration: BoxDecoration(color: zoneColor, borderRadius: BorderRadius.circular(24)),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

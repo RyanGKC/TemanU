@@ -980,11 +980,22 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
                   padding: EdgeInsets.symmetric(vertical: 4.0),
                   child: SizedBox(height: 25, width: 25, child: CircularProgressIndicator(color: AppTheme.primaryColor, strokeWidth: 3)),
                 )
-              : Text(
-                  "$currentSteps",
-                  style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
+              // --- THE FIX: Baseline Row for perfect typography alignment ---
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      currentSteps == 0 ? "--" : "$currentSteps",
+                      style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      "steps", 
+                      style: TextStyle(color: Colors.white70, fontSize: 20) // Sized up to match other pages
+                    ),
+                  ],
                 ),
-            const Text("steps", style: TextStyle(color: Colors.white70, fontSize: 16)),
           ],
         ),
         _fitbitConnected

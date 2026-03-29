@@ -139,6 +139,7 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
   }
 
   String get zoneText {
+    if (currentBGlevel == 0) return "No Data"; // <-- NEW SAFEGUARD
     if (currentBGlevel > veryHigh) return "Very High";
     if (currentBGlevel > high)     return "High";
     if (currentBGlevel < veryLow)  return "Very Low";
@@ -146,7 +147,10 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
     return "In Range";
   }
 
-  Color get zoneColor => getBGLColor(currentBGlevel);
+  Color get zoneColor {
+    if (currentBGlevel == 0) return AppTheme.textSecondary; // <-- Grey text if no data
+    return getBGLColor(currentBGlevel);
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Lifecycle
@@ -157,8 +161,7 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
     super.initState();
     _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
-
-    _fetchBgData().then((_) => _generateAITip());
+    _fetchBgData().then((_) => _generateAITip(forceRefresh: true));
   }
 
   @override
@@ -209,8 +212,8 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
             fluctuation    = 0;
           }
         } else {
-          currentBGlevel = 110;
-          averageBGlevel = 110;
+          currentBGlevel = 0;
+          averageBGlevel = 0;
           fluctuation    = 0;
         }
 
@@ -423,14 +426,28 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
       );
 
       final userName = widget.baseUserData['name'] ?? 'the user';
-      final prompt = '''
-        You are a concise health AI assistant. The user, $userName, has a current blood glucose level of ${currentBGlevel.toInt()} mg/dL.
-        Their daily average is ${averageBGlevel.toInt()} mg/dL and today's fluctuation is ${fluctuation.toInt()} mg/dL.
-        Their status is "$zoneText".
+      
+      String prompt;
 
-        Write a SHORT, 2-sentence encouraging insight or safety tip based exactly on these numbers.
-        Keep it under 120 characters. Do not use asterisks or markdown formatting.
-      ''';
+      if (currentBGlevel == 0) {
+        // --- THE ONBOARDING PROMPT (NO DATA) ---
+        prompt = '''
+          The user, $userName, just joined the app and hasn't logged any Blood Glucose data yet. 
+          Write a short, 2-sentence welcoming tip encouraging them to log their first reading 
+          and briefly explaining why tracking blood glucose is helpful. Keep it under 120 characters. 
+          Do not use asterisks or markdown formatting.
+        ''';
+      } else {
+        // --- THE CLINICAL PROMPT (HAS DATA) ---
+        prompt = '''
+          You are a concise health AI assistant. The user, $userName, has a current blood glucose level of ${currentBGlevel.toInt()} mg/dL.
+          Their daily average is ${averageBGlevel.toInt()} mg/dL and today's fluctuation is ${fluctuation.toInt()} mg/dL.
+          Their status is "$zoneText".
+
+          Write a SHORT, 2-sentence encouraging insight or safety tip based exactly on these numbers.
+          Keep it under 120 characters. Do not use asterisks or markdown formatting.
+        ''';
+      }
 
       final response = await model.generateContent([Content.text(prompt)]);
 
@@ -570,9 +587,17 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text("Current", style: TextStyle(color: Colors.white, fontSize: 16)),
-            Text(
-              "${currentBGlevel.toInt()} mg/dL",
-              style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  currentBGlevel == 0 ? "--" : "${currentBGlevel.toInt()}",
+                  style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 6),
+                const Text("mg/dL", style: TextStyle(color: Colors.white70, fontSize: 20)),
+              ],
             ),
             Text(zoneText, style: TextStyle(color: zoneColor, fontSize: 16)),
           ],
@@ -708,13 +733,16 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
   }
 
   Widget _buildInfoCards({required bool isWide}) {
+    final String avgStr = averageBGlevel == 0 ? "--\nmg/dL" : "${averageBGlevel.toInt()}\nmg/dL";
+    final String flucStr = currentBGlevel == 0 ? "--\nmg/dL" : "${fluctuation.toInt()}\nmg/dL";
+
     if (isWide) {
       // Stack vertically for desktop sidebar
       return Column(
         children: [
-          _infoCard("Daily Avg", "${averageBGlevel.toInt()}\nmg/dL", AppTheme.cardBackground, isWide: true),
+          _infoCard("Daily Avg", avgStr, AppTheme.cardBackground, isWide: true),
           const SizedBox(height: 16),
-          _infoCard("Fluctuation", "${fluctuation.toInt()}\nmg/dL", AppTheme.cardBackground, isWide: true),
+          _infoCard("Fluctuation", flucStr, AppTheme.cardBackground, isWide: true),
           const SizedBox(height: 16),
           _infoCard("Status", zoneText, zoneColor, isWide: true),
         ],
@@ -723,9 +751,9 @@ class _BloodGlucoseState extends State<BloodGlucose> with SingleTickerProviderSt
       // Row layout for mobile
       return Row(
         children: [
-          Expanded(child: _infoCard("Daily Avg", "${averageBGlevel.toInt()}\nmg/dL", AppTheme.cardBackground)),
+          Expanded(child: _infoCard("Daily Avg", avgStr, AppTheme.cardBackground)),
           const SizedBox(width: 8),
-          Expanded(child: _infoCard("Fluctuation", "${fluctuation.toInt()}\nmg/dL", AppTheme.cardBackground)),
+          Expanded(child: _infoCard("Fluctuation", flucStr, AppTheme.cardBackground)),
           const SizedBox(width: 8),
           Expanded(child: _infoCard("Status", zoneText, zoneColor)),
         ],

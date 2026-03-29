@@ -63,7 +63,7 @@ class _HomePageState extends State<HomePage> {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
             child: Container(
-              color: AppTheme.background.withValues(alpha: 0.5), // <-- Updated
+              color: AppTheme.background.withValues(alpha: 0.5), 
             ),
           ),
         ),
@@ -105,6 +105,9 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   );
   bool _isLoading = true;
   List<dynamic> _activeMedications = [];
+  
+  // --- NEW: Tracking variable for PDF Medication Export ---
+  bool _includeMedicationsInExport = true; 
 
   Timer? _backgroundSyncTimer;
   late List<Map<String, dynamic>> _metricsData;
@@ -241,7 +244,6 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   }
 
   Future<void> _autoSyncFitbit(String token) async {
-    // --- THE FIX: Passed forceRefresh: true so it syncs perfectly on launch! ---
     String? realSteps = await FitbitService.getTodaysSteps(token, forceRefresh: true);
     String? realHeartRate = await FitbitService.getHeartRate(token, forceRefresh: true);
     
@@ -279,9 +281,9 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
               decoration: BoxDecoration(
                 color: isSuccess ? AppTheme.primaryColor : AppTheme.cardBackground,
                 borderRadius: BorderRadius.circular(20),
-                border: isSuccess ? null : Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5), // <-- Updated
+                border: isSuccess ? null : Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5), 
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 5)) // <-- Updated
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 5)) 
                 ],
               ),
               child: Row(
@@ -351,7 +353,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                 decoration: BoxDecoration(
                   color: AppTheme.cardBackground.withValues(alpha:0.8),
                   borderRadius: BorderRadius.circular(25),
-                  border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5), // <-- Updated
+                  border: Border.all(color: AppTheme.textSecondary.withValues(alpha: 0.2), width: 1.5), 
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -517,14 +519,14 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                   Container(
                     margin: const EdgeInsets.only(top: 15, bottom: 10),
                     height: 5, width: 50,
-                    decoration: BoxDecoration(color: AppTheme.textSecondary.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(10)), // <-- Updated
+                    decoration: BoxDecoration(color: AppTheme.textSecondary.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(10)), 
                   ),
                   const Padding(
                     padding: EdgeInsets.all(15.0),
                     child: Text("Customize Dashboard",
                         style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
-                  Divider(color: AppTheme.textSecondary.withValues(alpha: 0.1), height: 1), // <-- Updated
+                  Divider(color: AppTheme.textSecondary.withValues(alpha: 0.1), height: 1), 
                   Expanded(
                     child: ListView.builder(
                       itemCount: _metricsData.length,
@@ -532,9 +534,9 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                         final metric = _metricsData[index];
                         return SwitchListTile(
                           activeThumbColor: AppTheme.primaryColor,
-                          activeTrackColor: AppTheme.primaryColor.withValues(alpha: 0.3), // <-- Updated
+                          activeTrackColor: AppTheme.primaryColor.withValues(alpha: 0.3), 
                           inactiveThumbColor: AppTheme.textSecondary,
-                          inactiveTrackColor: AppTheme.textSecondary.withValues(alpha: 0.1), // <-- Updated
+                          inactiveTrackColor: AppTheme.textSecondary.withValues(alpha: 0.1), 
                           secondary: Icon(metric['icon'], color: AppTheme.textSecondary),
                           title: Text(metric['title'], style: const TextStyle(color: AppTheme.textPrimary)),
                           value: metric['isVisible'],
@@ -591,33 +593,56 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                   Container(
                     margin: const EdgeInsets.only(top: 15, bottom: 10),
                     height: 5, width: 50,
-                    decoration: BoxDecoration(color: AppTheme.textSecondary.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(10)), // <-- Updated
+                    decoration: BoxDecoration(color: AppTheme.textSecondary.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(10)),
                   ),
                   const Padding(
                     padding: EdgeInsets.all(15.0),
                     child: Text("Select Data to Export",
                         style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
-                  Divider(color: AppTheme.textSecondary.withValues(alpha: 0.1), height: 1), // <-- Updated
+                  Divider(color: AppTheme.textSecondary.withValues(alpha: 0.1), height: 1), 
+                  
+                  // --- UPDATED: Replaced ListView.builder with a standard ListView to inject Medications! ---
                   Expanded(
-                    child: ListView.builder(
-                      itemCount: _metricsData.length,
-                      itemBuilder: (context, index) {
-                        final metric = _metricsData[index];
-                        return CheckboxListTile(
+                    child: ListView(
+                      children: [
+                        // Map over all health metrics
+                        ..._metricsData.map((metric) {
+                          return CheckboxListTile(
+                            activeColor: AppTheme.primaryColor,
+                            checkColor: AppTheme.textPrimary,
+                            side: const BorderSide(color: AppTheme.textSecondary),
+                            secondary: Icon(metric['icon'], color: AppTheme.textSecondary),
+                            title: Text(metric['title'], style: const TextStyle(color: AppTheme.textPrimary)),
+                            value: metric['isShareSelected'],
+                            onChanged: (bool? value) {
+                              setModalState(() => metric['isShareSelected'] = value ?? false);
+                            },
+                          );
+                        }).toList(),
+                        
+                        // Small divider to separate core metrics from medications
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Divider(color: AppTheme.textSecondary.withValues(alpha: 0.1), height: 20),
+                        ),
+                        
+                        // NEW: Medication Toggle!
+                        CheckboxListTile(
                           activeColor: AppTheme.primaryColor,
                           checkColor: AppTheme.textPrimary,
                           side: const BorderSide(color: AppTheme.textSecondary),
-                          secondary: Icon(metric['icon'], color: AppTheme.textSecondary),
-                          title: Text(metric['title'], style: const TextStyle(color: AppTheme.textPrimary)),
-                          value: metric['isShareSelected'],
+                          secondary: const Icon(Icons.medication, color: AppTheme.textSecondary),
+                          title: const Text("Active Medications", style: TextStyle(color: AppTheme.textPrimary)),
+                          value: _includeMedicationsInExport,
                           onChanged: (bool? value) {
-                            setModalState(() => metric['isShareSelected'] = value ?? false);
+                            setModalState(() => _includeMedicationsInExport = value ?? false);
                           },
-                        );
-                      },
+                        ),
+                      ],
                     ),
                   ),
+
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
                     child: Row(
@@ -635,7 +660,8 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                                 PdfGenerator.generateAndShare(
                                   selectedMetrics: _selectedMetrics,
                                   patientData: _patientData.toMap(),
-                                  activeMedications: _activeMedications,
+                                  // --- UPDATED: Pass empty array if unchecked ---
+                                  activeMedications: _includeMedicationsInExport ? _activeMedications : [],
                                 );
                               },
                               child: const Text("Share PDF",
@@ -656,7 +682,8 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                               PdfGenerator.generateAndSave(
                                 selectedMetrics: _selectedMetrics,
                                 patientData: _patientData.toMap(),
-                                activeMedications: _activeMedications,
+                                // --- UPDATED: Pass empty array if unchecked ---
+                                activeMedications: _includeMedicationsInExport ? _activeMedications : [],
                                 context: context,
                               );
                             },
@@ -807,9 +834,16 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                           ),
                         ),
                       )
-                    : Text("$value $unit",
-                        style: const TextStyle(
-                            color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
+                    // --- THE FIX: Standardized Font Sizes matching other pages! ---
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(value, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 30, fontWeight: FontWeight.bold)),
+                          const SizedBox(width: 4),
+                          Text(unit, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
+                        ],
+                      )
               ],
             ),
           ],

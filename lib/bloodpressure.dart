@@ -114,8 +114,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
     _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuart);
     
-    _fetchBpData();
-    _generateAITip();
+    _fetchBpData().then((_) => _generateAITip(forceRefresh: true));
   }
 
   @override
@@ -154,8 +153,8 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
           systolic = _liveReadings.last.sys;
           diastolic = _liveReadings.last.dia;
         } else {
-          systolic = 118;
-          diastolic = 76;
+          systolic = 0;
+          diastolic = 0;
         }
 
         _isLoadingChart = false;
@@ -196,13 +195,26 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
 
       final userName = widget.baseUserData['name'] ?? 'the user';
 
-      final prompt = '''
-        You are a concise health AI assistant. The user, $userName, has a current blood pressure of $systolic/$diastolic mmHg.
-        This reading falls into the "$zoneText" category.
-        
-        Write a SHORT, 2-sentence encouraging insight or safety tip based exactly on these numbers. 
-        Keep it under 120 characters. Do not use asterisks or markdown formatting.
-      ''';
+      String prompt;
+
+      if (systolic == 0 || diastolic == 0) {
+        // --- THE ONBOARDING PROMPT (NO DATA) ---
+        prompt = '''
+          The user, $userName, just joined the app and hasn't logged any Blood Pressure data yet. 
+          Write a short, 2-sentence welcoming tip encouraging them to log their first reading 
+          and briefly explaining why tracking blood pressure is helpful. Keep it under 120 characters. 
+          Do not use asterisks or markdown formatting.
+        ''';
+      } else {
+        // --- THE CLINICAL PROMPT (HAS DATA) ---
+        prompt = '''
+          You are a concise health AI assistant. The user, $userName, has a current blood pressure of $systolic/$diastolic mmHg.
+          This reading falls into the "$zoneText" category.
+          
+          Write a SHORT, 2-sentence encouraging insight or safety tip based exactly on these numbers. 
+          Keep it under 120 characters. Do not use asterisks or markdown formatting.
+        ''';
+      }
 
       final response = await model.generateContent([Content.text(prompt)]);
       
@@ -274,6 +286,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
   }
 
   String get zoneText {
+    if (systolic == 0 || diastolic == 0) return "No Data";
     if (systolic > 180 || diastolic > 120) return "Crisis";
     if (systolic >= 140 || diastolic >= 90) return "High";
     if (systolic >= 130 || diastolic >= 80) return "Stage 1";
@@ -282,6 +295,7 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
   }
 
   Color get zoneColor {
+    if (systolic == 0 || diastolic == 0) return AppTheme.textSecondary;
     switch (zoneText) {
       case "Healthy": return const Color(0xff4DA5E0);
       case "Elevated": return Colors.orange;
@@ -564,9 +578,17 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text("Current", style: TextStyle(color: Colors.white, fontSize: 16)),
-            Text(
-              "$systolic / $diastolic",
-              style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  (systolic == 0 || diastolic == 0) ? "-- / --" : "$systolic / $diastolic",
+                  style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 6),
+                const Text("mmHg", style: TextStyle(color: Colors.white70, fontSize: 20)),
+              ],
             ),
             Text(zoneText, style: const TextStyle(color: Colors.white70, fontSize: 16)),
           ],
@@ -732,24 +754,25 @@ class _BloodPressurePageState extends State<BloodPressurePage> with SingleTicker
   }
 
   Widget _buildInfoCards({required bool isWide}) {
+    final String sysStr = systolic == 0 ? "--\nmmHg" : "$systolic\nmmHg";
+    final String diaStr = diastolic == 0 ? "--\nmmHg" : "$diastolic\nmmHg";
+
     if (isWide) {
-      // Stack vertically for desktop sidebar
       return Column(
         children: [
-          infoCard("Systolic", "$systolic\nmmHg", isWide: true),
+          infoCard("Systolic", sysStr, isWide: true),
           const SizedBox(height: 16),
-          infoCard("Diastolic", "$diastolic\nmmHg", isWide: true),
+          infoCard("Diastolic", diaStr, isWide: true),
           const SizedBox(height: 16),
           zoneCard("Zone", zoneText, isWide: true),
         ],
       );
     } else {
-      // Row layout for mobile
       return Row(
         children: [
-          Expanded(child: infoCard("Systolic", "$systolic\nmmHg")), 
+          Expanded(child: infoCard("Systolic", sysStr)), 
           const SizedBox(width: 8),
-          Expanded(child: infoCard("Diastolic", "$diastolic\nmmHg")),
+          Expanded(child: infoCard("Diastolic", diaStr)),
           const SizedBox(width: 8),
           Expanded(child: zoneCard("Zone", zoneText)),
         ],

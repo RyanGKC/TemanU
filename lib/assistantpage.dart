@@ -73,15 +73,17 @@ class _AssistantPageState extends State<AssistantPage> {
 
   void _handleSubmitted() async {
     final text = _textController.text.trim();
+    final XFile? imageToSend = _selectedImage; // Capture the image before clearing!
     
-    // Don't send if text is empty
-    if (text.isEmpty) return;
+    // Allow sending if EITHER text or image is present
+    if (text.isEmpty && imageToSend == null) return;
 
     _textController.clear();
     
     setState(() {
       _selectedImage = null; // Clear preview
-      _messages.add(ChatMessage(text: text, isUser: true));
+      // ADDED: Pass the captured image to the ChatMessage so it renders in the bubble
+      _messages.add(ChatMessage(text: text, isUser: true, image: imageToSend)); 
       _isTyping = true;
     });
     
@@ -91,7 +93,8 @@ class _AssistantPageState extends State<AssistantPage> {
     _chatHistory.add({"role": "user", "content": text});
 
     try {
-      final reply = await ApiService.sendChatMessage(text, _chatHistory);
+      // UPDATED: Pass the imageToSend to your ApiService
+      final reply = await ApiService.sendChatMessage(text, _chatHistory, image: imageToSend);
 
       if (reply != null) {
         // Add AI reply to history
