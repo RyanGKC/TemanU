@@ -185,14 +185,44 @@ class AboutYouState extends State<AboutYou> {
                       decoration: const InputDecoration(labelText: 'Weight (kg)'),
                     ),
                     const SizedBox(height: 15),
-                    DropdownButtonFormField<String>(
-                      dropdownColor: AppTheme.cardBackground,
-                      style: const TextStyle(color: AppTheme.textPrimary),
-                      decoration: const InputDecoration(labelText: 'Blood Type (Optional)'),
-                      items: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
-                          .map((label) => DropdownMenuItem(value: label, child: Text(label)))
-                          .toList(),
-                      onChanged: (value) => setState(() => bloodTypeController.text = value!),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            // 1. Bind the value so the dropdown resets when the controller is cleared!
+                            value: bloodTypeController.text.isEmpty ? null : bloodTypeController.text,
+                            dropdownColor: AppTheme.cardBackground,
+                            style: const TextStyle(color: AppTheme.textPrimary),
+                            decoration: const InputDecoration(labelText: 'Blood Type (Optional)'),
+                            items: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+                                .map((label) => DropdownMenuItem(value: label, child: Text(label)))
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                bloodTypeController.text = value ?? '';
+                              });
+                            },
+                          ),
+                        ),
+                        
+                        // 2. Show the Clear button ONLY if a selection has been made
+                        if (bloodTypeController.text.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0), // Align with the input line
+                            child: IconButton(
+                              icon: const Icon(Icons.clear, color: AppTheme.textSecondary),
+                              tooltip: 'Clear Selection',
+                              onPressed: () {
+                                setState(() {
+                                  bloodTypeController.clear(); // Wipes the controller and resets the UI
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 25),
                     
