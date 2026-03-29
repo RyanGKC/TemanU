@@ -245,7 +245,11 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
         children: [
           if (_pendingRequestsCount > 0) _buildPendingRequestsBanner(),
           if (_myDoctors.isEmpty && !_isLoadingDoctors)
-            _buildEmptyStateDoctors()
+            // THE FIX: Forces the empty state to take up 55% of the screen height, perfectly centering it!
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.55, 
+              child: _buildEmptyStateDoctors(),
+            )
           else
             ..._myDoctors.map((doc) => _buildDoctorCard(doc)),
         ],
@@ -288,8 +292,8 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
   }
 
   Widget _buildEmptyStateDoctors() {
+    // Removed heightFactor so it perfectly fills the new SizedBox
     return Center(
-      heightFactor: 1.5,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -486,25 +490,31 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
       color: AppTheme.primaryColor,
       backgroundColor: AppTheme.cardBackground,
       onRefresh: _fetchAppointments,
-      child: _appointments.isEmpty
-          ? _buildEmptyStateAppointments()
-          : ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(20),
-              children: [
-                if (upcoming.isNotEmpty) ...[
-                  const Text("Upcoming", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  ...upcoming.map(_buildAppointmentCard),
-                  const SizedBox(height: 20),
-                ],
-                if (past.isNotEmpty) ...[
-                  const Text("Past", style: TextStyle(color: AppTheme.textSecondary, fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  ...past.map(_buildAppointmentCard),
-                ],
-              ],
-            ),
+      // THE FIX: Everything is now inside the ListView so "pull-to-refresh" always works!
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(20),
+        children: [
+          if (_appointments.isEmpty)
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.6,
+              child: _buildEmptyStateAppointments(),
+            )
+          else ...[
+            if (upcoming.isNotEmpty) ...[
+              const Text("Upcoming", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              ...upcoming.map(_buildAppointmentCard),
+              const SizedBox(height: 20),
+            ],
+            if (past.isNotEmpty) ...[
+              const Text("Past", style: TextStyle(color: AppTheme.textSecondary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              ...past.map(_buildAppointmentCard),
+            ],
+          ]
+        ],
+      ),
     );
   }
 
