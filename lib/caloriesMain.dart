@@ -35,7 +35,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
   double caloriesBurned = 0;
   bool _isFitbitLoading = true;
 
-  // --- NEW: Live Profile Data ---
   double _liveWeight = 0;
   double _liveHeight = 0;
   int _liveAge = 0;
@@ -43,6 +42,9 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
   String _bodyGoal   = 'maintain'; 
   int    _goalOffset = 500;        
+
+  bool _hasEnoughDataForProjection = false;
+  int _validLoggingDays = 0;
 
   List<Map<String, dynamic>> trackedMealsList = [];
 
@@ -233,7 +235,9 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
     final weeklyData = await ApiService.getWeeklyInsights();
     
-    double totalDeficit = 0;
+    double accumulatedDeficit = 0;
+    int validLoggingDays = 0; // Track how many days they actually used the app
+    
     int pHits = 0, cHits = 0, fHits = 0;
     List<Map<String, dynamic>> bars = [];
 
@@ -246,7 +250,10 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
       double actualBurned = burned > 0 ? burned : caloriesBurnedTarget;
 
-      totalDeficit += (actualBurned - consumed);
+      if (consumed > 0) {
+        accumulatedDeficit += (actualBurned - consumed);
+        validLoggingDays++;
+      }
 
       if (p >= (proteinTarget * 0.9)) pHits++;
       if (c >= (carbsTarget * 0.9)) cHits++;
@@ -261,7 +268,18 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
     if (mounted) {
       setState(() {
-        _weeklyNetDeficit = totalDeficit;
+        // If they have at least 1 day of data, calculate their average daily deficit 
+        // and multiply by 7 for a full-week projection!
+        if (validLoggingDays > 0) {
+          _weeklyNetDeficit = (accumulatedDeficit / validLoggingDays) * 7;
+          _hasEnoughDataForProjection = true;
+        } else {
+          _weeklyNetDeficit = 0;
+          _hasEnoughDataForProjection = false; // Flag that they are brand new
+        }
+
+        _validLoggingDays = validLoggingDays;
+        
         _proteinHits = pHits;
         _carbsHits = cHits;
         _fatsHits = fHits;
@@ -916,21 +934,31 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     }
 
     double projectedKg = (_weeklyNetDeficit / 7700).abs();
-    String projectionTitle = "Maintaining Weight";
-    String projectionText = "Your energy balance is perfectly level. You are projected to maintain your current weight.";
+    
+    // --- DEFAULT "EMPTY STATE" FOR NEW USERS ---
+    String projectionTitle = "Start Tracking!";
+    String projectionText = "Log your meals for the day to unlock your weekly weight projection based on your energy balance.";
     Color projectionColor = const Color(0xff00E5FF);
-    IconData projectionIcon = Icons.balance;
+    IconData projectionIcon = Icons.restaurant_menu;
 
-    if (_weeklyNetDeficit > 300) { 
-      projectionTitle = "Projected Fat Loss";
-      projectionText = "Great job! Based on your weekly deficit, you are on track to lose ~${projectedKg.toStringAsFixed(2)} kg of fat this week.";
-      projectionColor = Colors.orangeAccent;
-      projectionIcon = Icons.trending_down;
-    } else if (_weeklyNetDeficit < -300) { 
-      projectionTitle = "Projected Weight Gain";
-      projectionText = "Based on your weekly surplus, you are on track to gain ~${projectedKg.toStringAsFixed(2)} kg this week.";
-      projectionColor = Colors.greenAccent;
-      projectionIcon = Icons.trending_up;
+    // --- OVERWRITE WITH REAL DATA IF AVAILABLE ---
+    if (_hasEnoughDataForProjection) {
+      if (_weeklyNetDeficit > 300) { 
+        projectionTitle = "Projected Fat Loss";
+        projectionText = "Great job! Based on your active days, you are on track to lose ~${projectedKg.toStringAsFixed(2)} kg of fat this week.";
+        projectionColor = Colors.orangeAccent;
+        projectionIcon = Icons.trending_down;
+      } else if (_weeklyNetDeficit < -300) { 
+        projectionTitle = "Projected Weight Gain";
+        projectionText = "Based on your active days, you are on track to gain ~${projectedKg.toStringAsFixed(2)} kg this week.";
+        projectionColor = Colors.greenAccent;
+        projectionIcon = Icons.trending_up;
+      } else {
+        projectionTitle = "Maintaining Weight";
+        projectionText = "Your energy balance is perfectly level. You are projected to maintain your current weight.";
+        projectionColor = const Color(0xff00E5FF);
+        projectionIcon = Icons.balance;
+      }
     }
 
     return LayoutBuilder(
@@ -1403,7 +1431,8 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
           icon: const Icon(Icons.info_outline, color: Colors.white54, size: 22),
           onPressed: () => _showInfoDialog(
             "Macro Consistency", 
-            "This score shows how many days over the last week you successfully met your Protein, Carbs, and Fats goals. Hitting your macros consistently ensures you can hit your goals!"
+            // --- UPDATED TEXT HERE ---
+            "This score shows how many days over the last week you successfully met your goals. It only grades you on the days you actually logged meals!"
           ),
         ),
       ],
@@ -1421,9 +1450,10 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildMiniMacroCircle("Protein", _proteinHits, Colors.redAccent),
-          _buildMiniMacroCircle("Carbs", _carbsHits, Colors.orangeAccent),
-          _buildMiniMacroCircle("Fats", _fatsHits, Colors.purpleAccent),
+          // Pass the dynamic _validLoggingDays instead of letting it default to 7!
+          _buildMiniMacroCircle("Protein", _proteinHits, _validLoggingDays, Colors.redAccent),
+          _buildMiniMacroCircle("Carbs",   _carbsHits,   _validLoggingDays, Colors.orangeAccent),
+          _buildMiniMacroCircle("Fats",    _fatsHits,    _validLoggingDays, Colors.purpleAccent),
         ],
       ),
     );
@@ -1455,15 +1485,21 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     );
   }
 
-  Widget _buildMiniMacroCircle(String label, int hits, Color color) {
+  Widget _buildMiniMacroCircle(String label, int hits, int totalDays, Color color) {
+    // Prevent "divide by zero" crashes for brand new users
+    final double progress = totalDays > 0 ? (hits / totalDays) : 0.0;
+    
+    // Show a friendly "-/-" if they have 0 days, otherwise show "2/3", "5/5", etc.
+    final String displayFraction = totalDays > 0 ? "$hits/$totalDays" : "-/-";
+
     return Column(
       children: [
         Stack(
           alignment: Alignment.center,
           children: [
             SizedBox(height: 60, width: 60, child: CircularProgressIndicator(value: 1.0, strokeWidth: 6, color: Colors.white.withValues(alpha: 0.1))), 
-            SizedBox(height: 60, width: 60, child: CircularProgressIndicator(value: hits / 7, strokeWidth: 6, color: color, strokeCap: StrokeCap.round, backgroundColor: Colors.transparent)),
-            Text("$hits/7", style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+            SizedBox(height: 60, width: 60, child: CircularProgressIndicator(value: progress, strokeWidth: 6, color: color, strokeCap: StrokeCap.round, backgroundColor: Colors.transparent)),
+            Text(displayFraction, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
           ],
         ),
         const SizedBox(height: 10),
