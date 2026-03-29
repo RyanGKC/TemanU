@@ -59,6 +59,9 @@ class ApiService {
     String? bloodType,
     double? height,
     String? conditions,
+    String? bodyGoal,
+    String? activityLevel,
+    int? goalOffset,
   }) async {
     try {
       final token = await _getToken();
@@ -78,6 +81,9 @@ class ApiService {
           if (bloodType != null) 'blood_type': bloodType,
           if (height != null) 'height': height,
           if (conditions != null) 'conditions': conditions,
+          if (bodyGoal != null) 'body_goal': bodyGoal,
+          if (activityLevel != null) 'activity_level': activityLevel,
+          if (goalOffset != null) 'goal_offset': goalOffset,
         }),
       );
       return response.statusCode == 200;
@@ -96,18 +102,11 @@ class ApiService {
         headers: {'Authorization': 'Bearer $token'},
       );
 
-      // --- ADD THESE 3 LINES ---
-      print("🚀 PROFILE FETCH STATUS: ${response.statusCode}");
-      print("🚀 PROFILE FETCH BODY: ${response.body}");
-      print("🚀 REQUESTED URL: $_baseUrl/me");
-      // -------------------------
-
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
       return null;
     } catch (e) {
-      print("🚀 PROFILE FETCH CRASHED: $e"); // <-- And add this one!
       return null;
     }
   }
@@ -1154,6 +1153,51 @@ class ApiService {
     } catch (e) {
       print("Error getting download URL: $e");
       return null;
+    }
+  }
+
+  // ─── GOALS ───
+  static Future<bool> saveGoal(String goalType, double targetValue) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return false;
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/goals'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'goal_type': goalType,
+          'target_value': targetValue,
+        }),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print("Error saving goal: $e");
+      return false;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getGoals() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return [];
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/goals'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      }
+      return [];
+    } catch (e) {
+      print("Error fetching goals: $e");
+      return [];
     }
   }
 }

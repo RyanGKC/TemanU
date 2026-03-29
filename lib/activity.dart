@@ -31,7 +31,7 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
   int averageSteps = 0;
   int _latestIntradaySteps = 0; 
   
-  int stepGoal = 10000;
+  int stepGoal = 10000; // Default fallback
 
   List<String> dailyLabels = ['12AM', '4AM', '8AM', '12PM', '4PM', '8PM', '12AM'];
   List<double> dailyValues = [0, 0, 0, 0, 0, 0, 0];
@@ -209,13 +209,30 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
   // GOAL MANAGEMENT
   // ==========================================
   
+  // --- UPDATED: Fetch Goal from Backend ---
   Future<void> _loadGoal() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      stepGoal = prefs.getInt('step_goal') ?? 10000;
-    });
+    final goals = await ApiService.getGoals();
+
+    if (goals.isNotEmpty) {
+      final stepGoalData = goals.where((g) => g['goal_type'] == 'daily_steps').toList();
+      if (stepGoalData.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            stepGoal = (stepGoalData.first['target_value'] as num).toInt();
+          });
+          prefs.setInt('step_goal', stepGoal); // Cache it
+        }
+      }
+    } else {
+      // Fallback if offline or brand new user
+      setState(() {
+        stepGoal = prefs.getInt('step_goal') ?? 10000;
+      });
+    }
   }
 
+  // --- UPDATED: Save Goal to Backend ---
   void _showEditGoalDialog() {
     final controller = TextEditingController(text: stepGoal.toString());
     showDialog(
@@ -245,12 +262,34 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
             onPressed: () async {
               final newGoal = int.tryParse(controller.text);
               if (newGoal != null && newGoal > 0) {
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setInt('step_goal', newGoal);
-                setState(() => stepGoal = newGoal);
-                _generateAITip(forceRefresh: true); 
+                Navigator.pop(context); // Close Dialog immediately
+                
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Saving goal...'),
+                    backgroundColor: AppTheme.primaryColor,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+
+                // Send to DB
+                bool success = await ApiService.saveGoal('daily_steps', newGoal.toDouble());
+
+                if (success && mounted) {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setInt('step_goal', newGoal);
+                  setState(() => stepGoal = newGoal);
+                  _generateAITip(forceRefresh: true); 
+                } else if (mounted) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    const SnackBar(content: Text('Failed to save goal. Check your connection.')),
+                  );
+                }
+              } else {
+                 Navigator.pop(context);
               }
-              Navigator.pop(context);
             },
             child: const Text("Save", style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
           ),
@@ -430,20 +469,15 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
     final todayStr = "${currentNow.year}-${currentNow.month.toString().padLeft(2, '0')}-${currentNow.day.toString().padLeft(2, '0')}";
     final dateStr = targetDateString;
     
-    // ==========================================
-    // THE GROUNDHOG DAY BUG FIX
-    // ==========================================
-    // If viewing a specific day, fetch that day. Otherwise, fetch today to patch Fitbit's lagging timeseries.
     final String intradayFetchDate = (selectedRange == "D") ? dateStr : todayStr;
 
-    // We ALWAYS fetch Intraday (for the top number) & Weekly (for the Daily Average card)
     DateTime viewedDay = rangeStart; 
     DateTime mondayOfWeek = viewedDay.subtract(Duration(days: viewedDay.weekday - 1));
     DateTime sundayOfWeek = mondayOfWeek.add(const Duration(days: 6));
     String weekEndStr = "${sundayOfWeek.year}-${sundayOfWeek.month.toString().padLeft(2, '0')}-${sundayOfWeek.day.toString().padLeft(2, '0')}";
 
     List<Future<dynamic>> apiCalls = [
-      ApiService.getFitbitIntradaySteps(intradayFetchDate, forceRefresh: forceRefresh), // <-- Changed this line!
+      ApiService.getFitbitIntradaySteps(intradayFetchDate, forceRefresh: forceRefresh), 
       ApiService.getFitbitTimeSeriesSteps("1w", weekEndStr, forceRefresh: forceRefresh),
     ];
 
@@ -464,14 +498,12 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
       final weeklyData = results[1];
       final chartData = chartPeriod != null ? results[2] : null;
 
-      // 1. Get Absolute Live Steps
       int liveCurrentSteps = 0;
       if (intradayData != null && intradayData['activities-steps-intraday'] != null) {
         liveCurrentSteps = int.tryParse(intradayData['activities-steps'][0]['value'].toString()) ?? 0;
       }
       _latestIntradaySteps = liveCurrentSteps;
 
-      // 2. Calculate Daily Average (locked to Mon-Sun)
       int weekTotal = 0;
       int activeDays = 0;
       if (weeklyData != null && weeklyData['activities-steps'] != null) {
@@ -481,7 +513,6 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
 
           double val = double.tryParse(item['value'].toString()) ?? 0;
           
-          // OVERWRITE the lagging Fitbit Timeseries with live data for today
           if (dt.year == currentNow.year && dt.month == currentNow.month && dt.day == currentNow.day) {
             val = liveCurrentSteps.toDouble();
           }
@@ -492,13 +523,12 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
       }
       int calcAverage = activeDays > 0 ? (weekTotal ~/ activeDays) : 0;
 
-      // 3. Process Chart Data
       List<String> newLabels = [];
       List<double> newValues = [];
       List<String> newTooltipLabels = []; 
       
       int totalStepsForPeriod = 0; 
-      int periodActiveDays = 0; // --- THE FIX: Active days counter for extended periods
+      int periodActiveDays = 0; 
 
       if (selectedRange == "D") {
         totalStepsForPeriod = liveCurrentSteps;
@@ -527,12 +557,12 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
               newLabels.add(_getWeekday(dt.weekday));
               double val = double.tryParse(item['value'].toString()) ?? 0;
               if (dt.year == currentNow.year && dt.month == currentNow.month && dt.day == currentNow.day) {
-                val = liveCurrentSteps.toDouble(); // OVERWRITE
+                val = liveCurrentSteps.toDouble(); 
               }
               
               newValues.add(val);
               totalStepsForPeriod += val.toInt();
-              if (val > 0) periodActiveDays++; // --- THE FIX: Count active days
+              if (val > 0) periodActiveDays++; 
             }
           } else if (selectedRange == "M") {
             for (var item in dataset) {
@@ -542,12 +572,12 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
               newLabels.add("${dt.day}/${dt.month}");
               double val = double.tryParse(item['value'].toString()) ?? 0;
               if (dt.year == currentNow.year && dt.month == currentNow.month && dt.day == currentNow.day) {
-                val = liveCurrentSteps.toDouble(); // OVERWRITE
+                val = liveCurrentSteps.toDouble(); 
               }
 
               newValues.add(val);
               totalStepsForPeriod += val.toInt();
-              if (val > 0) periodActiveDays++; // --- THE FIX: Count active days
+              if (val > 0) periodActiveDays++; 
             }
           } else if (selectedRange == "3M" || selectedRange == "6M") { 
             Map<String, double> weekSums = {};
@@ -562,11 +592,11 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
 
               double val = double.tryParse(item['value'].toString()) ?? 0;
               if (dt.year == currentNow.year && dt.month == currentNow.month && dt.day == currentNow.day) {
-                val = liveCurrentSteps.toDouble(); // OVERWRITE
+                val = liveCurrentSteps.toDouble(); 
               }
 
               totalStepsForPeriod += val.toInt();
-              if (val > 0) periodActiveDays++; // --- THE FIX: Count active days
+              if (val > 0) periodActiveDays++; 
 
               int weekNum = _isoWeekNumber(dt);
               int weekYear = _isoWeekYear(dt);
@@ -610,11 +640,11 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
               
               double val = double.tryParse(item['value'].toString()) ?? 0;
               if (dt.year == currentNow.year && dt.month == currentNow.month && dt.day == currentNow.day) {
-                val = liveCurrentSteps.toDouble(); // OVERWRITE
+                val = liveCurrentSteps.toDouble(); 
               }
 
               totalStepsForPeriod += val.toInt();
-              if (val > 0) periodActiveDays++; // --- THE FIX: Count active days
+              if (val > 0) periodActiveDays++; 
 
               String monthKey = "${dt.year}-${dt.month.toString().padLeft(2, '0')}";
               monthlySums[monthKey] = (monthlySums[monthKey] ?? 0) + val;
@@ -637,9 +667,8 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
         setState(() {
           currentSteps = totalStepsForPeriod; 
           
-          // --- THE FIX: Perfectly calculates Daily Average depending on the selected tab ---
           if (selectedRange == "D") {
-            averageSteps = calcAverage; // Uses the locked Mon-Sun weekly average
+            averageSteps = calcAverage; 
           } else {
             averageSteps = periodActiveDays > 0 ? (totalStepsForPeriod ~/ periodActiveDays) : 0;
           }
@@ -878,20 +907,15 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
         },
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // --- THE RESPONSIVE TRIGGER ---
             bool isWideScreen = constraints.maxWidth > 850;
 
             if (isWideScreen) {
-              // ==========================================
-              // DESKTOP / TABLET LAYOUT (2 Columns)
-              // ==========================================
               return SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(24),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // LEFT COLUMN: Chart, Navigation & Filters
                     Expanded(
                       flex: 5,
                       child: Column(
@@ -908,9 +932,8 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
                       ),
                     ),
                     const SizedBox(width: 32),
-                    // RIGHT COLUMN: Stats, AI Sidebar & Comparisons side-by-side
                     Expanded(
-                      flex: 4, // Slightly widened from 3 to 4 to give the side-by-side charts room to breathe
+                      flex: 4, 
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -920,7 +943,6 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
                           const SizedBox(height: 24),
                           _buildAiTips(),
                           const SizedBox(height: 24),
-                          // Comparisons now forcefully side-by-side
                           _buildComparisonWidgets(), 
                         ],
                       ),
@@ -929,9 +951,6 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
                 ),
               );
             } else {
-              // ==========================================
-              // MOBILE LAYOUT (Single Column)
-              // ==========================================
               return SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
@@ -980,7 +999,6 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
                   padding: EdgeInsets.symmetric(vertical: 4.0),
                   child: SizedBox(height: 25, width: 25, child: CircularProgressIndicator(color: AppTheme.primaryColor, strokeWidth: 3)),
                 )
-              // --- THE FIX: Baseline Row for perfect typography alignment ---
               : Row(
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
@@ -992,7 +1010,7 @@ class _ActivityState extends State<Activity> with TickerProviderStateMixin {
                     const SizedBox(width: 6),
                     const Text(
                       "steps", 
-                      style: TextStyle(color: Colors.white70, fontSize: 20) // Sized up to match other pages
+                      style: TextStyle(color: Colors.white70, fontSize: 20) 
                     ),
                   ],
                 ),

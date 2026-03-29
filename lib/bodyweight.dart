@@ -28,7 +28,7 @@ class BodyWeightPage extends StatefulWidget {
 
 class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProviderStateMixin {
   double currentWeight = 0.0; 
-  double goalWeight = 80.0;
+  double? goalWeight;
   double heightCm = 186.0;
   String selectedRange = "W";
   int dateOffset = 0;
@@ -113,6 +113,7 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     final heightParsed = double.tryParse(widget.baseUserData['height'] ?? '');
     if (heightParsed != null) heightCm = heightParsed;
     
+    _fetchGoals(); // Fetch goals on start
     _fetchWeightData().then((_) {
       _generateAITip();
     });
@@ -123,6 +124,29 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     _animationController.dispose();
     super.dispose();
   }
+
+  // --- NEW: Fetch Goals from DB ---
+  Future<void> _fetchGoals() async {
+  final prefs = await SharedPreferences.getInstance();
+  final goals = await ApiService.getGoals();
+
+  if (goals.isNotEmpty) {
+    final bwGoal = goals.where((g) => g['goal_type'] == 'body_weight').toList();
+    if (bwGoal.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          goalWeight = (bwGoal.first['target_value'] as num).toDouble();
+        });
+        prefs.setDouble('target_weight', goalWeight!);
+      }
+    }
+  } else {
+    final cachedGoal = prefs.getDouble('target_weight');
+    if (cachedGoal != null && mounted) {
+      setState(() => goalWeight = cachedGoal);
+    }
+  }
+}
 
   Future<void> _fetchWeightData() async {
     setState(() => _isLoadingChart = true);
@@ -190,7 +214,7 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
 
       final prompt = '''
         You are a concise health AI assistant. The user, $userName, has a current weight of ${currentWeight.toStringAsFixed(1)} kg and a BMI of ${bmi.toStringAsFixed(1)}. 
-        Their overall goal is to $bodyGoal their weight.
+        Their overall goal is to $bodyGoal their weight. Their target weight is ${goalWeight != null ? '$goalWeight kg' : 'not yet set'}.
         In the selected time period, their weight has changed by ${changeWeight > 0 ? '+' : ''}${changeWeight.toStringAsFixed(1)} kg.
         
         Write a SHORT, 2-sentence encouraging insight or tip based exactly on these numbers and their goal. 
@@ -333,8 +357,7 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     }
   }
 
-  // --- UPDATED: Glossy Dialog for Adding Weight Data ---
-   void showAddDataDialog() {
+  void showAddDataDialog() {
     final weightController = TextEditingController();
  
     showDialog(
@@ -387,11 +410,97 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     );
   }
 
+  // --- NEW: UI for Editing the Goal ---
+  void _showEditGoalDialog() {
+    final goalController = TextEditingController(
+      text: goalWeight != null ? goalWeight!.toStringAsFixed(1) : '',
+    );
+ 
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.all(25),
+          decoration: BoxDecoration(
+            color: AppTheme.cardBackground.withOpacity(0.95),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppTheme.textSecondary.withOpacity(0.2), width: 1.5),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Edit Weight Goal',
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                "Set a new target body weight in kg.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+              MyTextField(
+                controller: goalController,
+                hintText: 'Target (kg)',
+                prefixIcon: Icons.flag_outlined,
+              ),
+              const SizedBox(height: 25),
+              MyRoundedButton(
+                text: 'Save Goal',
+                backgroundColor: AppTheme.primaryColor,
+                textColor: AppTheme.textPrimary,
+                onPressed: () async {
+                  final val = double.tryParse(goalController.text);
+                  if (val != null && val > 0) {
+                    Navigator.pop(context); // Close dialog
+                    
+                    // Show loading snackbar
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      SnackBar(
+                        content: const Text('Saving goal...'),
+                        backgroundColor: AppTheme.primaryColor,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        duration: const Duration(seconds: 1),
+                      ),
+                    );
+
+                    // Send to backend
+                    bool success = await ApiService.saveGoal('body_weight', val);
+                    
+                    if (success && mounted) {
+                      setState(() {
+                        goalWeight = val;
+                      });
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setDouble('target_weight', val);
+                      
+                      // Regenerate AI tip based on new goal!
+                      _generateAITip(forceRefresh: true);
+                    } else if (mounted) {
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        const SnackBar(content: Text('Failed to save goal. Check your connection.')),
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void openSharePage() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ShareWeightHighlightPage( // Updated to pass more data
+        builder: (context) => ShareWeightHighlightPage( 
           currentWeight: currentWeight,
           changeValue: changeWeight,
           bmi: bmi,
@@ -440,19 +549,14 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          // --- THE RESPONSIVE TRIGGER ---
           bool isWideScreen = constraints.maxWidth > 850;
 
           if (isWideScreen) {
-            // ==========================================
-            // DESKTOP / TABLET LAYOUT (2 Columns)
-            // ==========================================
             return SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // LEFT COLUMN: Chart & Filters
                   Expanded(
                     flex: 5,
                     child: Column(
@@ -466,7 +570,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
                     ),
                   ),
                   const SizedBox(width: 32),
-                  // RIGHT COLUMN: Stats & AI Sidebar
                   Expanded(
                     flex: 3,
                     child: Column(
@@ -484,9 +587,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
               ),
             );
           } else {
-            // ==========================================
-            // MOBILE LAYOUT (Single Column)
-            // ==========================================
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -527,7 +627,6 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
               "Current",
               style: TextStyle(color: Colors.white, fontSize: 16),
             ),
-            // --- THE FIX: Baseline Row for perfect typography alignment ---
             Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
@@ -536,14 +635,14 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
                   currentWeight == 0 ? "--" : currentWeight.toStringAsFixed(1),
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 38, // Standardized to 38
+                    fontSize: 38, 
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(width: 4), // Swapped Padding for a clean SizedBox
+                const SizedBox(width: 4), 
                 const Text(
                   "kg",
-                  style: TextStyle(color: Colors.white70, fontSize: 20), // Standardized to white70
+                  style: TextStyle(color: Colors.white70, fontSize: 20), 
                 ),
               ],
             ),
@@ -671,10 +770,10 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
 
   Widget _buildInfoCards({required bool isWide}) {
     if (isWide) {
-      // Stack vertically in the desktop sidebar
       return Column(
         children: [
-          infoCard("Goal", goalWeight.toStringAsFixed(0), isWide: true),
+          // Pass the edit callback to the Goal card
+          infoCard("Goal", goalWeight != null ? goalWeight!.toStringAsFixed(0) : "Not set", onEdit: _showEditGoalDialog),
           const SizedBox(height: 16),
           infoCard("Change", "${changeWeight.toStringAsFixed(1)}kg", isWide: true),
           const SizedBox(height: 16),
@@ -682,10 +781,9 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
         ],
       );
     } else {
-      // Row layout for mobile
       return Row(
         children: [
-          Expanded(child: infoCard("Goal", goalWeight.toStringAsFixed(0))),
+          Expanded(child: infoCard("Goal", goalWeight != null ? goalWeight!.toStringAsFixed(0) : "Not set", onEdit: _showEditGoalDialog)),
           const SizedBox(width: 8),
           Expanded(child: infoCard("Change", "${changeWeight.toStringAsFixed(1)}kg")),
           const SizedBox(width: 8),
@@ -751,22 +849,40 @@ class _BodyWeightPageState extends State<BodyWeightPage> with SingleTickerProvid
     );
   }
 
-  Widget infoCard(String title, String value, {bool isWide = false}) {
+  // --- UPDATED: Info Card with optional edit icon ---
+  Widget infoCard(String title, String value, {bool isWide = false, VoidCallback? onEdit}) {
     return Container(
       height: 95,
-      width: isWide ? double.infinity : null, // Stretch to fill column on wide screens
+      width: isWide ? double.infinity : null, 
       decoration: BoxDecoration(
         color: AppTheme.cardBackground,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Stack(
         children: [
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 18)),
-          const SizedBox(height: 8),
-          Text(value,
-              style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(title, style: const TextStyle(color: Colors.white, fontSize: 18)),
+                const SizedBox(height: 8),
+                Text(value,
+                    style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          if (onEdit != null)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: IconButton(
+                icon: const Icon(Icons.edit, color: Colors.white, size: 16),
+                onPressed: onEdit,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ),
         ],
       ),
     );
@@ -849,7 +965,6 @@ class WeightLineChartPainter extends CustomPainter {
       tp.paint(canvas, Offset(0, y - 8));
     }
 
-    // --- GAP FIX: Time Bounds Calculation ---
     final now = DateTime.now();
     DateTime startTime;
     DateTime endTime; 

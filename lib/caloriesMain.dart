@@ -5,7 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:temanu/assistantpage.dart';
 import 'package:temanu/cameraCapture.dart';
-import 'package:temanu/caloriesSharePage.dart'; // <-- NEW IMPORT
+import 'package:temanu/caloriesSharePage.dart';
 import 'package:temanu/fitbitService.dart';
 import 'package:temanu/patientData.dart';
 import 'package:temanu/theme.dart';
@@ -35,6 +35,12 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
   double caloriesBurned = 0;
   bool _isFitbitLoading = true;
 
+  // --- NEW: Live Profile Data ---
+  double _liveWeight = 0;
+  double _liveHeight = 0;
+  int _liveAge = 0;
+  String _liveGender = 'Male';
+
   String _bodyGoal   = 'maintain'; 
   int    _goalOffset = 500;        
 
@@ -60,7 +66,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
   String _dynamicAiTip = "Analyzing your nutrition...";
   bool _isLoadingTip = true;
 
-  // --- INSIGHTS STATE VARIABLES ---
   bool _isLoadingInsights = true;
   double _weeklyNetDeficit = 0;
   int _proteinHits = 0, _carbsHits = 0, _fatsHits = 0;
@@ -72,7 +77,12 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
     _animation  = CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic);
     _controller.forward();
-    _loadGoalSettings();
+    
+    // Load fresh data straight from the DB first!
+    _fetchFreshUserData().then((_) {
+      _loadGoalSettings();
+    });
+    
     _loadFitbitCalories();
     _loadWeeklyInsights(); 
   }
@@ -83,16 +93,55 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     super.dispose();
   }
 
+  // --- NEW: Fetch exact data from Database ---
+  Future<void> _fetchFreshUserData() async {
+    final profile = await ApiService.getFullProfile();
+    final metrics = await ApiService.getHealthMetrics();
+
+    if (profile != null) {
+      _liveGender = profile['gender'] ?? 'Male';
+      _liveHeight = double.tryParse(profile['height']?.toString() ?? '0') ?? 0;
+      
+      // Load Goal Settings from DB!
+      _bodyGoal = profile['body_goal'] ?? 'maintain';
+      _activityLevel = profile['activity_level'] ?? 'sedentary';
+      _goalOffset = profile['goal_offset'] ?? 500;
+
+      // Calculate exact age from DOB
+      final dobStr = profile['dob'] ?? '';
+      if (dobStr.isNotEmpty) {
+        try {
+          DateTime dob;
+          if (dobStr.contains('/')) {
+            final parts = dobStr.split('/');
+            dob = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+          } else {
+            dob = DateTime.parse(dobStr);
+          }
+          final now = DateTime.now();
+          _liveAge = now.year - dob.year;
+          if (now.month < dob.month || (now.month == dob.month && now.day < dob.day)) {
+            _liveAge--;
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Get the absolute latest weight
+    final weightLogs = metrics.where((m) => m['metric_type'] == 'Body Weight' || m['body_weight'] != null).toList();
+    if (weightLogs.isNotEmpty) {
+      weightLogs.sort((a, b) => DateTime.parse(b['timestamp']).compareTo(DateTime.parse(a['timestamp'])));
+      _liveWeight = double.tryParse(weightLogs.first['value']?.toString() ?? weightLogs.first['body_weight']?.toString() ?? '0') ?? 0;
+    }
+  }
+
+  // --- UPDATED: Uses DB variables instead of widget.patientData ---
   double _calculateBMR() {
-    final weight = double.tryParse(widget.patientData.weight) ?? 0;
-    final height = double.tryParse(widget.patientData.height) ?? 0;
-    final age    = int.tryParse(widget.patientData.age)       ?? 0;
+    if (_liveWeight == 0 || _liveHeight == 0 || _liveAge == 0) return 0;
 
-    if (weight == 0 || height == 0 || age == 0) return 0;
-
-    final isMale = widget.patientData.gender.toLowerCase() == 'male';
-    if (isMale) return (10 * weight) + (6.25 * height) - (5 * age) + 5;
-    return (10 * weight) + (6.25 * height) - (5 * age) - 161;
+    final isMale = _liveGender.toLowerCase() == 'male';
+    if (isMale) return (10 * _liveWeight) + (6.25 * _liveHeight) - (5 * _liveAge) + 5;
+    return (10 * _liveWeight) + (6.25 * _liveHeight) - (5 * _liveAge) - 161;
   }
 
   double _calculateTDEE() {
@@ -129,31 +178,35 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
   }
 
   Future<void> _loadGoalSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _bodyGoal      = prefs.getString('body_goal') ?? 'maintain';
-      _goalOffset    = prefs.getInt('goal_offset') ?? 500;
-      _activityLevel = prefs.getString('activity_level') ?? 'sedentary';
-    });
-
     final liveMeals = await ApiService.getTodaysMeals();
 
-    setState(() {
-      trackedMealsList = liveMeals.map((e) => Map<String, dynamic>.from(e)).toList();
+    if (mounted) {
+      setState(() {
+        trackedMealsList = liveMeals.map((e) => Map<String, dynamic>.from(e)).toList();
 
-      caloriesConsumed = 0; proteinConsumed = 0; carbsConsumed = 0; fatsConsumed = 0;
-      for (var meal in trackedMealsList) {
-        caloriesConsumed += (meal['calories'] as num).toDouble();
-        proteinConsumed  += (meal['protein']  as num).toDouble();
-        carbsConsumed    += (meal['carbs']    as num).toDouble();
-        fatsConsumed     += (meal['fats']     as num).toDouble();
-      }
-      _recalculateTargets(); 
-    });
-    _generateAITip();
+        caloriesConsumed = 0; proteinConsumed = 0; carbsConsumed = 0; fatsConsumed = 0;
+        for (var meal in trackedMealsList) {
+          caloriesConsumed += (meal['calories'] as num).toDouble();
+          proteinConsumed  += (meal['protein']  as num).toDouble();
+          carbsConsumed    += (meal['carbs']    as num).toDouble();
+          fatsConsumed     += (meal['fats']     as num).toDouble();
+        }
+        _recalculateTargets(); 
+      });
+      _generateAITip();
+    }
   }
 
+  // --- UPDATED: Save directly to Backend ---
   Future<void> _saveGoalSettings() async {
+    // Save to Database!
+    await ApiService.updateProfile(
+      bodyGoal: _bodyGoal,
+      activityLevel: _activityLevel,
+      goalOffset: _goalOffset,
+    );
+
+    // Keep local cache for offline scenarios
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('body_goal',      _bodyGoal);
     await prefs.setInt('goal_offset',       _goalOffset);
@@ -260,7 +313,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
             InputDecoration fieldDecoration() => InputDecoration(
               filled: true,
-              fillColor: Colors.white.withValues(alpha: 0.07), // <-- Updated
+              fillColor: Colors.white.withValues(alpha: 0.07),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(15),
@@ -303,7 +356,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05), // <-- Updated
+                          color: Colors.white.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: Colors.white12),
                         ),
@@ -314,7 +367,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                                 SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
-                                    "Profile incomplete. Add your height, weight, age and gender to enable BMR calculation.",
+                                    "Profile incomplete. Add your height, weight, age and gender on the Profile page to enable BMR calculation.",
                                     style: TextStyle(color: Colors.orangeAccent, fontSize: 13),
                                   ),
                                 ),
@@ -323,11 +376,11 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                           : Row(
                               mainAxisAlignment: MainAxisAlignment.spaceAround,
                               children: [
-                                _bmrStat("Height", "${widget.patientData.height} cm", Colors.white70),
+                                _bmrStat("Height", "${_liveHeight.toStringAsFixed(0)} cm", Colors.white70),
                                 _dividerLine(),
-                                _bmrStat("Weight", "${widget.patientData.weight} kg", Colors.white70),
+                                _bmrStat("Weight", "${_liveWeight.toStringAsFixed(1)} kg", Colors.white70),
                                 _dividerLine(),
-                                _bmrStat("Age",    "${widget.patientData.age} yrs",   Colors.white70),
+                                _bmrStat("Age",    "$_liveAge yrs",   Colors.white70),
                                 _dividerLine(),
                                 _bmrStat("BMR",    "${bmr.toInt()} kcal",             AppTheme.primaryColor),
                               ],
@@ -355,7 +408,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? AppTheme.primaryColor.withValues(alpha: 0.12) // <-- Updated
+                                  ? AppTheme.primaryColor.withValues(alpha: 0.12) 
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
@@ -426,7 +479,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                                     margin: const EdgeInsets.only(left: 8),
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                                     decoration: BoxDecoration(
-                                      color: isActive ? goalColor().withValues(alpha: 0.15) : Colors.transparent, // <-- Updated
+                                      color: isActive ? goalColor().withValues(alpha: 0.15) : Colors.transparent, 
                                       borderRadius: BorderRadius.circular(10),
                                       border: Border.all(
                                         color: isActive ? goalColor() : Colors.white24,
@@ -454,7 +507,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                                   activeTrackColor: goalColor(),
                                   inactiveTrackColor: Colors.white12,
                                   thumbColor: goalColor(),
-                                  overlayColor: goalColor().withValues(alpha: 0.15), // <-- Updated
+                                  overlayColor: goalColor().withValues(alpha: 0.15), 
                                   trackHeight: 5,
                                 ),
                                 child: Slider(
@@ -509,9 +562,9 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                         width: double.infinity,
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          color: goalColor().withValues(alpha: 0.07), // <-- Updated
+                          color: goalColor().withValues(alpha: 0.07), 
                           borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: goalColor().withValues(alpha: 0.4)), // <-- Updated
+                          border: Border.all(color: goalColor().withValues(alpha: 0.4)), 
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -540,18 +593,23 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                       const SizedBox(height: 30),
 
                       GestureDetector(
-                        onTap: patientDataMissing ? null : () {
+                        onTap: patientDataMissing ? null : () async {
                           setState(() {
                             _bodyGoal      = tempGoal;
                             _goalOffset    = tempOffset;
                             _activityLevel = tempActivityLevel;
                             _recalculateTargets();
                           });
-                          _saveGoalSettings();
+                          
+                          // Show loading indicator
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Saving goals..."), duration: Duration(seconds: 1)));
+                          
+                          await _saveGoalSettings(); // Saves to database!
+                          
                           _generateAITip(forceRefresh: true);
                           _loadWeeklyInsights(); 
 
-                          Navigator.pop(context);
+                          if(mounted) Navigator.pop(context);
                           _controller.forward(from: 0.0);
                         },
                         child: AnimatedContainer(
@@ -560,8 +618,8 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                           padding: const EdgeInsets.symmetric(vertical: 18),
                           decoration: BoxDecoration(
                             color: patientDataMissing
-                                ? Colors.white.withValues(alpha: 0.05) // <-- Updated
-                                : AppTheme.primaryColor.withValues(alpha: 0.1), // <-- Updated
+                                ? Colors.white.withValues(alpha: 0.05) 
+                                : AppTheme.primaryColor.withValues(alpha: 0.1), 
                             border: Border.all(
                               color: patientDataMissing ? Colors.white12 : AppTheme.primaryColor,
                               width: 2,
@@ -615,7 +673,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: isSelected ? activeColor.withValues(alpha: 0.15) : Colors.transparent, // <-- Updated
+            color: isSelected ? activeColor.withValues(alpha: 0.15) : Colors.transparent, 
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: isSelected ? activeColor : Colors.white24,
@@ -694,7 +752,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     }
   }
 
-  // --- NEW: Routing to Share Page ---
   void openSharePage() {
     final now = DateTime.now();
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -715,8 +772,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
       ),
     );
   }
-
-  // ─── MAIN BUILD (TAB CONTROLLER) ──────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -777,8 +832,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     );
   }
 
-  // ─── TAB 1: TODAY ─────────────────────────────────────────────────────────
-
   Widget _buildTodayTab() {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -786,15 +839,11 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
         final double bottomSafeArea = MediaQuery.paddingOf(context).bottom;
 
         if (isWideScreen) {
-          // ==========================================
-          // DESKTOP LAYOUT (2 Columns)
-          // ==========================================
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // LEFT COLUMN: Rings & Macros
                 Expanded(
                   flex: 5,
                   child: Column(
@@ -806,7 +855,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                   ),
                 ),
                 const SizedBox(width: 32),
-                // RIGHT COLUMN: AI Tips & Meals List
                 Expanded(
                   flex: 4,
                   child: Column(
@@ -832,9 +880,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
             ),
           );
         } else {
-          // ==========================================
-          // MOBILE LAYOUT (Single Column)
-          // ==========================================
           return SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
             child: Column(
@@ -865,8 +910,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     );
   }
 
-  // ─── TAB 2: INSIGHTS & TRENDS ─────────────────────────────────────────────
-
   Widget _buildInsightsTab() {
     if (_isLoadingInsights) {
       return const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor));
@@ -896,15 +939,11 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
         final double bottomSafeArea = MediaQuery.paddingOf(context).bottom;
 
         if (isWideScreen) {
-          // ==========================================
-          // DESKTOP LAYOUT (2 Columns)
-          // ==========================================
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // LEFT COLUMN: Weekly Chart
                 Expanded(
                   flex: 5,
                   child: Column(
@@ -917,7 +956,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                   ),
                 ),
                 const SizedBox(width: 32),
-                // RIGHT COLUMN: Projection & Macros
                 Expanded(
                   flex: 4,
                   child: Column(
@@ -936,9 +974,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
             ),
           );
         } else {
-          // ==========================================
-          // MOBILE LAYOUT (Single Column)
-          // ==========================================
           return SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
             child: Column(
@@ -961,8 +996,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
       },
     );
   }
-
-  // ─── UI HELPER METHODS (TAB 1) ────────────────────────────────────────────
 
   Widget _buildAiTipCard() {
     return InkWell(
@@ -1226,8 +1259,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
       ),
     );
   }
-
-  // ─── UI HELPER METHODS (TAB 2) ────────────────────────────────────────────
 
   Widget _buildProjectedImpactCard(double projectedKg, String projectionTitle, String projectionText, Color projectionColor, IconData projectionIcon) {
     return Container(

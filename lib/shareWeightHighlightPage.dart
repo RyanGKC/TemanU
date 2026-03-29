@@ -15,7 +15,7 @@ class ShareWeightHighlightPage extends StatefulWidget {
   final double currentWeight;
   final double changeValue;
   final double bmi;
-  final double goalWeight;
+  final double? goalWeight;
   final String rangeName;
   final String dateRangeLabel;
   final String userName;
@@ -249,9 +249,14 @@ class _ShareWeightHighlightPageState extends State<ShareWeightHighlightPage> {
         break;
       case WeightHighlight.goal:
         title = "Progress to Goal";
-        final diff = widget.currentWeight - widget.goalWeight;
-        value = "${diff.abs().toStringAsFixed(1)} kg";
-        subtitle = diff > 0 ? "to go!" : "past your goal!";
+        if (widget.goalWeight == null) {
+          value = "No goal set";
+          subtitle = "Set a goal to track progress";
+        } else {
+          final diff = widget.currentWeight - widget.goalWeight!;
+          value = "${diff.abs().toStringAsFixed(1)} kg";
+          subtitle = diff > 0 ? "to go!" : "past your goal!";
+        }
         break;
     }
 
