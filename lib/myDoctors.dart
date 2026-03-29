@@ -170,7 +170,8 @@ class _MyDoctorsPageState extends State<MyDoctorsPage> {
 
           return Appointment(
             id: id,
-            dateTime: DateTime.parse(a['appointment_time']).toLocal(),
+            // Perfectly grabs the exact raw time saved by the doctor!
+            dateTime: DateTime.parse(a['appointment_time']), 
             status: a['status'] ?? 'Unknown',
             purpose: a['purpose'] ?? 'Consultation',
             doctorName: doctorInfo['preferred_name'] ?? doctorInfo['name'] ?? 'Unknown Doctor',
