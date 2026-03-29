@@ -57,19 +57,12 @@ class ApiService {
     String? gender,
     String? dob,
     String? bloodType,
-    String? height,
+    double? height,
+    String? conditions,
   }) async {
     try {
       final token = await _getToken();
       if (token == null) return false;
-
-      final body = <String, dynamic>{};
-      if (name != null) body['name'] = name;
-      if (preferredName != null) body['preferred_name'] = preferredName;
-      if (gender != null) body['gender'] = gender;
-      if (dob != null) body['dob'] = dob;
-      if (bloodType != null) body['blood_type'] = bloodType;
-      if (height != null) body['height'] = height;
 
       final response = await http.put(
         Uri.parse('$_baseUrl/users/me'),
@@ -77,7 +70,15 @@ class ApiService {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode(body),
+        body: jsonEncode({
+          if (name != null) 'name': name,
+          if (preferredName != null) 'preferred_name': preferredName,
+          if (gender != null) 'gender': gender,
+          if (dob != null) 'dob': dob,
+          if (bloodType != null) 'blood_type': bloodType,
+          if (height != null) 'height': height,
+          if (conditions != null) 'conditions': conditions,
+        }),
       );
       return response.statusCode == 200;
     } catch (e) {
@@ -89,13 +90,24 @@ class ApiService {
     try {
       final token = await _getToken();
       if (token == null) return null;
+
       final response = await http.get(
-        Uri.parse('$_baseUrl/users/me/full'),
+        Uri.parse('$_baseUrl/me'),
         headers: {'Authorization': 'Bearer $token'},
       );
-      if (response.statusCode == 200) return jsonDecode(response.body);
+
+      // --- ADD THESE 3 LINES ---
+      print("🚀 PROFILE FETCH STATUS: ${response.statusCode}");
+      print("🚀 PROFILE FETCH BODY: ${response.body}");
+      print("🚀 REQUESTED URL: $_baseUrl/me");
+      // -------------------------
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
       return null;
     } catch (e) {
+      print("🚀 PROFILE FETCH CRASHED: $e"); // <-- And add this one!
       return null;
     }
   }

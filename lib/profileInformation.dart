@@ -1,9 +1,9 @@
 import 'dart:ui';
-import 'dart:convert';           // Image Base64 Encoding
-import 'dart:typed_data';        // Byte data handling
+import 'dart:convert';           
+import 'dart:typed_data';        
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
-import 'package:image_picker/image_picker.dart'; // Image Picker
+import 'package:image_picker/image_picker.dart'; 
 import 'package:temanu/api_service.dart'; 
 import 'package:temanu/patientData.dart';
 import 'package:temanu/theme.dart';
@@ -38,8 +38,8 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
     "Asthma", "Diabetes Type 1", "Diabetes Type 2", 
     "Hypertension", "High Cholesterol", "Anemia", "Thyroid Disorder"
   ];
-  // ignore: prefer_final_fields
-  List<String> _selectedConditions = ["Asthma", "Hypertension"];
+  
+  List<String> _selectedConditions = [];
 
   @override
   void initState() {
@@ -57,6 +57,7 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
     setState(() => _isLoading = true);
 
     final serverProfile = await ApiService.getFullProfile();
+    final allMetrics = await ApiService.getHealthMetrics(); 
     final prefs = await SharedPreferences.getInstance();
 
     if (mounted) {
@@ -65,44 +66,96 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
           _fullNameController.text = serverProfile['name'] ?? '';
           _preferredNameController.text = serverProfile['preferred_name'] ?? '';
           _usernameController.text = serverProfile['username'] ?? '';
-          _gender = serverProfile['gender'] ?? 'Male';
-          _bloodType = serverProfile['blood_type'] ?? 'O+';
-          _heightController.text = serverProfile['height'] ?? prefs.getString('height') ?? '170';
+          
+          // --- FIX 1: Safe Dropdown Fallbacks ---
+          _gender = (serverProfile['gender'] != null && serverProfile['gender'].toString().isNotEmpty) 
+              ? serverProfile['gender'] 
+              : 'Male';
+              
+          _bloodType = (serverProfile['blood_type'] != null && serverProfile['blood_type'].toString().isNotEmpty) 
+              ? serverProfile['blood_type'] 
+              : 'O+';
+
+          _heightController.text = serverProfile['height']?.toString() ?? '';
+
+          final conditionsStr = serverProfile['conditions'] ?? '';
+          if (conditionsStr.isNotEmpty) {
+            _selectedConditions = List<String>.from(conditionsStr.split(', ').map((e) => e.trim()));
+          } else {
+            _selectedConditions = [];
+          }
 
           final dobStr = serverProfile['dob'] ?? '';
           try {
-            final parts = dobStr.split('/');
-            if (parts.length == 3) {
+            if (dobStr.contains('/')) {
+              final parts = dobStr.split('/');
               _dateOfBirth = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+            } else if (dobStr.contains('-')) {
+              _dateOfBirth = DateTime.parse(dobStr); 
             }
           } catch (_) {}
 
           prefs.setString('full_name', serverProfile['name'] ?? '');
           prefs.setString('user_name', serverProfile['preferred_name'] ?? '');
           prefs.setString('username', serverProfile['username'] ?? '');
-          prefs.setString('gender', serverProfile['gender'] ?? '');
-          prefs.setString('blood_type', serverProfile['blood_type'] ?? '');
+          prefs.setString('gender', _gender);
+          prefs.setString('blood_type', _bloodType);
+          prefs.setString('conditions', conditionsStr); 
           if (serverProfile['height'] != null) {
-            prefs.setString('height', serverProfile['height']);
+            prefs.setString('height', serverProfile['height'].toString());
           }
         } else {
+          // Fallback if offline
           _fullNameController.text = prefs.getString('full_name') ?? '';
-          _preferredNameController.text = prefs.getString('user_name') ?? 'User';
+          _preferredNameController.text = prefs.getString('user_name') ?? '';
           _usernameController.text = prefs.getString('username') ?? '';
-          _heightController.text = prefs.getString('height') ?? '170';
-          _gender = prefs.getString('gender') ?? 'Male';
-          _bloodType = prefs.getString('blood_type') ?? 'O+';
+          _gender = prefs.getString('gender') ?? 'Offline';
+          _bloodType = prefs.getString('blood_type') ?? 'Offline';
+          _heightController.text = prefs.getString('height') ?? 'Offline';
+          
+          final cachedConditions = prefs.getString('conditions') ?? 'Offline';
+          if (cachedConditions.isNotEmpty) {
+            _selectedConditions = List<String>.from(cachedConditions.split(', ').map((e) => e.trim()));
+          }
+
           final dobStr = prefs.getString('dob') ?? '15/5/1990';
           try {
-            final parts = dobStr.split('/');
-            if (parts.length == 3) {
-               _dateOfBirth = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+            if (dobStr.contains('/')) {
+              final parts = dobStr.split('/');
+              _dateOfBirth = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+            } else if (dobStr.contains('-')) {
+              _dateOfBirth = DateTime.parse(dobStr);
             }
           } catch (_) {}
         }
 
-        final latestWeight = prefs.getDouble('latest_weight') ??
-            double.tryParse(prefs.getString('weight') ?? '70') ?? 70.0;
+        // --- FIX 2: Correct JSON key for Weight ---
+        double latestWeight = 70.0;
+        try {
+          // This safely checks for BOTH the new FastAPI format and the old format
+          final weightLogs = allMetrics.where((m) => 
+            m['body_weight'] != null || 
+            (m['metric_type'] == 'Body Weight' && m['value'] != null)
+          ).toList();
+
+          if (weightLogs.isNotEmpty) {
+            // Sort by newest first
+            weightLogs.sort((a, b) => DateTime.parse(b['timestamp']).compareTo(DateTime.parse(a['timestamp'])));
+            
+            // Extract the value safely depending on which JSON format arrived
+            if (weightLogs.first['body_weight'] != null) {
+              latestWeight = (weightLogs.first['body_weight'] as num).toDouble();
+            } else {
+              latestWeight = double.tryParse(weightLogs.first['value'].toString()) ?? 70.0;
+            }
+            prefs.setDouble('latest_weight', latestWeight); 
+          } else {
+            latestWeight = prefs.getDouble('latest_weight') ?? 70.0;
+          }
+        } catch (e) {
+          latestWeight = prefs.getDouble('latest_weight') ?? 70.0;
+        }
+
         _weightController.text = latestWeight.toStringAsFixed(1);
 
         _base64Image = prefs.getString('profile_image_base64');
@@ -152,13 +205,19 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
         
         final prefs = await SharedPreferences.getInstance();
 
+        final conditionsString = _selectedConditions.join(', ');
+        
+        // --- PARSE HEIGHT AS A DOUBLE ---
+        final parsedHeight = double.tryParse(_heightController.text.trim());
+
         await ApiService.updateProfile(
           name: _fullNameController.text.trim(),
           preferredName: _preferredNameController.text.trim(),
           gender: _gender,
           dob: _formattedDob,
           bloodType: _bloodType,
-          height: _heightController.text.trim(),
+          height: parsedHeight, // Passing as a clean float/double!
+          conditions: conditionsString, 
         );
 
         final newWeight = double.tryParse(_weightController.text) ?? 0.0;
@@ -171,12 +230,17 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
           await prefs.setDouble('latest_weight', newWeight);
         }
 
-        await prefs.setString('height', _heightController.text.trim());
+        // Cache the parsed double locally
+        if (parsedHeight != null) {
+          await prefs.setDouble('height', parsedHeight);
+        }
+
         await prefs.setString('user_name', _preferredNameController.text.trim());
         await prefs.setString('full_name', _fullNameController.text.trim());
         await prefs.setString('gender', _gender);
         await prefs.setString('dob', _formattedDob);
         await prefs.setString('blood_type', _bloodType);
+        await prefs.setString('conditions', conditionsString); 
         if (_base64Image != null) {
           await prefs.setString('profile_image_base64', _base64Image!);
         }
@@ -279,7 +343,6 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(20.0),
             child: Center(
-              // Wrap the main content to prevent it getting TOO massive on ultra-wide screens
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 1200),
                 child: Column(
@@ -613,7 +676,7 @@ class _ProfileInformationPageState extends State<ProfileInformationPage> {
                       style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ),
-                  Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
+                  Divider(color: Colors.white.withOpacity(0.1), height: 1),
                   Expanded(
                     child: ListView.builder(
                       itemCount: _availableConditions.length,
