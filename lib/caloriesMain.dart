@@ -220,7 +220,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     setState(() => _isFitbitLoading = true);
     final token = await FitbitService.getSilentToken();
     if (token != null) {
-      final result = await FitbitService.getCaloriesBurned(token, forceRefresh: forceRefresh);
+      final result = await FitbitService.getCaloriesBurned(forceRefresh: forceRefresh);
       if (mounted && result != null && result != '--') {
         setState(() => caloriesBurned = double.tryParse(result) ?? 0);
       }

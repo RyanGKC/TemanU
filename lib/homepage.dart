@@ -138,9 +138,9 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
     });
 
     _backgroundSyncTimer = Timer.periodic(const Duration(minutes: 15), (timer) async {
-      String? token = await FitbitService.getSilentToken();
-      if (token != null) {
-        _autoSyncFitbit(token);
+      String? isLinked = await FitbitService.getSilentToken();
+      if (isLinked != null) {
+        _autoSyncFitbit();
       }
     });
   }
@@ -235,22 +235,21 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   }
 
   Future<void> _checkInitialFitbitSync() async {
-    String? token = await FitbitService.getSilentToken();
-    if (token == null) {
+    String? isLinked = await FitbitService.getSilentToken();
+    if (isLinked == null) {
       if (mounted) _showFitbitConnectDialog();
     } else {
-      _autoSyncFitbit(token);
+      _autoSyncFitbit();
     }
   }
 
-  Future<void> _autoSyncFitbit(String token) async {
-    String? realSteps = await FitbitService.getTodaysSteps(token, forceRefresh: true);
-    String? realHeartRate = await FitbitService.getHeartRate(token, forceRefresh: true);
+  Future<void> _autoSyncFitbit() async {
+    // --- CHANGED: No longer passing a token or fetching heart rate ---
+    String? realSteps = await FitbitService.getTodaysSteps(forceRefresh: true);
     
     if (mounted) {
       setState(() {
-        if (realSteps != null)     _metricsData.firstWhere((m) => m['title'] == 'Activity')['value']   = realSteps;
-        if (realHeartRate != null) _metricsData.firstWhere((m) => m['title'] == 'Heart Rate')['value'] = realHeartRate;
+        if (realSteps != null) _metricsData.firstWhere((m) => m['title'] == 'Activity')['value'] = realSteps;
       });
     }
   }
@@ -316,18 +315,17 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   }
 
   Future<void> forceSyncFitbit() async {
-    String? token = await FitbitService.getValidToken(); 
+    String? isLinked = await FitbitService.getValidToken(); 
     
-    if (token != null) {
+    if (isLinked != null) {
       if (mounted) _showTopToast(context, "Syncing latest Fitbit data...", isSuccess: false);
 
-      String? realSteps     = await FitbitService.getTodaysSteps(token, forceRefresh: true);
-      String? realHeartRate = await FitbitService.getHeartRate(token, forceRefresh: true);
+      // --- CHANGED: No longer passing a token or fetching heart rate ---
+      String? realSteps = await FitbitService.getTodaysSteps(forceRefresh: true);
       
       if (mounted) {
         setState(() {
-          if (realSteps != null)     _metricsData.firstWhere((m) => m['title'] == 'Activity')['value']   = realSteps;
-          if (realHeartRate != null) _metricsData.firstWhere((m) => m['title'] == 'Heart Rate')['value'] = realHeartRate;
+          if (realSteps != null) _metricsData.firstWhere((m) => m['title'] == 'Activity')['value'] = realSteps;
         });
         _showTopToast(context, "Dashboard Updated!", isSuccess: true);
       }
@@ -374,7 +372,8 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                     ),
                     const SizedBox(height: 10),
                     const Text(
-                      "Link your Fitbit account to automatically track your daily steps, heart rate, and sleep directly on your dashboard.",
+                      // --- CHANGED: Removed mention of heart rate and sleep to match the updated scope ---
+                      "Link your Fitbit account to automatically track your daily steps directly on your dashboard.",
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                     ),
@@ -400,8 +399,8 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                           child: GestureDetector(
                             onTap: () async {
                               Navigator.pop(context); 
-                              String? newToken = await FitbitService.getValidToken();
-                              if (newToken != null) _autoSyncFitbit(newToken);
+                              String? isLinked = await FitbitService.getValidToken();
+                              if (isLinked != null) _autoSyncFitbit();
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -602,11 +601,9 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                   ),
                   Divider(color: AppTheme.textSecondary.withValues(alpha: 0.1), height: 1), 
                   
-                  // --- UPDATED: Replaced ListView.builder with a standard ListView to inject Medications! ---
                   Expanded(
                     child: ListView(
                       children: [
-                        // Map over all health metrics
                         ..._metricsData.map((metric) {
                           return CheckboxListTile(
                             activeColor: AppTheme.primaryColor,
@@ -621,13 +618,11 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                           );
                         }).toList(),
                         
-                        // Small divider to separate core metrics from medications
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16.0),
                           child: Divider(color: AppTheme.textSecondary.withValues(alpha: 0.1), height: 20),
                         ),
                         
-                        // NEW: Medication Toggle!
                         CheckboxListTile(
                           activeColor: AppTheme.primaryColor,
                           checkColor: AppTheme.textPrimary,
@@ -660,7 +655,6 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                                 PdfGenerator.generateAndShare(
                                   selectedMetrics: _selectedMetrics,
                                   patientData: _patientData.toMap(),
-                                  // --- UPDATED: Pass empty array if unchecked ---
                                   activeMedications: _includeMedicationsInExport ? _activeMedications : [],
                                 );
                               },
@@ -682,7 +676,6 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                               PdfGenerator.generateAndSave(
                                 selectedMetrics: _selectedMetrics,
                                 patientData: _patientData.toMap(),
-                                // --- UPDATED: Pass empty array if unchecked ---
                                 activeMedications: _includeMedicationsInExport ? _activeMedications : [],
                                 context: context,
                               );
@@ -834,7 +827,6 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
                           ),
                         ),
                       )
-                    // --- THE FIX: Standardized Font Sizes matching other pages! ---
                     : Row(
                         crossAxisAlignment: CrossAxisAlignment.baseline,
                         textBaseline: TextBaseline.alphabetic,

@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class FitbitService {
   // CLIENT_ID and REDIRECT_URI have been removed. The Backend handles them!
   
-  static final String _baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000';
+  static String get _baseUrl => dotenv.env['API_BASE_URL'] ?? 'https://temanubackend-production.up.railway.app';
 
   static const _storage = FlutterSecureStorage();
   static const _tokenKey = 'fitbit_backend_linked'; // Changed key name for clarity
@@ -99,7 +99,7 @@ class FitbitService {
   // NOTE: _linkTokenToBackend HAS BEEN DELETED. 
 
   /// Fetch Today's Total Steps
-  static Future<String?> getTodaysSteps(String accessToken, {bool forceRefresh = false}) async {
+  static Future<String?> getTodaysSteps({bool forceRefresh = false}) async {
     if (!forceRefresh && _cachedSteps != null && _lastStepsFetchTime != null) {
       if (DateTime.now().difference(_lastStepsFetchTime!).inMinutes < 2) {
         return _cachedSteps;
@@ -142,13 +142,9 @@ class FitbitService {
     }
   }
 
-  /// DISABLED HEART RATE: Safely returns null so the app doesn't crash
-  static Future<String?> getHeartRate(String accessToken, {bool forceRefresh = false}) async {
-    return null; 
-  }
 
   /// Fetch Today's Active Calories Burned
-  static Future<String?> getCaloriesBurned(String accessToken, {bool forceRefresh = false}) async {
+  static Future<String?> getCaloriesBurned({bool forceRefresh = false}) async {
     if (!forceRefresh && _cachedCalories != null && _lastCaloriesFetchTime != null) {
       if (DateTime.now().difference(_lastCaloriesFetchTime!).inMinutes < 2) {
         return _cachedCalories;
