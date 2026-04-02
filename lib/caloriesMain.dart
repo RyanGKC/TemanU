@@ -233,10 +233,12 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     if (mounted) setState(() => _isFitbitLoading = false);
   }
 
-  Future<void> _loadWeeklyInsights() async {
+  // 1. Add the parameter here
+  Future<void> _loadWeeklyInsights({bool forceRefresh = false}) async {
     setState(() => _isLoadingInsights = true);
 
-    final weeklyData = await ApiService.getWeeklyInsights();
+    // 2. Pass it down to the ApiService!
+    final weeklyData = await ApiService.getWeeklyInsights(forceRefresh: forceRefresh);
     
     double accumulatedDeficit = 0;
     int validLoggingDays = 0; // Track how many days they actually used the app
@@ -813,7 +815,7 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
                   : const Icon(Icons.sync, color: AppTheme.primaryColor),
               onPressed: _isFitbitLoading ? null : () {
                 _loadFitbitCalories(forceRefresh: true);
-                _loadWeeklyInsights();
+                _loadWeeklyInsights(forceRefresh: true);
               },
             ),
             IconButton(
