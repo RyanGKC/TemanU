@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/auth.html", "destination": "/auth.html" },
+    { "source": "/assets/(.*)", "destination": "/assets/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

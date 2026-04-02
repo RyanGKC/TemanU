@@ -162,8 +162,22 @@ class _SettingsPageState extends State<SettingsPage> {
                                     icon: Icons.sync, 
                                     title: "Sync Fitbit Data", 
                                     onTap: () async {
-                                      String? token = await FitbitService.getSilentToken();
-                                      bool isConnected = token != null;
+                                      // 1. Show a quick loading spinner while we ask Python
+                                      showDialog(
+                                        context: context,
+                                        barrierDismissible: false,
+                                        builder: (context) => const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)),
+                                      );
+
+                                      // 2. Ask Python directly to see if the database token is valid
+                                      String? checkConnection = await FitbitService.getTodaysSteps();
+
+                                      // 3. Close the loading spinner
+                                      if (context.mounted) Navigator.pop(context);
+
+                                      // 4. If Python returned data, we are successfully connected!
+                                      bool isConnected = checkConnection != null;
+
                                       if (context.mounted) {
                                         _showFitbitSyncDialog(context, isConnected);
                                       }
@@ -406,6 +420,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     const SizedBox(height: 30),
                     Row(
                       children: [
+                        // BUTTON 1: CANCEL (Restored!)
                         Expanded(
                           child: GestureDetector(
                             onTap: () => Navigator.pop(context), 
@@ -425,18 +440,41 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                         ),
                         const SizedBox(width: 15),
+                        
+                        // BUTTON 2: SYNC NOW / CONNECT
                         Expanded(
                           child: GestureDetector(
                             onTap: () async {
                               Navigator.pop(context);
-                              String? token = await FitbitService.getValidToken();
-                              if (token != null && context.mounted) {
+                              
+                              if (isConnected) {
+                                // If already connected, just force Python to fetch fresh data!
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("Fitbit synchronized successfully!", style: TextStyle(color: Color(0xff040F31))), 
-                                    backgroundColor: Color(0xff00E5FF)
-                                  ),
+                                  const SnackBar(content: Text("Syncing latest data..."))
                                 );
+                                
+                                await FitbitService.getTodaysSteps(forceRefresh: true);
+                                await FitbitService.getCaloriesBurned(forceRefresh: true);
+                                
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text("Fitbit synchronized successfully!", style: TextStyle(color: Color(0xff040F31))), 
+                                      backgroundColor: Color(0xff00E5FF)
+                                    ),
+                                  );
+                                }
+                              } else {
+                                // If NOT connected, trigger the OAuth login popup
+                                String? token = await FitbitService.getValidToken();
+                                if (token != null && context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text("Fitbit connected successfully!", style: TextStyle(color: Color(0xff040F31))), 
+                                      backgroundColor: Color(0xff00E5FF)
+                                    ),
+                                  );
+                                }
                               }
                             },
                             child: Container(

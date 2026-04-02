@@ -138,10 +138,7 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
     });
 
     _backgroundSyncTimer = Timer.periodic(const Duration(minutes: 15), (timer) async {
-      String? isLinked = await FitbitService.getSilentToken();
-      if (isLinked != null) {
-        _autoSyncFitbit();
-      }
+      _autoSyncFitbit();
     });
   }
 
@@ -235,11 +232,13 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   }
 
   Future<void> _checkInitialFitbitSync() async {
-    String? isLinked = await FitbitService.getSilentToken();
-    if (isLinked == null) {
-      if (mounted) _showFitbitConnectDialog();
-    } else {
-      _autoSyncFitbit();
+    await _autoSyncFitbit();
+
+    if (_metricsData.firstWhere((m) => m['title'] == 'Activity')['value'] == "--") {
+      String? isLinked = await FitbitService.getSilentToken();
+      if (isLinked == null && mounted) {
+        _showFitbitConnectDialog();
+      }
     }
   }
 
@@ -315,19 +314,20 @@ class HealthDashboardContentState extends State<HealthDashboardContent> {
   }
 
   Future<void> forceSyncFitbit() async {
-    String? isLinked = await FitbitService.getValidToken(); 
-    
-    if (isLinked != null) {
-      if (mounted) _showTopToast(context, "Syncing latest Fitbit data...", isSuccess: false);
+    if (mounted) _showTopToast(context, "Syncing latest Fitbit data...", isSuccess: false);
 
-      // --- CHANGED: No longer passing a token or fetching heart rate ---
-      String? realSteps = await FitbitService.getTodaysSteps(forceRefresh: true);
-      
-      if (mounted) {
+    // Ask Python directly, bypass local storage!
+    String? realSteps = await FitbitService.getTodaysSteps(forceRefresh: true);
+    
+    if (mounted) {
+      if (realSteps != null) {
         setState(() {
-          if (realSteps != null) _metricsData.firstWhere((m) => m['title'] == 'Activity')['value'] = realSteps;
+          _metricsData.firstWhere((m) => m['title'] == 'Activity')['value'] = realSteps;
         });
         _showTopToast(context, "Dashboard Updated!", isSuccess: true);
+      } else {
+        // If Python returns null, the account isn't linked! Prompt them to connect.
+        _showFitbitConnectDialog();
       }
     }
   }

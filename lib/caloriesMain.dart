@@ -76,7 +76,6 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
     super.initState();
     _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
     _animation  = CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic);
-    _controller.forward();
     
     // Load fresh data straight from the DB first!
     _fetchFreshUserData().then((_) {
@@ -193,6 +192,8 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
         }
         _recalculateTargets(); 
       });
+
+      _controller.forward(from: 0.0);
       _generateAITip();
     }
   }
@@ -218,13 +219,17 @@ class _CaloriesMainState extends State<CaloriesMain> with SingleTickerProviderSt
 
   Future<void> _loadFitbitCalories({bool forceRefresh = false}) async {
     setState(() => _isFitbitLoading = true);
-    final token = await FitbitService.getSilentToken();
-    if (token != null) {
-      final result = await FitbitService.getCaloriesBurned(forceRefresh: forceRefresh);
-      if (mounted && result != null && result != '--') {
-        setState(() => caloriesBurned = double.tryParse(result) ?? 0);
-      }
+    
+    final result = await FitbitService.getCaloriesBurned(forceRefresh: forceRefresh);
+    
+    if (mounted && result != null && result != '--') {
+      setState(() {
+        caloriesBurned = double.tryParse(result) ?? 0;
+      });
+      
+      _controller.forward(from: 0.0); 
     }
+    
     if (mounted) setState(() => _isFitbitLoading = false);
   }
 

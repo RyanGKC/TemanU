@@ -1502,12 +1502,21 @@ class MyBarChart extends StatelessWidget {
         ),
         borderData: FlBorderData(show: false),
         barGroups: List.generate(values.length, (index) {
+          
+          // 1. Calculate a safe bar width based on the chart type
+          double calculatedWidth = selectedRange == "COMPARE"
+              ? 25.0 // Fixed, slim width for the small side-by-side comparison charts
+              : (MediaQuery.of(context).size.width / values.length) * 0.4;
+
+          // 2. Cap the maximum width so bars never become absurdly thick on wide screens
+          double safeBarWidth = calculatedWidth > 40.0 ? 40.0 : calculatedWidth;
+
           return BarChartGroupData(
             x: index,
             barRods: [
               BarChartRodData(
                 toY: values[index],
-                width: MediaQuery.of(context).size.width / (values.length == 2 ? 5 : values.length) * .5,
+                width: safeBarWidth, // Use the new safe width here!
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(8),
                   topRight: Radius.circular(8),

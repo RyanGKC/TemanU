@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
 
-  static final String _baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000';
+  static String get _baseUrl => dotenv.env['API_BASE_URL'] ?? 'https://temanubackend-production.up.railway.app';
   
   static const _storage = FlutterSecureStorage();
 
